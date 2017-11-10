@@ -138,7 +138,8 @@ new Vue({
     checkWin: function() {
       const self = this;
 
-      if (this.monsterHealth <= 0) {
+      if (this.monsterMaxHealth && this.monsterHealth <= 0) {
+        this.monsterMaxHealth = 0;
         this.monsterHealth = 0;
 
         setTimeout(function(){
@@ -150,7 +151,8 @@ new Vue({
         }, 500);
 
         return true;
-      } else if (this.playerHealth <=0) {
+      } else if (this.playerMaxHealth && this.playerHealth <=0) {
+        this.playerMaxHealth = 0;
         this.playerHealth = 0;
 
         setTimeout(function(){
