@@ -13,7 +13,7 @@ api.use(function timeLog (req, res, next) {
 api.get('/player', function (req, res) {
   const playerData = require('./json/player');
 
-  res.json(playerData.character)
+  res.json(playerData.character);
 })
 
 // monster data

@@ -44,12 +44,12 @@
 
         <template v-if="gameState">
           <div class="small-12 columns">
-              <button id="attack" @click="attack">ATTACK</button>
-              <button id="special-attack" @click="specialAttack">SPECIAL ATTACK</button>
+              <button id="attack" @click="attack" :disabled="!monsterAttackCompleted">ATTACK</button>
+              <button id="special-attack" @click="specialAttack" :disabled="!monsterAttackCompleted">SPECIAL ATTACK</button>
           </div>
           <div class="small-12 columns">
-              <button id="heal" @click="heal">HEAL</button>
-              <button id="give-up" @click="startGame">RUN AWAY</button>
+              <button id="heal" @click="heal" :disabled="!monsterAttackCompleted">HEAL</button>
+              <button id="give-up" @click="startGame" :disabled="!monsterAttackCompleted">RUN AWAY</button>
           </div>
         </template>
     </section>
