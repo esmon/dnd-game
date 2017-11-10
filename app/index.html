@@ -13,7 +13,7 @@
 
             <h1>{{ playerName }}</h1>
             <img :src="playerAvatar" alt="" v-if="playerAvatar">
-            <p>{{ playerHealth }}</p>
+            <p>{{ playerMaxHealth }}</p>
             <div class="healthbar">
                 <div
                   class="healthbar text-center"
@@ -24,7 +24,7 @@
         </div>
         <div class="small-6 columns">
             <h1 class="text-center">{{ monsterName }}</h1>
-            <p class="text-center">{{ monsterHealth }}</p>
+            <p class="text-center">{{ monsterMaxHealth }}</p>
             <div class="healthbar">
                 <div
                   class="healthbar text-center"

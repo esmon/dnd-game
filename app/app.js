@@ -5,9 +5,11 @@ new Vue({
     monsterAttackCompleted: true,
     monsterDice: '2d8',
     monsterName: '',
-    monsterHealth: null,
+    monsterHealth: 100,
+    monsterMaxHealth: '',
     playerAvatar: null,
-    playerHealth: null,
+    playerHealth: 100,
+    playerMaxHealth: '',
     playerName: '',
     playerDice: '',
     playerWeaponName: '',
@@ -24,7 +26,8 @@ new Vue({
       .then(res => res.json())
       .then(data => {
         this.playerAvatar = data.avatarUrl;
-        this.playerHealth = 39;
+        this.playerHealth = 100;
+        this.playerMaxHealth = 39;
         this.playerName = data.name;
         this.playerDice = data.inventory.weapons[1].definition.damage.diceString;
         this.playerWeaponName = data.inventory.weapons[1].definition.name;
@@ -38,7 +41,8 @@ new Vue({
       .then(res => res.json())
       .then(data => {
         this.monsterName = data.name;
-        this.monsterHealth = data.hit_points;
+        this.monsterHealth = 100;
+        this.monsterMaxHealth = data.hit_points;
         // this.monsterDice = data.actions;
       })
       .catch(err => { throw err });
@@ -53,7 +57,8 @@ new Vue({
       if (this.monsterAttackCompleted) {
         const damage = this.calcDamage(this.playerDice);
 
-        this.monsterHealth -= damage;
+        this.monsterHealth -= Math.floor((damage/this.monsterMaxHealth) * 100);
+        this.monsterMaxHealth -= damage;
         this.turns.unshift({
           isPlayer: true,
           text: this.playerName + ' attacks ' + this.monsterName + ' with ' + this.playerWeaponName + ' for ' + damage + 'hp'
@@ -70,7 +75,8 @@ new Vue({
       if (this.monsterAttackCompleted) {
         const damage = this.calcDamage(this.playerDice);
 
-        this.monsterHealth -= damage;
+        this.monsterHealth -= Math.floor((damage/this.monsterMaxHealth) * 100);
+        this.monsterMaxHealth -= damage;
         this.turns.unshift({
           isPlayer: true,
           text: 'player special attacks monster for ' + damage + 'hp'
@@ -105,11 +111,12 @@ new Vue({
       this.monsterAttackCompleted = false;
 
       setTimeout(function(){
-        self.playerHealth -= damage;
+        self.playerHealth -= Math.floor((damage/self.playerMaxHealth) * 100);
+        self.playerMaxHealth -= damage;
         self.checkWin();
         self.turns.unshift({
           isPlayer: false,
-          text: this.monsterName + ' attacks ' + this.playerName + ' for ' + damage + 'hp'
+          text: self.monsterName + ' attacks ' + self.playerName + ' for ' + damage + 'hp'
         });
         self.monsterAttackCompleted = true;
       }, 1000);
