@@ -1,6 +1,6 @@
 # dnd-game
 
-### Instalation
+### Installation
 `npm i`
 
 ### run
