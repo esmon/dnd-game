@@ -8,7 +8,8 @@ new Vue({
     monsterHealth: 100,
     monsterMaxHealth: '',
     playerAvatar: null,
-    playerHealth: 100,
+    playerHealthBar: 100,
+    playerHealthCount: '',
     playerMaxHealth: '',
     playerName: '',
     playerDice: '',
@@ -26,8 +27,9 @@ new Vue({
       .then(res => res.json())
       .then(data => {
         this.playerAvatar = data.avatarUrl;
-        this.playerHealth = 100;
+        this.playerHealthBar = 100;
         this.playerMaxHealth = 39;
+        this.playerHealthCount = this.playerMaxHealth;
         this.playerName = data.name;
         this.playerDice = data.inventory.weapons[1].definition.damage.diceString;
         this.playerWeaponName = data.inventory.weapons[1].definition.name;
@@ -91,15 +93,24 @@ new Vue({
     },
     heal: function() {
       if (this.monsterAttackCompleted) {
-        if(this.playerHealth <= 90){
-          this.playerHealth += 10;
+        var randomHealthCalc = Math.max(Math.floor(Math.random() * 10) + 1, 1)
+
+        if(this.playerHealthCount <= (this.playerMaxHealth - 10)){
+          this.playerHealthBar += randomHealthCalc;
+          this.playerHealthCount += randomHealthCalc;
         } else {
-          this.playerHealth = 100;
+          this.playerHealthBar = 100;
+          this.playerHealthCount = this.playerMaxHealth;
         }
         this.turns.unshift({
           isPlayer: true,
-          text: 'player heals for 10hp'
+          text: 'player heals for ' + randomHealthCalc
         });
+
+        if (this.checkWin()) {
+          return;
+        }
+
         this.monsterAttack();
       }
     },
@@ -111,8 +122,8 @@ new Vue({
       this.monsterAttackCompleted = false;
 
       setTimeout(function(){
-        self.playerHealth -= Math.floor((damage/self.playerMaxHealth) * 100);
-        self.playerMaxHealth -= damage;
+        self.playerHealthBar -= Math.floor((damage/self.playerHealthCount) * 100);
+        self.playerHealthCount -= damage;
         self.checkWin();
         self.turns.unshift({
           isPlayer: false,
@@ -151,9 +162,9 @@ new Vue({
         }, 500);
 
         return true;
-      } else if (this.playerMaxHealth && this.playerHealth <=0) {
-        this.playerMaxHealth = 0;
-        this.playerHealth = 0;
+      } else if (this.playerHealthCount && this.playerHealthBar <= 0) {
+        this.playerHealthCount = 0;
+        this.playerHealthBar = 0;
 
         setTimeout(function(){
           if (confirm('you lost! start new game?')){

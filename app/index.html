@@ -13,12 +13,12 @@
 
             <h1>{{ playerName }}</h1>
             <img :src="playerAvatar" alt="" v-if="playerAvatar">
-            <p>{{ playerMaxHealth }}</p>
+            <p>{{ playerHealthCount }}</p>
             <div class="healthbar">
                 <div
                   class="healthbar text-center"
                   style="background-color: green; margin: 0; color: white;"
-                  :style="{width: playerHealth + '%'}">
+                  :style="{width: playerHealthBar + '%'}">
                 </div>
             </div>
         </div>
