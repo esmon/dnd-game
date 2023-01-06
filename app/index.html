@@ -2,70 +2,88 @@
 <html>
 <head>
     <title>Monster Slayer</title>
-    <script src="https://npmcdn.com/vue/dist/vue.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.3/vue.min.js"></script>
     <link rel="stylesheet" href="css/foundation.min.css">
     <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div id="app">
-    <section class="row">
-        <div class="small-6 columns text-center">
+    <main id="app">
+        <section class="row">
+            <div class="small-12 columns text-center">
+                <p>wins: {{ gameStats.wins }}</p>
+                <p>loses: {{ gameStats.loses }}</p>
+                <p>run aways: {{ gameStats.runAways }}</p>
+            </div>
 
-            <h1>{{ playerName }}</h1>
-            <img :src="playerAvatar" alt="" v-if="playerAvatar">
-            <p>{{ playerHealthCount }}</p>
-            <div class="healthbar">
-                <div
-                  class="healthbar text-center"
-                  style="background-color: green; margin: 0; color: white;"
-                  :style="{width: playerHealthBar + '%'}">
+            <div class="small-6 columns text-center">
+                <h2>{{ playerName }}</h2>
+                <img
+                    class="avatar"
+                    :src="playerAvatar"
+                    alt=""
+                    v-if="playerAvatar"
+                >
+                <p>{{ playerHealthCount }}</p>
+                <div class="healthbar">
+                    <div
+                    class="healthbar text-center"
+                    style="background-color: green; margin: 0; color: white;"
+                    :style="{width: playerHealthBar + '%'}">
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="small-6 columns">
-            <h1 class="text-center">{{ monsterName }}</h1>
-            <p class="text-center">{{ monsterMaxHealth }}</p>
-            <div class="healthbar">
-                <div
-                  class="healthbar text-center"
-                  style="background-color: green; margin: 0; color: white;"
-                  :style="{width: monsterHealth + '%'}">
+
+            <div class="small-6 columns">
+                <h2 class="text-center">{{ monsterName }}</h2>
+                <img
+                    class="avatar"
+                    :src="monsterAvatar"
+                    alt=""
+                    v-if="monsterAvatar"
+                >
+                <p class="text-center">{{ monsterMaxHealth }}</p>
+                <div class="healthbar">
+                    <div
+                    class="healthbar text-center"
+                    style="background-color: green; margin: 0; color: white;"
+                    :style="{width: monsterHealth + '%'}">
+                    </div>
                 </div>
+                <p v-for="die in monsterDice">{{ die.damage_dice }}</p>
             </div>
-            <p v-for="die in monsterDice">{{ die.damage_dice }}</p>
-        </div>
-    </section>
-    <section class="row controls">
-        <template v-if="!gameState">
-          <div class="small-12 columns">
-              <button id="start-game" @click="startGame">START NEW GAME</button>
-          </div>
-        </template>
+        </section>
 
-        <template v-if="gameState">
-          <div class="small-12 columns">
-              <button id="attack" @click="attack" :disabled="!monsterAttackCompleted">ATTACK</button>
-              <button id="special-attack" @click="specialAttack" :disabled="!monsterAttackCompleted">SPECIAL ATTACK</button>
-          </div>
-          <div class="small-12 columns">
-              <button id="heal" @click="heal" :disabled="!monsterAttackCompleted">HEAL</button>
-              <button id="give-up" @click="startGame" :disabled="!monsterAttackCompleted">RUN AWAY</button>
-          </div>
-        </template>
-    </section>
+        <section class="row controls">
+            <template v-if="!gameState">
+            <div class="small-12 columns">
+                <button id="start-game" @click="startGame">START NEW GAME</button>
+            </div>
+            </template>
 
-    <section class="row log" v-if="turns.length > 0">
-        <div class="small-12 columns">
-            <ul>
-                <li
-                  v-for="turn in turns"
-                  :class="{'player-turn': turn.isPlayer, 'monster-turn': !turn.isPlayer}">
-                  {{ turn.text }}
-                </li>
-            </ul>
-        </div>
-    </section>
-</div>
-<script src="app.js"></script>
+            <template v-if="gameState">
+            <div class="small-12 columns">
+                <button id="attack" @click="attack" :disabled="!monsterAttackCompleted">ATTACK</button>
+                <button id="special-attack" @click="specialAttack" :disabled="!monsterAttackCompleted">SPECIAL ATTACK</button>
+            </div>
+            <div class="small-12 columns">
+                <button id="heal" @click="heal" :disabled="!monsterAttackCompleted">HEAL</button>
+                <button id="give-up" @click="runAway" :disabled="!monsterAttackCompleted">RUN AWAY</button>
+            </div>
+            </template>
+        </section>
+
+        <section class="row log" v-if="turns.length > 0">
+            <div class="small-12 columns">
+                <ul>
+                    <li
+                    v-for="turn in turns"
+                    :class="{'player-turn': turn.isPlayer, 'monster-turn': !turn.isPlayer}">
+                    {{ turn.text }}
+                    </li>
+                </ul>
+            </div>
+        </section>
+    </main>
+    <script src="app.js"></script>
 </body>
 </html>

@@ -19,6 +19,7 @@ api.get('/player', function (req, res) {
 // monster data
 api.get('/monster', function (req, res) {
   const monsterData = require('./json/monster-list');
+  console.log(monsterData)
 
   const monster = monsterData.results[Math.floor(Math.random() * monsterData.results.length - 1)];
 
