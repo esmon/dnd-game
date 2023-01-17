@@ -9207,7 +9207,7 @@
               "diceValue": 6,
               "diceMultiplier": null,
               "fixedValue": null,
-              "diceString": "1d6"
+              "diceString": "2d6"
             },
             "damageType": "Piercing",
             "fixedDamage": null,

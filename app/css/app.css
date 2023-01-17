@@ -3,12 +3,27 @@
 }
 
 .avatar {
+    background: radial-gradient(circle, rgba(213,233,233,1) 0%, rgba(88,218,223,1) 100%);
+    border-radius: 10px;
     display: block;
     margin: 0 auto;
+    overflow: hidden;
+    max-width: 150px;
+    max-height: 150px;
+}
+
+.monster .avatar {
     width: 150px;
+    height: 150px;
+}
+
+.avatar.img {
+    width: 100%;
 }
 
 .healthbar {
+    border-radius: 10px;
+    overflow: hidden;
     width: 80%;
     height: 40px;
     background-color: #eee;
@@ -18,10 +33,14 @@
 
 .controls, .log {
     margin-top: 30px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    box-shadow: 0px 3px 6px #ccc;
+}
+
+.controls {
     text-align: center;
     padding: 10px;
-    border: 1px solid #ccc;
-    box-shadow: 0px 3px 6px #ccc;
 }
 
 .turn {
@@ -31,10 +50,16 @@
     font-size: 22px;
 }
 
+.log {
+    max-height: 320px;
+    min-height: 58px;
+    overflow-y: auto;
+}
+
 .log ul {
     list-style: none;
     font-weight: bold;
-    text-transform: uppercase;
+    padding: 0;
 }
 
 .log ul li {
