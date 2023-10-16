@@ -12,7 +12,7 @@
   "dependencies": {
     "express": "^4.16.2",
     "live-server": "^1.2.2",
-    "superagent": "^8.0.9",
+    "superagent": "^8.1.2",
     "vue": "^2.5.3"
   }
 }
