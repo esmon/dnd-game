@@ -6,6 +6,7 @@ export type Weapon = {
 };
 
 export type Player = {
+  id?: string;
   name: string;
   avatar: string | null;
   maxHealth: number;
@@ -41,9 +42,3 @@ export type MonsterIndex = {
   name: string;
 };
 
-export type StarterPlayerResponse = {
-  name: string;
-  avatar: string | null;
-  maxHealth: number;
-  weapons: Weapon[];
-};

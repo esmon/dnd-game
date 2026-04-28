@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -14,56 +15,15 @@ import {
   initialState,
   type GameState,
 } from "@/lib/game/reducer";
-import type {
-  Monster,
-  MonsterIndex,
-  Player,
-  StarterPlayerResponse,
-} from "@/lib/game/types";
-
-const PLAYER_STORAGE_KEY = "monster-slayer:player";
-
-// Persist just the slice we need to rehydrate; the rest is fetched fresh.
-type StoredPlayer = Pick<
-  Player,
-  "name" | "avatar" | "maxHealth" | "health" | "xp" | "weapons"
->;
-
-function storePlayer(player: Player) {
-  if (typeof window === "undefined") return;
-  try {
-    const stored: StoredPlayer = {
-      name: player.name,
-      avatar: player.avatar,
-      maxHealth: player.maxHealth,
-      health: player.health,
-      xp: player.xp,
-      weapons: player.weapons,
-    };
-    window.localStorage.setItem(PLAYER_STORAGE_KEY, JSON.stringify(stored));
-  } catch {
-    // Quota / private mode — non-fatal.
-  }
-}
-
-function loadStoredPlayer(): Player | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(PLAYER_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as StoredPlayer;
-    if (
-      typeof parsed.name === "string" &&
-      typeof parsed.maxHealth === "number" &&
-      Array.isArray(parsed.weapons)
-    ) {
-      return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import type { Monster, MonsterIndex, Player } from "@/lib/game/types";
+import type { Character, CharacterUpdate } from "@/lib/db/schema";
+import { characterToPlayer } from "@/lib/db/schema";
+import {
+  fetchWithSession,
+  getActiveCharacterId,
+  setActiveCharacterId,
+  clearActiveCharacterId,
+} from "@/lib/session";
 
 function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
   if (indices.length === 0) return null;
@@ -71,6 +31,7 @@ function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
 }
 
 export function Arena() {
+  const router = useRouter();
   const [state, dispatch] = useReducer(gameReducer, initialState);
   // We need fresh state inside async timeouts (player health after the
   // attack may have changed). Keep a ref in sync to avoid stale closures.
@@ -79,29 +40,44 @@ export function Arena() {
     stateRef.current = state;
   }, [state]);
 
-  // Bootstrap: load player (from localStorage if present, else from API) and
-  // fetch the monster index list. Done once on mount.
+  // Bootstrap: load the active character from Supabase + monster index list.
+  // If no active id is set, fall back to the most recent character for this
+  // session (one-time migration so existing players don't lose their character).
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const stored = loadStoredPlayer();
-        let player: Player;
-        if (stored) {
-          player = stored;
+        let character: Character | null = null;
+        const activeId = getActiveCharacterId();
+
+        if (activeId) {
+          const res = await fetchWithSession(`/api/character/${activeId}`);
+          if (res.status === 404) {
+            clearActiveCharacterId();
+            router.push("/create");
+            return;
+          }
+          if (!res.ok) {
+            console.error("character fetch failed", res.status);
+            return;
+          }
+          character = (await res.json()) as Character;
         } else {
-          const res = await fetch("/api/player");
-          if (!res.ok) throw new Error(`player fetch ${res.status}`);
-          const data = (await res.json()) as StarterPlayerResponse;
-          player = {
-            name: data.name,
-            avatar: data.avatar,
-            maxHealth: data.maxHealth,
-            health: data.maxHealth,
-            xp: 0,
-            weapons: data.weapons,
-          };
+          const res = await fetchWithSession("/api/characters");
+          if (!res.ok) {
+            console.error("characters list fetch failed", res.status);
+            return;
+          }
+          const all = (await res.json()) as Character[];
+          if (all.length === 0) {
+            router.push("/create");
+            return;
+          }
+          character = all[0];
+          setActiveCharacterId(character.id);
         }
+
+        const player = characterToPlayer(character);
 
         const monstersRes = await fetch("/api/monsters");
         if (!monstersRes.ok) {
@@ -111,7 +87,6 @@ export function Arena() {
 
         if (cancelled) return;
         dispatch({ type: "BOOTSTRAP_DONE", player, indices });
-        storePlayer(player);
       } catch (err) {
         console.error("bootstrap failed", err);
       }
@@ -119,12 +94,25 @@ export function Arena() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [router]);
 
-  // Persist player to localStorage on every change.
-  useEffect(() => {
-    if (state.player) storePlayer(state.player);
-  }, [state.player]);
+  const persistPlayer = useCallback(async (player: Player) => {
+    if (!player.id) return;
+    const update: CharacterUpdate = {
+      current_hp: player.health,
+      xp: player.xp,
+    };
+    try {
+      const res = await fetchWithSession(`/api/character/${player.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+      });
+      if (!res.ok) console.error("character patch failed", res.status);
+    } catch (err) {
+      console.error("character patch failed", err);
+    }
+  }, []);
 
   const fetchAndSetMonster = useCallback(async () => {
     const indices = stateRef.current.monsterIndices;
@@ -162,10 +150,14 @@ export function Arena() {
         if (!after.player || !after.monster) return;
         if (after.player.health <= 0) {
           dispatch({ type: "LOSE" });
+          setTimeout(() => {
+            const post = stateRef.current;
+            if (post.player) void persistPlayer(post.player);
+          }, 0);
         }
       }, 0);
     }, 1000);
-  }, []);
+  }, [persistPlayer]);
 
   const handleAttack = useCallback(
     (weaponName: string, damageDice: string) => {
@@ -193,13 +185,17 @@ export function Arena() {
             if (post.stats.wins > 0 && post.stats.wins % 3 === 0) {
               dispatch({ type: "FULL_HEAL" });
             }
+            setTimeout(() => {
+              const final = stateRef.current;
+              if (final.player) void persistPlayer(final.player);
+            }, 0);
           }, 0);
         } else {
           triggerMonsterAttack();
         }
       }, 0);
     },
-    [triggerMonsterAttack],
+    [triggerMonsterAttack, persistPlayer],
   );
 
   const handleHeal = useCallback(() => {
@@ -217,38 +213,29 @@ export function Arena() {
     }
   }, [triggerMonsterAttack]);
 
+  const handlePlayAgain = useCallback(() => {
+    dispatch({ type: "FULL_HEAL" });
+    setTimeout(() => {
+      const post = stateRef.current;
+      if (post.player) void persistPlayer(post.player);
+    }, 0);
+  }, [persistPlayer]);
+
   const handleRunAway = useCallback(() => {
     const snap = stateRef.current;
     if (snap.status !== "fighting" || snap.monsterPending) return;
     const success = Math.random() < 0.4;
     if (success) {
       dispatch({ type: "RUN_AWAY_SUCCESS" });
+      setTimeout(() => {
+        const post = stateRef.current;
+        if (post.player) void persistPlayer(post.player);
+      }, 0);
     } else {
       dispatch({ type: "RUN_AWAY_FAIL" });
       triggerMonsterAttack();
     }
-  }, [triggerMonsterAttack]);
-
-  const handleResetPlayer = useCallback(async () => {
-    // Used after a loss — pull a fresh starter player.
-    try {
-      const res = await fetch("/api/player");
-      if (!res.ok) throw new Error(`player fetch ${res.status}`);
-      const data = (await res.json()) as StarterPlayerResponse;
-      const player: Player = {
-        name: data.name,
-        avatar: data.avatar,
-        maxHealth: data.maxHealth,
-        health: data.maxHealth,
-        xp: 0,
-        weapons: data.weapons,
-      };
-      dispatch({ type: "SET_PLAYER", player });
-      storePlayer(player);
-    } catch (err) {
-      console.error("player reset failed", err);
-    }
-  }, []);
+  }, [triggerMonsterAttack, persistPlayer]);
 
   if (state.loading || !state.player) {
     return (
@@ -314,13 +301,22 @@ export function Arena() {
         ) : null}
 
         {status === "lobby" && !playerAlive ? (
-          <Button
-            size="lg"
-            className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-            onClick={handleResetPlayer}
-          >
-            Restart
-          </Button>
+          <>
+            <Button
+              size="lg"
+              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
+              onClick={handlePlayAgain}
+            >
+              Play Again
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => router.push("/create")}
+            >
+              Create New Character
+            </Button>
+          </>
         ) : null}
 
         {status === "fighting" ? (
