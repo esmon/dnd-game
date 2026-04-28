@@ -610,8 +610,24 @@ export function Arena() {
     if (snap.monsterPending) return;
     if (snap.player.health >= snap.player.maxHealth) return;
 
+    const klass = CLASSES.find(
+      (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
+    );
+    if (!klass?.canSelfHealInCombat) return;
+    if (snap.player.level < (klass.healMinLevel ?? 1)) return;
+
+    let slotLevel: number | undefined;
+    if (klass.healCostsSlot) {
+      const lowest = Object.entries(snap.player.spellSlots)
+        .map(([k, v]) => [Number(k), v] as const)
+        .filter(([k, v]) => k > 0 && v > 0)
+        .sort((a, b) => a[0] - b[0])[0];
+      if (!lowest) return;
+      slotLevel = lowest[0];
+    }
+
     const amount = randomInt(1, 10);
-    dispatch({ type: "PLAYER_HEAL", amount });
+    dispatch({ type: "PLAYER_HEAL", amount, slotLevel });
 
     // In a fight, healing still costs you a turn — monster swings back.
     if (snap.status === "fighting" && snap.monster && snap.monster.health > 0) {
@@ -998,6 +1014,30 @@ export function Arena() {
 
   const pendingAsiLevel = asiPending[0];
 
+  const playerClass = CLASSES.find(
+    (c) => c.id.toLowerCase() === player.classId.toLowerCase(),
+  );
+  const canSelfHealInCombat = playerClass?.canSelfHealInCombat ?? false;
+  const healMinLevel = playerClass?.healMinLevel ?? 1;
+  const healCostsSlot = playerClass?.healCostsSlot ?? false;
+  const healLowestSlot = healCostsSlot
+    ? Object.entries(player.spellSlots)
+        .map(([k, v]) => [Number(k), v] as const)
+        .filter(([k, v]) => k > 0 && v > 0)
+        .sort((a, b) => a[0] - b[0])[0]
+    : undefined;
+  const healOutOfSlots = healCostsSlot && !healLowestSlot;
+  const healUnderMinLevel = player.level < healMinLevel;
+  const healReason: string | null =
+    fightActionReason ??
+    (healUnderMinLevel
+      ? `Available at level ${healMinLevel}`
+      : healOutOfSlots
+        ? "Out of spell slots — REST to refill"
+        : player.health >= player.maxHealth
+          ? "Already at full HP"
+          : null);
+
   // Smite metadata derived from current state. Lifted out of the JSX IIFE
   // so the React compiler isn't confused into thinking it touches refs
   // during render.
@@ -1262,24 +1302,22 @@ export function Arena() {
                 </DisabledTip>
               );
             })}
-            <DisabledTip
-              reason={
-                fightActionReason ??
-                (player.health >= player.maxHealth
-                  ? "Already at full HP"
-                  : null)
-              }
-            >
-              <Button
-                className="w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
-                onClick={handleHeal}
-                disabled={
-                  actionsDisabled || player.health >= player.maxHealth
-                }
-              >
-                HEAL
-              </Button>
-            </DisabledTip>
+            {canSelfHealInCombat ? (
+              <DisabledTip reason={healReason}>
+                <Button
+                  className="w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
+                  onClick={handleHeal}
+                  disabled={
+                    actionsDisabled ||
+                    healUnderMinLevel ||
+                    healOutOfSlots ||
+                    player.health >= player.maxHealth
+                  }
+                >
+                  HEAL
+                </Button>
+              </DisabledTip>
+            ) : null}
             <DisabledTip reason={fightActionReason}>
               <Button
                 variant="outline"

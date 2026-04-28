@@ -81,7 +81,7 @@ export type Action =
     }
   | { type: "MONSTER_PENDING" }
   | { type: "MONSTER_ATTACK"; damage: number; note?: string; missed?: boolean; crit?: boolean }
-  | { type: "PLAYER_HEAL"; amount: number }
+  | { type: "PLAYER_HEAL"; amount: number; slotLevel?: number }
   | { type: "RUN_AWAY_SUCCESS" }
   | { type: "RUN_AWAY_FAIL" }
   | { type: "WIN" }
@@ -275,12 +275,20 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "PLAYER_HEAL": {
       if (!state.player) return state;
+      let spellSlots = state.player.spellSlots;
+      if (action.slotLevel) {
+        const key = String(action.slotLevel);
+        const remaining = spellSlots[key] ?? 0;
+        if (remaining <= 0) return state;
+        spellSlots = { ...spellSlots, [key]: remaining - 1 };
+      }
       const newHealth = Math.min(
         state.player.maxHealth,
         state.player.health + action.amount,
       );
-      const player: Player = { ...state.player, health: newHealth };
-      const text = `${state.player.name} heals for ${action.amount}`;
+      const player: Player = { ...state.player, health: newHealth, spellSlots };
+      const slotNote = action.slotLevel ? ` (L${action.slotLevel} slot)` : "";
+      const text = `${state.player.name} heals for ${action.amount}${slotNote}`;
       return pushTurn({ ...state, player }, true, text);
     }
 

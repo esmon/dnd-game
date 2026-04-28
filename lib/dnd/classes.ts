@@ -15,6 +15,17 @@ export type DnDClass = {
   isCaster: boolean;
   spellcastingAbility?: keyof AbilityScores;
   spellsByLevel?: Record<number, string[]>;
+  // True if the class has any in-combat self-heal in 5e: divine casters with
+  // Cure Wounds / Healing Word, Paladin Lay on Hands, Fighter Second Wind.
+  // Pure martials and arcane-only casters get nothing self-targeting in a fight.
+  canSelfHealInCombat: boolean;
+  // Earliest level at which HEAL is available. Default 1; Ranger is 2 because
+  // it's a half-caster with no slots at level 1.
+  healMinLevel?: number;
+  // True for spell-based heals (Cure Wounds / Healing Word) that consume a
+  // spell slot. Paladin (Lay on Hands) and Fighter (Second Wind) heal via
+  // class features, not slots.
+  healCostsSlot?: boolean;
 };
 
 export const CLASSES: readonly DnDClass[] = [
@@ -29,6 +40,7 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A fierce warrior of primitive background who can enter a battle rage.",
     isCaster: false,
+    canSelfHealInCombat: false,
   },
   {
     id: "bard",
@@ -52,6 +64,8 @@ export const CLASSES: readonly DnDClass[] = [
       13: ["finger-of-death"],
       15: ["psychic-scream"],
     },
+    canSelfHealInCombat: true,
+    healCostsSlot: true,
   },
   {
     id: "cleric",
@@ -75,6 +89,8 @@ export const CLASSES: readonly DnDClass[] = [
       13: ["finger-of-death"],
       15: ["sunburst"],
     },
+    canSelfHealInCombat: true,
+    healCostsSlot: true,
   },
   {
     id: "druid",
@@ -98,6 +114,8 @@ export const CLASSES: readonly DnDClass[] = [
       15: ["sunburst"],
       17: ["incendiary-cloud"],
     },
+    canSelfHealInCombat: true,
+    healCostsSlot: true,
   },
   {
     id: "fighter",
@@ -110,6 +128,7 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A master of martial combat, skilled with a variety of weapons and armor.",
     isCaster: false,
+    canSelfHealInCombat: true,
   },
   {
     id: "monk",
@@ -122,6 +141,7 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A master of martial arts, harnessing the power of the body in pursuit of perfection.",
     isCaster: false,
+    canSelfHealInCombat: false,
   },
   {
     id: "paladin",
@@ -142,6 +162,7 @@ export const CLASSES: readonly DnDClass[] = [
       13: ["finger-of-death"],
       17: ["sunburst"],
     },
+    canSelfHealInCombat: true,
   },
   {
     id: "ranger",
@@ -162,6 +183,9 @@ export const CLASSES: readonly DnDClass[] = [
       13: ["cone-of-cold"],
       17: ["sunburst"],
     },
+    canSelfHealInCombat: true,
+    healMinLevel: 2,
+    healCostsSlot: true,
   },
   {
     id: "rogue",
@@ -174,6 +198,7 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A scoundrel who uses stealth and trickery to overcome obstacles and enemies.",
     isCaster: false,
+    canSelfHealInCombat: false,
   },
   {
     id: "sorcerer",
@@ -198,6 +223,7 @@ export const CLASSES: readonly DnDClass[] = [
       15: ["sunburst"],
       17: ["meteor-swarm"],
     },
+    canSelfHealInCombat: false,
   },
   {
     id: "warlock",
@@ -221,6 +247,7 @@ export const CLASSES: readonly DnDClass[] = [
       13: ["finger-of-death"],
       17: ["psychic-scream"],
     },
+    canSelfHealInCombat: false,
   },
   {
     id: "wizard",
@@ -246,5 +273,6 @@ export const CLASSES: readonly DnDClass[] = [
       15: ["sunburst"],
       17: ["meteor-swarm"],
     },
+    canSelfHealInCombat: false,
   },
 ];
