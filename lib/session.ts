@@ -1,5 +1,19 @@
+import type { AbilityScores, Weapon } from "@/lib/game/types";
+
 const SESSION_KEY = "dnd-session-id";
 const ACTIVE_CHARACTER_KEY = "dnd-active-character-id";
+const CHARACTER_CACHE_PREFIX = "dnd-character-cache-";
+
+export type CachedPlayerState = {
+  current_hp: number;
+  xp: number;
+  level: number;
+  max_hp: number;
+  proficiency_bonus: number;
+  ability_scores: AbilityScores;
+  weapons: Weapon[];
+  updatedAt: number;
+};
 
 export function getSessionId(): string {
   if (typeof window === "undefined") return "";
@@ -33,4 +47,32 @@ export function fetchWithSession(
   const headers = new Headers(init?.headers);
   headers.set("X-Session-Id", getSessionId());
   return fetch(input, { ...init, headers });
+}
+
+export function cachePlayerState(
+  id: string,
+  state: Omit<CachedPlayerState, "updatedAt">,
+): void {
+  if (typeof window === "undefined") return;
+  const payload: CachedPlayerState = { ...state, updatedAt: Date.now() };
+  window.localStorage.setItem(
+    CHARACTER_CACHE_PREFIX + id,
+    JSON.stringify(payload),
+  );
+}
+
+export function readPlayerStateCache(id: string): CachedPlayerState | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(CHARACTER_CACHE_PREFIX + id);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as CachedPlayerState;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPlayerStateCache(id: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(CHARACTER_CACHE_PREFIX + id);
 }

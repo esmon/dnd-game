@@ -1,4 +1,15 @@
+import { CLASSES } from "@/lib/dnd/classes";
+import { abilityModifier } from "@/lib/dnd/derive";
+import {
+  MAX_LEVEL,
+  hpGainOnLevelUp,
+  isAsiLevel,
+  levelForXp,
+  proficiencyBonusForLevel,
+  xpThresholdForLevel,
+} from "@/lib/dnd/leveling";
 import type {
+  AbilityScores,
   GameStats,
   GameStatus,
   Monster,
@@ -17,6 +28,7 @@ export type GameState = {
   loading: boolean; // initial bootstrap (player + index list)
   monsterPending: boolean; // true while monster's 1s counter-attack is queued
   nextTurnId: number;
+  asiPending: number[];
 };
 
 export const initialState: GameState = {
@@ -29,11 +41,13 @@ export const initialState: GameState = {
   loading: true,
   monsterPending: false,
   nextTurnId: 1,
+  asiPending: [],
 };
 
 export type Action =
   | { type: "BOOTSTRAP_DONE"; player: Player; indices: MonsterIndex[] }
   | { type: "SET_PLAYER"; player: Player }
+  | { type: "SET_MONSTER_INDICES"; indices: MonsterIndex[] }
   | { type: "SET_MONSTER"; monster: Monster }
   | { type: "START_FIGHT" }
   | { type: "RETURN_TO_LOBBY" }
@@ -45,15 +59,55 @@ export type Action =
   | { type: "RUN_AWAY_FAIL" }
   | { type: "WIN" }
   | { type: "LOSE" }
-  | { type: "FULL_HEAL" };
+  | { type: "FULL_HEAL" }
+  | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
+  | { type: "DEV_NEXT_LEVEL" };
 
-function pushTurn(state: GameState, isPlayer: boolean, text: string): GameState {
-  const turn: Turn = { id: state.nextTurnId, isPlayer, text };
+function pushTurn(
+  state: GameState,
+  isPlayer: boolean,
+  text: string,
+  kind?: Turn["kind"],
+): GameState {
+  const turn: Turn = { id: state.nextTurnId, isPlayer, text, ...(kind && { kind }) };
   return {
     ...state,
     turns: [turn, ...state.turns],
     nextTurnId: state.nextTurnId + 1,
   };
+}
+
+function applyLevelUps(
+  player: Player,
+  asiPending: number[],
+): { player: Player; asiPending: number[]; texts: string[] } {
+  const targetLevel = levelForXp(player.xp);
+  if (targetLevel <= player.level) {
+    return { player, asiPending, texts: [] };
+  }
+  const klass = CLASSES.find(
+    (c) => c.id.toLowerCase() === player.classId.toLowerCase(),
+  );
+  if (!klass) {
+    return { player, asiPending, texts: [] };
+  }
+  const conMod = abilityModifier(player.abilityScores.con);
+  const newAsi = [...asiPending];
+  const texts: string[] = [];
+  let p = player;
+  for (let lvl = p.level + 1; lvl <= targetLevel; lvl++) {
+    const gain = hpGainOnLevelUp(klass.hitDie, conMod);
+    p = {
+      ...p,
+      level: lvl,
+      maxHealth: p.maxHealth + gain,
+      health: p.health + gain,
+      proficiencyBonus: proficiencyBonusForLevel(lvl),
+    };
+    if (isAsiLevel(lvl)) newAsi.push(lvl);
+    texts.push(`${p.name} reaches level ${lvl}!`);
+  }
+  return { player: p, asiPending: newAsi, texts };
 }
 
 export function gameReducer(state: GameState, action: Action): GameState {
@@ -68,6 +122,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "SET_PLAYER":
       return { ...state, player: action.player };
+
+    case "SET_MONSTER_INDICES":
+      return { ...state, monsterIndices: action.indices };
 
     case "SET_MONSTER":
       return { ...state, monster: action.monster, monsterPending: false };
@@ -148,24 +205,50 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "WIN": {
       if (!state.player || !state.monster) return state;
-      const player: Player = {
+      const playerWithXp: Player = {
         ...state.player,
         xp: state.player.xp + state.monster.xp,
       };
-      const text = `${player.name} wins!`;
-      const wins = state.stats.wins + 1;
-      return pushTurn(
-        {
-          ...state,
-          player,
-          status: "lobby",
-          monster: null,
-          monsterPending: false,
-          stats: { ...state.stats, wins },
-        },
-        true,
-        text,
+      const { player, asiPending, texts: levelUpTexts } = applyLevelUps(
+        playerWithXp,
+        state.asiPending,
       );
+      const winText = `${player.name} wins!`;
+      const wins = state.stats.wins + 1;
+      let next: GameState = {
+        ...state,
+        player,
+        status: "lobby",
+        monster: null,
+        monsterPending: false,
+        stats: { ...state.stats, wins },
+        asiPending,
+      };
+      next = pushTurn(next, true, winText);
+      for (const t of levelUpTexts) {
+        next = pushTurn(next, true, t, "levelup");
+      }
+      return next;
+    }
+
+    case "DEV_NEXT_LEVEL": {
+      if (!state.player) return state;
+      if (state.player.level >= MAX_LEVEL) return state;
+      const needed =
+        xpThresholdForLevel(state.player.level + 1) - state.player.xp;
+      const playerWithXp: Player = {
+        ...state.player,
+        xp: state.player.xp + Math.max(0, needed),
+      };
+      const { player, asiPending, texts } = applyLevelUps(
+        playerWithXp,
+        state.asiPending,
+      );
+      let next: GameState = { ...state, player, asiPending };
+      for (const t of texts) {
+        next = pushTurn(next, true, t, "levelup");
+      }
+      return next;
     }
 
     case "LOSE": {
@@ -199,6 +282,26 @@ export function gameReducer(state: GameState, action: Action): GameState {
       if (!state.player) return state;
       const player: Player = { ...state.player, health: state.player.maxHealth };
       return { ...state, player };
+    }
+
+    case "APPLY_ASI": {
+      if (!state.player) return state;
+      const cur = state.player.abilityScores;
+      const d = action.deltas;
+      const abilityScores: AbilityScores = {
+        str: cur.str + (d.str ?? 0),
+        dex: cur.dex + (d.dex ?? 0),
+        con: cur.con + (d.con ?? 0),
+        int: cur.int + (d.int ?? 0),
+        wis: cur.wis + (d.wis ?? 0),
+        cha: cur.cha + (d.cha ?? 0),
+      };
+      const player: Player = { ...state.player, abilityScores };
+      return {
+        ...state,
+        player,
+        asiPending: state.asiPending.slice(1),
+      };
     }
 
     default:

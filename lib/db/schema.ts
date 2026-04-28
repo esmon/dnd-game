@@ -1,13 +1,6 @@
-import type { Player, Weapon } from "@/lib/game/types";
+import type { AbilityScores, Player, Weapon } from "@/lib/game/types";
 
-export type AbilityScores = {
-  str: number;
-  dex: number;
-  con: number;
-  int: number;
-  wis: number;
-  cha: number;
-};
+export type { AbilityScores };
 
 export interface Character {
   id: string;
@@ -42,6 +35,9 @@ export type CharacterUpdate = {
   xp?: number;
   level?: number;
   weapons?: Weapon[];
+  max_hp?: number;
+  proficiency_bonus?: number;
+  ability_scores?: AbilityScores;
 };
 
 export function characterToPlayer(c: Character): Player {
@@ -53,5 +49,9 @@ export function characterToPlayer(c: Character): Player {
     health: c.current_hp,
     xp: c.xp,
     weapons: c.weapons,
+    level: c.level,
+    classId: c.class,
+    abilityScores: c.ability_scores,
+    proficiencyBonus: c.proficiency_bonus,
   };
 }

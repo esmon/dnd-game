@@ -1,10 +1,17 @@
+import { crsForLevel } from "@/lib/dnd/encounter";
 import type { Monster, MonsterIndex } from "./types";
 
 // /api/2014/ is the current path; the bare /api/monsters route 301-redirects.
 const API_BASE = "https://www.dnd5eapi.co/api/2014";
 const IMAGE_BASE = "https://www.dnd5eapi.co";
 
-const CR_QUERY = "challenge_rating=0&challenge_rating=0.125&challenge_rating=0.25";
+// dnd5eapi expects fractional CRs as decimals in the query string.
+function crToQueryValue(cr: string): string {
+  if (cr === "1/8") return "0.125";
+  if (cr === "1/4") return "0.25";
+  if (cr === "1/2") return "0.5";
+  return cr;
+}
 
 type RawMonsterIndex = { index: string; name: string; url?: string };
 
@@ -26,8 +33,12 @@ type RawMonster = {
   actions?: RawMonsterAction[];
 };
 
-export async function fetchMonsterIndexList(): Promise<MonsterIndex[]> {
-  const url = `${API_BASE}/monsters/?${CR_QUERY}`;
+export async function fetchMonsterIndexList(level: number): Promise<MonsterIndex[]> {
+  const crs = crsForLevel(level);
+  const query = crs
+    .map((c) => `challenge_rating=${crToQueryValue(c)}`)
+    .join("&");
+  const url = `${API_BASE}/monsters/?${query}`;
   const res = await fetch(url, {
     // Cache the index list for an hour — it never really changes.
     next: { revalidate: 3600 },

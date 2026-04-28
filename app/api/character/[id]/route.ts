@@ -1,7 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { supabase, supabaseAdmin } from "@/lib/supabase";
-import type { Character, CharacterUpdate } from "@/lib/db/schema";
+import type {
+  AbilityScores,
+  Character,
+  CharacterUpdate,
+} from "@/lib/db/schema";
+
+const ABILITY_KEYS: ReadonlyArray<keyof AbilityScores> = [
+  "str",
+  "dex",
+  "con",
+  "int",
+  "wis",
+  "cha",
+];
+
+function isAbilityScores(v: unknown): v is AbilityScores {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return ABILITY_KEYS.every((k) => typeof o[k] === "number");
+}
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -79,6 +98,13 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   if (typeof body.xp === "number") update.xp = body.xp;
   if (typeof body.level === "number") update.level = body.level;
   if (Array.isArray(body.weapons)) update.weapons = body.weapons;
+  if (typeof body.max_hp === "number") update.max_hp = body.max_hp;
+  if (typeof body.proficiency_bonus === "number") {
+    update.proficiency_bonus = body.proficiency_bonus;
+  }
+  if (isAbilityScores(body.ability_scores)) {
+    update.ability_scores = body.ability_scores;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("characters")
