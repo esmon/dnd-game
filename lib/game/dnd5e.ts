@@ -1,12 +1,9 @@
 import type { Monster, MonsterIndex } from "./types";
 
-// dnd5eapi.co moved its routes under /api/2014/. The legacy game hits the old
-// path which 301-redirects; we go straight to the new path to avoid redirect
-// hops on every request.
+// /api/2014/ is the current path; the bare /api/monsters route 301-redirects.
 const API_BASE = "https://www.dnd5eapi.co/api/2014";
 const IMAGE_BASE = "https://www.dnd5eapi.co";
 
-// Same CR filter the legacy app used (very weak monsters).
 const CR_QUERY = "challenge_rating=0&challenge_rating=0.125&challenge_rating=0.25";
 
 type RawMonsterIndex = { index: string; name: string; url?: string };

@@ -113,8 +113,6 @@ export function Arena() {
         dispatch({ type: "BOOTSTRAP_DONE", player, indices });
         storePlayer(player);
       } catch (err) {
-        // Surface in the console; the UI will sit in "loading" forever which
-        // is the same failure mode the legacy app had.
         console.error("bootstrap failed", err);
       }
     })();
@@ -147,9 +145,8 @@ export function Arena() {
     void fetchAndSetMonster();
   }, [fetchAndSetMonster]);
 
-  // Mirrors legacy `monsterAttack`: 1s suspense, then the monster swings back.
-  // We resolve win/lose from the *post-attack* state in the ref, so the same
-  // function handles "monster kills player" cleanly.
+  // 1s suspense, then the monster swings back. Win/lose resolves from the
+  // post-attack state in the ref so this also handles "monster kills player".
   const triggerMonsterAttack = useCallback(() => {
     dispatch({ type: "MONSTER_PENDING" });
     setTimeout(() => {
@@ -191,7 +188,6 @@ export function Arena() {
         if (!after.monster || !after.player) return;
         if (after.monster.health <= 0) {
           dispatch({ type: "WIN" });
-          // Every 3 wins → full heal, matching legacy behavior.
           setTimeout(() => {
             const post = stateRef.current;
             if (post.stats.wins > 0 && post.stats.wins % 3 === 0) {

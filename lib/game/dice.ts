@@ -1,9 +1,6 @@
 // Roll dice notation like "2d6", "1d4", "1d8+2", "2d6 + 1".
-// Each individual die is rolled independently (fixes the legacy bug where
-// `calcDamage` rolled one number and applied it to all dice).
-//
-// Returns a non-negative integer. Unparseable input returns 1 so combat keeps
-// flowing rather than crashing on a weird statblock.
+// Unparseable input returns 1 so combat keeps flowing rather than crashing
+// on a weird statblock.
 
 export function rollDice(notation: string): number {
   if (!notation) return 1;

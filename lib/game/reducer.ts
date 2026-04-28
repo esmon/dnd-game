@@ -170,8 +170,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "LOSE": {
       if (!state.player || !state.monster) return state;
-      // Preserve the legacy XP-guard: only subtract if the player has more XP
-      // than the monster awards, so XP can't go negative.
+      // Clamp at 0 so XP can't go negative on defeat.
       const xp =
         state.player.xp > state.monster.xp
           ? state.player.xp - state.monster.xp
