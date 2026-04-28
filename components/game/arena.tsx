@@ -740,6 +740,26 @@ export function Arena() {
 
   const pendingAsiLevel = asiPending[0];
 
+  // Smite metadata derived from current state. Lifted out of the JSX IIFE
+  // so the React compiler isn't confused into thinking it touches refs
+  // during render.
+  const isSmiteEligible =
+    player.classId.toLowerCase() === "paladin" &&
+    player.level >= 2 &&
+    player.weapons.length > 0;
+  const smiteSlotEntry = isSmiteEligible
+    ? Object.entries(player.spellSlots)
+        .map(([k, v]) => [Number(k), v] as const)
+        .filter(([k, v]) => k > 0 && v > 0)
+        .sort((a, b) => a[0] - b[0])[0]
+    : undefined;
+  const smiteSlotLevel = smiteSlotEntry ? smiteSlotEntry[0] : 0;
+  const smiteOutOfSlots = isSmiteEligible && !smiteSlotEntry;
+  const smiteWeapon = isSmiteEligible ? player.weapons[0] : null;
+  const smiteReason =
+    fightActionReason ??
+    (smiteOutOfSlots ? "Out of spell slots — REST to refill" : null);
+
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-6">
       <h1 className="text-center text-3xl font-bold tracking-tight">
@@ -774,48 +794,30 @@ export function Arena() {
                 </Button>
               </DisabledTip>
             ))}
-            {player.classId.toLowerCase() === "paladin" &&
-            player.level >= 2 &&
-            player.weapons.length > 0
-              ? (() => {
-                  const slotEntry = Object.entries(player.spellSlots)
-                    .map(([k, v]) => [Number(k), v] as const)
-                    .filter(([k, v]) => k > 0 && v > 0)
-                    .sort((a, b) => a[0] - b[0])[0];
-                  const smiteSlotLevel = slotEntry ? slotEntry[0] : 0;
-                  const outOfSlots = !slotEntry;
-                  const smiteWeapon = player.weapons[0];
-                  const smiteReason =
-                    fightActionReason ??
-                    (outOfSlots
-                      ? "Out of spell slots — REST to refill"
-                      : null);
-                  const smiteDice = outOfSlots
-                    ? "+?d8 radiant"
-                    : `+${smiteSlotLevel + 1}d8 radiant`;
-                  const label = outOfSlots
-                    ? "Smite"
-                    : `Smite (L${smiteSlotLevel})`;
-                  return (
-                    <DisabledTip key="smite-action" reason={smiteReason}>
-                      <Button
-                        className="h-auto w-full flex-col gap-0 bg-amber-500 py-1.5 leading-tight text-white hover:bg-amber-500/90"
-                        onClick={() =>
-                          handleSmite(
-                            smiteWeapon.name,
-                            smiteWeapon.damage,
-                            smiteSlotLevel,
-                          )
-                        }
-                        disabled={actionsDisabled || outOfSlots}
-                      >
-                        <span className="truncate">{label}</span>
-                        <span className="text-xs opacity-80">{smiteDice}</span>
-                      </Button>
-                    </DisabledTip>
-                  );
-                })()
-              : null}
+            {isSmiteEligible && smiteWeapon ? (
+              <DisabledTip reason={smiteReason}>
+                <Button
+                  className="h-auto w-full flex-col gap-0 bg-amber-500 py-1.5 leading-tight text-white hover:bg-amber-500/90"
+                  onClick={() =>
+                    handleSmite(
+                      smiteWeapon.name,
+                      smiteWeapon.damage,
+                      smiteSlotLevel,
+                    )
+                  }
+                  disabled={actionsDisabled || smiteOutOfSlots}
+                >
+                  <span className="truncate">
+                    {smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
+                  </span>
+                  <span className="text-xs opacity-80">
+                    {smiteOutOfSlots
+                      ? "+?d8 radiant"
+                      : `+${smiteSlotLevel + 1}d8 radiant`}
+                  </span>
+                </Button>
+              </DisabledTip>
+            ) : null}
             {player.equippedSpells.map((spell) => {
               const slotsLeft =
                 spell.level === 0
