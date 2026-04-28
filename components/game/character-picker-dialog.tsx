@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { CLASSES } from "@/lib/dnd/classes";
 import { RACES } from "@/lib/dnd/races";
 import { fetchWithSession } from "@/lib/session";
+import { cn } from "@/lib/utils";
 import type { Character } from "@/lib/db/schema";
 
 type Props = {
@@ -75,7 +76,12 @@ export function CharacterPickerDialog({
                 return (
                   <div
                     key={c.id}
-                    className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                    className={cn(
+                      "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+                      isCurrent
+                        ? "border-2 border-zinc-900"
+                        : "border border-muted-foreground/20",
+                    )}
                   >
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">

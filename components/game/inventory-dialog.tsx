@@ -108,7 +108,12 @@ export function InventoryDialog({
                     return (
                       <div
                         key={w.id}
-                        className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                        className={cn(
+                          "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+                          isEquipped
+                            ? "border-2 border-zinc-900"
+                            : "border border-muted-foreground/20",
+                        )}
                       >
                         <div className="flex min-w-0 flex-col">
                           <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
@@ -172,7 +177,12 @@ export function InventoryDialog({
                     return (
                       <div
                         key={s.id}
-                        className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                        className={cn(
+                          "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+                          isEquipped
+                            ? "border-2 border-zinc-900"
+                            : "border border-muted-foreground/20",
+                        )}
                       >
                         <div className="flex min-w-0 flex-col">
                           <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
