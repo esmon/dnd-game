@@ -581,9 +581,6 @@ export function Arena() {
             >
               Create New Character
             </Button>
-            <Button variant="outline" onClick={() => setInventoryOpen(true)}>
-              INVENTORY
-            </Button>
             {process.env.NODE_ENV === "development" ? (
               <Button
                 size="sm"
