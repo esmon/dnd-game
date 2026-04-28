@@ -10,7 +10,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Monster Slayer",
+  title: "Monster Smashy Smashy",
   description: "A small arena-combat D&D game",
 };
 

@@ -1188,7 +1188,7 @@ export function Arena() {
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-6">
       <h1 className="text-center text-3xl font-bold tracking-tight">
-        DND 5e Monster Slayer
+        DND 5e Monster Smashy Smashy
       </h1>
 
       <StatsBar stats={stats} />
