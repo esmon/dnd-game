@@ -4,6 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HealthBar } from "@/components/game/health-bar";
 import type { Monster } from "@/lib/game/types";
 
+function formatCr(cr: number): string {
+  if (cr === 0.125) return "1/8";
+  if (cr === 0.25) return "1/4";
+  if (cr === 0.5) return "1/2";
+  return String(cr);
+}
+
 export function MonsterCard({ monster }: { monster: Monster }) {
   return (
     <Card className="w-full rounded-md border-2 border-zinc-900">
@@ -11,6 +18,9 @@ export function MonsterCard({ monster }: { monster: Monster }) {
         <CardTitle className="text-center font-mono text-base font-bold uppercase tracking-widest">
           {monster.name}
         </CardTitle>
+        <p className="text-center font-mono text-xs uppercase tracking-widest text-muted-foreground tabular-nums">
+          CR {formatCr(monster.challengeRating)} · {monster.xp} XP
+        </p>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-3">
         <div
