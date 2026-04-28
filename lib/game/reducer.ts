@@ -343,17 +343,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "LOSE": {
       if (!state.player || !state.monster) return state;
-      // Floor XP at the current level's threshold — losing shouldn't push
-      // you below your own level, otherwise the XP bar appears stuck at 0
-      // until you re-earn the gap.
-      const levelFloor = xpThresholdForLevel(state.player.level);
-      const xp = Math.max(levelFloor, state.player.xp - state.monster.xp);
-      const player: Player = { ...state.player, xp };
       const text = `${state.monster.name} wins!`;
       return pushTurn(
         {
           ...state,
-          player,
           status: "lobby",
           monster: null,
           monsterPending: false,
