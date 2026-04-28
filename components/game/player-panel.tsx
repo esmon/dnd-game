@@ -1,5 +1,6 @@
 import { HealthBar } from "@/components/game/health-bar";
 import { CLASSES } from "@/lib/dnd/classes";
+import { playerAC } from "@/lib/dnd/combat";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
 import type { Player } from "@/lib/game/types";
@@ -20,6 +21,17 @@ export function PlayerPanel({ player }: { player: Player }) {
       : 100;
   const race = RACES.find((r) => r.id === player.raceId);
   const klass = CLASSES.find((c) => c.id === player.classId);
+  const ac = playerAC(klass ?? null, player.abilityScores);
+  const drviParts: string[] = [];
+  if (race?.damageResistances?.length) {
+    drviParts.push(`Resists: ${race.damageResistances.join(", ")}`);
+  }
+  if (race?.damageVulnerabilities?.length) {
+    drviParts.push(`Vuln: ${race.damageVulnerabilities.join(", ")}`);
+  }
+  if (race?.damageImmunities?.length) {
+    drviParts.push(`Imm: ${race.damageImmunities.join(", ")}`);
+  }
 
   return (
     <div className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono">
@@ -38,6 +50,7 @@ export function PlayerPanel({ player }: { player: Player }) {
         max={player.maxHealth}
         className="h-2"
       />
+      <StatRow label="AC" value={String(ac)} />
       <StatRow
         label="XP"
         value={atMax ? "MAX" : `${player.xp}/${nextThreshold}`}
@@ -48,6 +61,11 @@ export function PlayerPanel({ player }: { player: Player }) {
           style={{ width: `${xpPct}%` }}
         />
       </div>
+      {drviParts.length > 0 ? (
+        <p className="mt-2 text-center text-[10px] tracking-wide text-muted-foreground">
+          {drviParts.join(" · ")}
+        </p>
+      ) : null}
     </div>
   );
 }

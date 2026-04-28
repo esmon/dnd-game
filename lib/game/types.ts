@@ -1,11 +1,14 @@
 export type GameStatus = "lobby" | "fighting";
 
+export type DamageType = "slashing" | "piercing" | "bludgeoning";
+
 export type Weapon = {
   id: string;
   baseId: string;
   name: string;
   damage: string; // dice notation including bonus, e.g. "1d8+1"
   bonus: number; // 0 mundane | 1 | 2 | 3
+  damageType: DamageType;
 };
 
 export type AbilityScores = {
@@ -76,13 +79,19 @@ export type Monster = {
   xp: number;
   damageDice: string; // dice notation used for monster turn damage
   challengeRating: number;
+  ac: number;
+  attackBonus: number;
+  damageType: string;
+  damageResistances: string[];
+  damageVulnerabilities: string[];
+  damageImmunities: string[];
 };
 
 export type Turn = {
   id: number;
   isPlayer: boolean;
   text: string;
-  kind?: "levelup" | "loot";
+  kind?: "levelup" | "loot" | "crit";
 };
 
 export type GameStats = {

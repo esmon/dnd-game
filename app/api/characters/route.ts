@@ -31,7 +31,10 @@ function isWeapon(v: unknown): v is Weapon {
     typeof o.baseId === "string" &&
     typeof o.name === "string" &&
     typeof o.damage === "string" &&
-    typeof o.bonus === "number"
+    typeof o.bonus === "number" &&
+    (o.damageType === "slashing" ||
+      o.damageType === "piercing" ||
+      o.damageType === "bludgeoning")
   );
 }
 

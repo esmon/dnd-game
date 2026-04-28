@@ -30,14 +30,20 @@ export function weaponAttackMultiplier(classId: string, level: number): number {
   return 1;
 }
 
+// Crit doubles weapon dice and class-feature dice (e.g. Sneak Attack), but
+// NOT the flat ability/magic bonus baked into the weapon's notation, nor the
+// flat class-feature bonus (Rage/Martial Arts).
 export function computeWeaponAttackDamage(
   classId: string,
   level: number,
   weaponDice: string,
+  crit: boolean = false,
 ): number {
-  const base = rollDice(weaponDice);
+  const base = rollDice(weaponDice) + (crit ? rollDice(weaponDice) : 0);
   const bonusDice = weaponAttackBonusDice(classId, level);
-  const extra = bonusDice ? rollDice(bonusDice) : 0;
+  const extra = bonusDice
+    ? rollDice(bonusDice) + (crit ? rollDice(bonusDice) : 0)
+    : 0;
   const flat = weaponAttackBonus(classId, level);
   const multiplier = weaponAttackMultiplier(classId, level);
   return Math.max(0, (base + extra + flat) * multiplier);

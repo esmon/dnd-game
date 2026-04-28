@@ -6,6 +6,9 @@ export type Race = {
   asi: Partial<AbilityScores>;
   speed: number;
   description: string;
+  damageResistances?: string[];
+  damageImmunities?: string[];
+  damageVulnerabilities?: string[];
 };
 
 export const RACES: readonly Race[] = [
@@ -16,6 +19,7 @@ export const RACES: readonly Race[] = [
     speed: 25,
     description:
       "Stout, hardy folk forged in mountain halls. Resistant to poison and at home with stone and steel.",
+    damageResistances: ["poison"],
   },
   {
     id: "elf",
@@ -41,6 +45,8 @@ export const RACES: readonly Race[] = [
     description:
       "Versatile and ambitious. Humans push into every corner of the world and master every craft.",
   },
+  // Default to red-dragon heritage (fire resistance) since we don't model
+  // ancestry choice in the wizard.
   {
     id: "dragonborn",
     name: "Dragonborn",
@@ -48,6 +54,7 @@ export const RACES: readonly Race[] = [
     speed: 30,
     description:
       "Proud, draconic warriors with breath weapons and a fierce code of honor.",
+    damageResistances: ["fire"],
   },
   {
     id: "gnome",
@@ -83,5 +90,6 @@ export const RACES: readonly Race[] = [
     speed: 30,
     description:
       "Marked by infernal heritage, tieflings carry charisma, cunning, and a whiff of brimstone.",
+    damageResistances: ["fire"],
   },
 ];

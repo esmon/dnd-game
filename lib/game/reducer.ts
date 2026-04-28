@@ -43,6 +43,7 @@ export type GameState = {
   inventoryOpen: boolean;
   characterCount: number;
   characterPickerOpen: boolean;
+  attacksExpanded: boolean;
 };
 
 export const initialState: GameState = {
@@ -60,6 +61,7 @@ export const initialState: GameState = {
   inventoryOpen: false,
   characterCount: 0,
   characterPickerOpen: false,
+  attacksExpanded: false,
 };
 
 export type Action =
@@ -69,9 +71,16 @@ export type Action =
   | { type: "SET_MONSTER"; monster: Monster }
   | { type: "START_FIGHT" }
   | { type: "RETURN_TO_LOBBY" }
-  | { type: "PLAYER_ATTACK"; damage: number; weaponName: string; note?: string }
+  | {
+      type: "PLAYER_ATTACK";
+      damage: number;
+      weaponName: string;
+      note?: string;
+      missed?: boolean;
+      crit?: boolean;
+    }
   | { type: "MONSTER_PENDING" }
-  | { type: "MONSTER_ATTACK"; damage: number }
+  | { type: "MONSTER_ATTACK"; damage: number; note?: string; missed?: boolean; crit?: boolean }
   | { type: "PLAYER_HEAL"; amount: number }
   | { type: "RUN_AWAY_SUCCESS" }
   | { type: "RUN_AWAY_FAIL" }
@@ -84,19 +93,31 @@ export type Action =
   | { type: "SET_INVENTORY_OPEN"; open: boolean }
   | { type: "SET_CHARACTER_COUNT"; count: number }
   | { type: "SET_CHARACTER_PICKER_OPEN"; open: boolean }
+  | { type: "SET_ATTACKS_EXPANDED"; expanded: boolean }
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
   | { type: "DISCARD_WEAPON"; id: string }
-  | { type: "CAST_SPELL"; spellId: string; damage: number }
+  | {
+      type: "CAST_SPELL";
+      spellId: string;
+      damage: number;
+      note?: string;
+      missed?: boolean;
+      crit?: boolean;
+    }
   | {
       type: "SMITE_ATTACK";
       damage: number;
       weaponName: string;
       smiteDamage: number;
       smiteSlotLevel: number;
+      note?: string;
+      missed?: boolean;
+      crit?: boolean;
+      consumeSlot?: boolean;
     }
-  | { type: "USE_SCROLL"; scrollId: string; damage: number }
+  | { type: "USE_SCROLL"; scrollId: string; damage: number; note?: string; missed?: boolean; crit?: boolean }
   | { type: "USE_POTION"; potionId: string; healed: number }
   | { type: "REFILL_SLOTS" }
   | { type: "EQUIP_SPELL"; id: string }
@@ -202,6 +223,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         status: "fighting",
         monster: null,
         monsterPending: false,
+        attacksExpanded: false,
       };
 
     case "RETURN_TO_LOBBY":
@@ -217,8 +239,17 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const newHealth = Math.max(0, state.monster.health - action.damage);
       const monster: Monster = { ...state.monster, health: newHealth };
       const note = action.note ? ` (${action.note})` : "";
-      const text = `${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp${note}`;
-      return pushTurn({ ...state, monster }, true, text);
+      const text = action.missed
+        ? `${state.player.name} attacks ${monster.name} with ${action.weaponName} — MISS${note}`
+        : action.crit
+          ? `CRIT — ${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp${note}`
+          : `${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp${note}`;
+      return pushTurn(
+        { ...state, monster },
+        true,
+        text,
+        action.crit ? "crit" : undefined,
+      );
     }
 
     case "MONSTER_PENDING":
@@ -228,11 +259,17 @@ export function gameReducer(state: GameState, action: Action): GameState {
       if (!state.monster || !state.player) return state;
       const newHealth = Math.max(0, state.player.health - action.damage);
       const player: Player = { ...state.player, health: newHealth };
-      const text = `${state.monster.name} attacks ${player.name} for ${action.damage} hp`;
+      const note = action.note ? ` (${action.note})` : "";
+      const text = action.missed
+        ? `${state.monster.name} attacks ${player.name} — MISS${note}`
+        : action.crit
+          ? `CRIT — ${state.monster.name} attacks ${player.name} for ${action.damage} hp${note}`
+          : `${state.monster.name} attacks ${player.name} for ${action.damage} hp${note}`;
       return pushTurn(
         { ...state, player, monsterPending: false },
         false,
         text,
+        action.crit ? "crit" : undefined,
       );
     }
 
@@ -318,6 +355,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "SET_CHARACTER_PICKER_OPEN":
       return { ...state, characterPickerOpen: action.open };
+
+    case "SET_ATTACKS_EXPANDED":
+      return { ...state, attacksExpanded: action.expanded };
 
     case "DISMISS_VICTORY": {
       const keepLoot = action.keepLoot ?? true;
@@ -468,6 +508,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         (s) => s.id === action.spellId,
       );
       if (!spell) return state;
+      // Spell-attack spells consume the slot regardless of hit/miss.
       let spellSlots = state.player.spellSlots;
       if (spell.level > 0) {
         const key = String(spell.level);
@@ -478,22 +519,48 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const newHealth = Math.max(0, state.monster.health - action.damage);
       const monster: Monster = { ...state.monster, health: newHealth };
       const player: Player = { ...state.player, spellSlots };
-      const text = `${player.name} casts ${spell.name} for ${action.damage} hp`;
-      return pushTurn({ ...state, monster, player }, true, text);
+      const note = action.note ? ` (${action.note})` : "";
+      const text = action.missed
+        ? `${player.name} casts ${spell.name} — MISS${note}`
+        : action.crit
+          ? `CRIT — ${player.name} casts ${spell.name} for ${action.damage} hp${note}`
+          : `${player.name} casts ${spell.name} for ${action.damage} hp${note}`;
+      return pushTurn(
+        { ...state, monster, player },
+        true,
+        text,
+        action.crit ? "crit" : undefined,
+      );
     }
 
     case "SMITE_ATTACK": {
       if (!state.player || !state.monster) return state;
-      const key = String(action.smiteSlotLevel);
-      const remaining = state.player.spellSlots[key] ?? 0;
-      if (remaining <= 0) return state;
-      const spellSlots = { ...state.player.spellSlots, [key]: remaining - 1 };
+      // Smite isn't consumed on miss because 5e declares smite after the hit
+      // lands. consumeSlot defaults to true for hits, false for misses.
+      const consume = action.consumeSlot ?? !action.missed;
+      let spellSlots = state.player.spellSlots;
+      if (consume) {
+        const key = String(action.smiteSlotLevel);
+        const remaining = spellSlots[key] ?? 0;
+        if (remaining <= 0) return state;
+        spellSlots = { ...spellSlots, [key]: remaining - 1 };
+      }
       const total = action.damage + action.smiteDamage;
       const newHealth = Math.max(0, state.monster.health - total);
       const monster: Monster = { ...state.monster, health: newHealth };
       const player: Player = { ...state.player, spellSlots };
-      const text = `${player.name} smites ${monster.name} with ${action.weaponName} for ${total} hp (L${action.smiteSlotLevel} smite +${action.smiteDamage})`;
-      return pushTurn({ ...state, monster, player }, true, text);
+      const note = action.note ? ` (${action.note})` : "";
+      const text = action.missed
+        ? `${player.name} smites ${monster.name} with ${action.weaponName} — MISS${note}`
+        : action.crit
+          ? `CRIT — ${player.name} smites ${monster.name} with ${action.weaponName} for ${total} hp (L${action.smiteSlotLevel} smite +${action.smiteDamage})${note}`
+          : `${player.name} smites ${monster.name} with ${action.weaponName} for ${total} hp (L${action.smiteSlotLevel} smite +${action.smiteDamage})${note}`;
+      return pushTurn(
+        { ...state, monster, player },
+        true,
+        text,
+        action.crit ? "crit" : undefined,
+      );
     }
 
     case "USE_SCROLL": {
@@ -502,6 +569,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
         (c): c is Scroll => c.kind === "scroll" && c.id === action.scrollId,
       );
       if (!scroll) return state;
+      // Scrolls are consumed regardless of hit/miss (matches 5e spell-attack
+      // economy: the casting still resolves).
       const newHealth = Math.max(0, state.monster.health - action.damage);
       const monster: Monster = { ...state.monster, health: newHealth };
       const player: Player = {
@@ -510,8 +579,18 @@ export function gameReducer(state: GameState, action: Action): GameState {
           (c) => c.id !== action.scrollId,
         ),
       };
-      const text = `${player.name} reads a scroll of ${scroll.spellName} for ${action.damage} hp`;
-      return pushTurn({ ...state, monster, player }, true, text);
+      const note = action.note ? ` (${action.note})` : "";
+      const text = action.missed
+        ? `${player.name} reads a scroll of ${scroll.spellName} — MISS${note}`
+        : action.crit
+          ? `CRIT — ${player.name} reads a scroll of ${scroll.spellName} for ${action.damage} hp${note}`
+          : `${player.name} reads a scroll of ${scroll.spellName} for ${action.damage} hp${note}`;
+      return pushTurn(
+        { ...state, monster, player },
+        true,
+        text,
+        action.crit ? "crit" : undefined,
+      );
     }
 
     case "USE_POTION": {

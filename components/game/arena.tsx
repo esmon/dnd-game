@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { CombatLog } from "@/components/game/combat-log";
 import { CommandPanel } from "@/components/game/command-panel";
@@ -20,9 +25,25 @@ import {
   classFeatureLabel,
   computeWeaponAttackDamage,
 } from "@/lib/dnd/class-features";
+import { CLASSES } from "@/lib/dnd/classes";
+import {
+  applyDamageMultiplier,
+  averageDamage,
+  damageMultiplier,
+  playerAC,
+  rollAttack,
+  weaponAttackAbility,
+} from "@/lib/dnd/combat";
+import {
+  weaponAttackBonus,
+  weaponAttackBonusDice,
+  weaponAttackMultiplier,
+} from "@/lib/dnd/class-features";
+import { abilityModifier } from "@/lib/dnd/derive";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
+import { RACES } from "@/lib/dnd/races";
 import { slotsForLevel } from "@/lib/dnd/spells";
-import { WEAPONS } from "@/lib/dnd/weapons";
+import { WEAPONS, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
   EQUIP_CAP,
   EQUIPPED_SPELL_CAP,
@@ -62,6 +83,7 @@ function legacyWeaponToWeapon(w: { name: string; damage: string }): Weapon {
     name: w.name,
     damage: w.damage,
     bonus: 0,
+    damageType: match?.damageType ?? "slashing",
   };
 }
 
@@ -72,6 +94,21 @@ function isFullyShapedWeapon(w: unknown): boolean {
     typeof o.id === "string" &&
     typeof o.baseId === "string" &&
     typeof o.bonus === "number"
+  );
+}
+
+// Migration helper: pre-DRVI weapons exist on disk without a damageType field.
+// Backfill from the catalog (or default to slashing) so all in-memory Weapons
+// satisfy the type.
+function ensureDamageType(w: Weapon): Weapon {
+  if (typeof w.damageType === "string" && w.damageType.length > 0) return w;
+  const def = weaponsByBaseId[w.baseId];
+  return { ...w, damageType: def?.damageType ?? "slashing" };
+}
+
+function needsDamageTypeBackfill(weapons: Weapon[]): boolean {
+  return weapons.some(
+    (w) => typeof w.damageType !== "string" || w.damageType.length === 0,
   );
 }
 
@@ -214,6 +251,28 @@ export function Arena() {
             });
           } catch (err) {
             console.error("legacy weapon migration patch failed", err);
+          }
+        }
+
+        // damageType backfill: pre-DRVI weapons lack the field. Patch once.
+        if (
+          needsDamageTypeBackfill(character.weapons) ||
+          needsDamageTypeBackfill(character.inventory)
+        ) {
+          const weapons = character.weapons.map(ensureDamageType);
+          const inventory = character.inventory.map(ensureDamageType);
+          character = { ...character, weapons, inventory };
+          try {
+            await fetchWithSession(`/api/character/${character.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                weapons,
+                inventory,
+              } satisfies CharacterUpdate),
+            });
+          } catch (err) {
+            console.error("damageType backfill patch failed", err);
           }
         }
 
@@ -428,9 +487,42 @@ export function Arena() {
     setTimeout(() => {
       const snap = stateRef.current;
       if (!snap.monster || !snap.player) return;
-      const damage = rollDice(snap.monster.damageDice);
+      const klass =
+        CLASSES.find(
+          (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
+        ) ?? null;
+      const targetAC = playerAC(klass, snap.player.abilityScores);
+      const attack = rollAttack(snap.monster.attackBonus, targetAC);
+      if (!attack.hit) {
+        dispatch({
+          type: "MONSTER_ATTACK",
+          damage: 0,
+          missed: true,
+          note: `d20 ${attack.d20}`,
+        });
+        return;
+      }
+      const race = RACES.find((r) => r.id === snap.player!.raceId);
+      const baseRaw =
+        rollDice(snap.monster.damageDice) +
+        (attack.crit ? rollDice(snap.monster.damageDice) : 0);
+      const dmgMult = damageMultiplier(
+        snap.monster.damageType,
+        race?.damageResistances ?? [],
+        race?.damageImmunities ?? [],
+        race?.damageVulnerabilities ?? [],
+      );
+      const damage = applyDamageMultiplier(baseRaw, dmgMult);
+      const noteParts = [snap.monster.damageType];
+      if (dmgMult.label) noteParts.push(dmgMult.label);
+      const note = noteParts.join(" — ");
       const newPlayerHealth = Math.max(0, snap.player.health - damage);
-      dispatch({ type: "MONSTER_ATTACK", damage });
+      dispatch({
+        type: "MONSTER_ATTACK",
+        damage,
+        crit: attack.crit,
+        note,
+      });
       if (newPlayerHealth <= 0) {
         dispatch({ type: "LOSE" });
         needsPersistRef.current = true;
@@ -439,7 +531,7 @@ export function Arena() {
   }, []);
 
   const handleAttack = useCallback(
-    (weaponName: string, damageDice: string) => {
+    (weapon: Weapon) => {
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -450,18 +542,51 @@ export function Arena() {
       ) {
         return;
       }
-      const damage = computeWeaponAttackDamage(
+      const ability = weaponAttackAbility(weapon, snap.player.abilityScores);
+      const mod =
+        snap.player.proficiencyBonus +
+        abilityModifier(snap.player.abilityScores[ability]);
+      const attack = rollAttack(mod, snap.monster.ac);
+      if (!attack.hit) {
+        dispatch({
+          type: "PLAYER_ATTACK",
+          damage: 0,
+          weaponName: weapon.name,
+          missed: true,
+          note: `d20 ${attack.d20}`,
+        });
+        triggerMonsterAttack();
+        return;
+      }
+      const rawDamage = computeWeaponAttackDamage(
         snap.player.classId,
         snap.player.level,
-        damageDice,
+        weapon.damage,
+        attack.crit,
       );
-      const note = classFeatureLabel(snap.player.classId, snap.player.level);
+      const dmgMult = damageMultiplier(
+        weapon.damageType,
+        snap.monster.damageResistances,
+        snap.monster.damageImmunities,
+        snap.monster.damageVulnerabilities,
+      );
+      const damage = applyDamageMultiplier(rawDamage, dmgMult);
+      const featureLabel = classFeatureLabel(
+        snap.player.classId,
+        snap.player.level,
+      );
+      const noteParts: string[] = [];
+      if (featureLabel) noteParts.push(featureLabel);
+      const dtype = weapon.damageType;
+      noteParts.push(dmgMult.label ? `${dtype} — ${dmgMult.label}` : dtype);
+      const note = noteParts.join(" · ");
       const newMonsterHealth = Math.max(0, snap.monster.health - damage);
       dispatch({
         type: "PLAYER_ATTACK",
         damage,
-        weaponName,
-        note: note || undefined,
+        weaponName: weapon.name,
+        crit: attack.crit,
+        note,
       });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
@@ -507,7 +632,12 @@ export function Arena() {
   }, []);
 
   const handleCastSpell = useCallback(
-    (spellId: string, spellLevel: number, damageDice: string) => {
+    (
+      spellId: string,
+      spellLevel: number,
+      damageDice: string,
+      damageType: string,
+    ) => {
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -522,9 +652,49 @@ export function Arena() {
         const remaining = snap.player.spellSlots[String(spellLevel)] ?? 0;
         if (remaining <= 0) return;
       }
-      const damage = rollDice(damageDice);
+      // Treat all damage spells as spell-attack-roll spells (deviation from
+      // RAW: Fireball etc. should be DEX saves, but we collapse the two for
+      // a single combat path).
+      const klass = CLASSES.find(
+        (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
+      );
+      const ability = klass?.spellcastingAbility ?? "int";
+      const mod =
+        snap.player.proficiencyBonus +
+        abilityModifier(snap.player.abilityScores[ability]);
+      const attack = rollAttack(mod, snap.monster.ac);
+      if (!attack.hit) {
+        // Slot is still consumed on miss for spell-attack spells.
+        dispatch({
+          type: "CAST_SPELL",
+          spellId,
+          damage: 0,
+          missed: true,
+          note: `d20 ${attack.d20}`,
+        });
+        triggerMonsterAttack();
+        return;
+      }
+      const rawDamage =
+        rollDice(damageDice) + (attack.crit ? rollDice(damageDice) : 0);
+      const dmgMult = damageMultiplier(
+        damageType,
+        snap.monster.damageResistances,
+        snap.monster.damageImmunities,
+        snap.monster.damageVulnerabilities,
+      );
+      const damage = applyDamageMultiplier(rawDamage, dmgMult);
+      const note = dmgMult.label
+        ? `${damageType} — ${dmgMult.label}`
+        : damageType;
       const newMonsterHealth = Math.max(0, snap.monster.health - damage);
-      dispatch({ type: "CAST_SPELL", spellId, damage });
+      dispatch({
+        type: "CAST_SPELL",
+        spellId,
+        damage,
+        crit: attack.crit,
+        note,
+      });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
         const newWins = snap.stats.wins + 1;
@@ -540,7 +710,7 @@ export function Arena() {
   );
 
   const handleSmite = useCallback(
-    (weaponName: string, damageDice: string, smiteSlotLevel: number) => {
+    (weapon: Weapon, smiteSlotLevel: number) => {
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -554,20 +724,71 @@ export function Arena() {
       const remaining =
         snap.player.spellSlots[String(smiteSlotLevel)] ?? 0;
       if (remaining <= 0) return;
-      const damage = computeWeaponAttackDamage(
+      const ability = weaponAttackAbility(weapon, snap.player.abilityScores);
+      const mod =
+        snap.player.proficiencyBonus +
+        abilityModifier(snap.player.abilityScores[ability]);
+      const attack = rollAttack(mod, snap.monster.ac);
+      if (!attack.hit) {
+        // Smite isn't consumed on miss because 5e declares smite after the
+        // hit lands. Dispatch a non-consuming SMITE_ATTACK miss so the log
+        // reads as a smite attempt rather than a regular swing.
+        dispatch({
+          type: "SMITE_ATTACK",
+          damage: 0,
+          weaponName: weapon.name,
+          smiteDamage: 0,
+          smiteSlotLevel,
+          missed: true,
+          consumeSlot: false,
+          note: `d20 ${attack.d20}`,
+        });
+        triggerMonsterAttack();
+        return;
+      }
+      const rawWeaponDamage = computeWeaponAttackDamage(
         snap.player.classId,
         snap.player.level,
-        damageDice,
+        weapon.damage,
+        attack.crit,
       );
-      const smiteDamage = rollDice(`${smiteSlotLevel + 1}d8`);
-      const total = damage + smiteDamage;
+      const weaponMult = damageMultiplier(
+        weapon.damageType,
+        snap.monster.damageResistances,
+        snap.monster.damageImmunities,
+        snap.monster.damageVulnerabilities,
+      );
+      const weaponDamage = applyDamageMultiplier(rawWeaponDamage, weaponMult);
+      const smiteDice = `${smiteSlotLevel + 1}d8`;
+      const rawSmite =
+        rollDice(smiteDice) + (attack.crit ? rollDice(smiteDice) : 0);
+      const radiantMult = damageMultiplier(
+        "radiant",
+        snap.monster.damageResistances,
+        snap.monster.damageImmunities,
+        snap.monster.damageVulnerabilities,
+      );
+      const smiteDamage = applyDamageMultiplier(rawSmite, radiantMult);
+      const noteParts = [
+        weaponMult.label
+          ? `${weapon.damageType} — ${weaponMult.label}`
+          : weapon.damageType,
+      ];
+      noteParts.push(
+        radiantMult.label ? `radiant — ${radiantMult.label}` : "radiant",
+      );
+      const note = noteParts.join(" + ");
+      const total = weaponDamage + smiteDamage;
       const newMonsterHealth = Math.max(0, snap.monster.health - total);
       dispatch({
         type: "SMITE_ATTACK",
-        damage,
-        weaponName,
+        damage: weaponDamage,
+        weaponName: weapon.name,
         smiteDamage,
         smiteSlotLevel,
+        crit: attack.crit,
+        consumeSlot: true,
+        note,
       });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
@@ -584,7 +805,7 @@ export function Arena() {
   );
 
   const handleUseScroll = useCallback(
-    (scrollId: string, damageDice: string) => {
+    (scrollId: string, damageDice: string, damageType: string) => {
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -595,9 +816,46 @@ export function Arena() {
       ) {
         return;
       }
-      const damage = rollDice(damageDice);
+      const klass = CLASSES.find(
+        (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
+      );
+      // Non-casters reading a scroll fall back to INT, matching SRD ruling.
+      const ability = klass?.spellcastingAbility ?? "int";
+      const mod =
+        snap.player.proficiencyBonus +
+        abilityModifier(snap.player.abilityScores[ability]);
+      const attack = rollAttack(mod, snap.monster.ac);
+      if (!attack.hit) {
+        dispatch({
+          type: "USE_SCROLL",
+          scrollId,
+          damage: 0,
+          missed: true,
+          note: `d20 ${attack.d20}`,
+        });
+        triggerMonsterAttack();
+        return;
+      }
+      const rawDamage =
+        rollDice(damageDice) + (attack.crit ? rollDice(damageDice) : 0);
+      const dmgMult = damageMultiplier(
+        damageType,
+        snap.monster.damageResistances,
+        snap.monster.damageImmunities,
+        snap.monster.damageVulnerabilities,
+      );
+      const damage = applyDamageMultiplier(rawDamage, dmgMult);
+      const note = dmgMult.label
+        ? `${damageType} — ${dmgMult.label}`
+        : damageType;
       const newMonsterHealth = Math.max(0, snap.monster.health - damage);
-      dispatch({ type: "USE_SCROLL", scrollId, damage });
+      dispatch({
+        type: "USE_SCROLL",
+        scrollId,
+        damage,
+        crit: attack.crit,
+        note,
+      });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
         const newWins = snap.stats.wins + 1;
@@ -760,6 +1018,173 @@ export function Arena() {
     fightActionReason ??
     (smiteOutOfSlots ? "Out of spell slots — REST to refill" : null);
 
+  // Pre-rank all offensive actions by expected damage against the current
+  // monster. Buttons render in this order so the most effective option is
+  // first. Weapons, smite, equipped spells, and scrolls all participate;
+  // potions are a separate (heal) category.
+  const consumableGroups = groupConsumables(player.consumables);
+  const weaponFlatBonus = weaponAttackBonus(player.classId, player.level);
+  const weaponBonusDiceStr = weaponAttackBonusDice(player.classId, player.level);
+  const weaponBonusDiceAvg = weaponBonusDiceStr
+    ? averageDamage(weaponBonusDiceStr)
+    : 0;
+  const weaponMultiplier = weaponAttackMultiplier(player.classId, player.level);
+  const monsterDmgMult = (damageType: string): number => {
+    if (!monster) return 1;
+    return damageMultiplier(
+      damageType,
+      monster.damageResistances,
+      monster.damageImmunities,
+      monster.damageVulnerabilities,
+    ).mult;
+  };
+
+  type AttackOption = {
+    key: string;
+    effective: number;
+    node: React.ReactNode;
+  };
+  const attackOptions: AttackOption[] = [];
+
+  for (const weapon of player.weapons) {
+    const baseAvg = averageDamage(weapon.damage);
+    const totalAvg =
+      (baseAvg + weaponFlatBonus + weaponBonusDiceAvg) * weaponMultiplier;
+    const effective = totalAvg * monsterDmgMult(weapon.damageType);
+    const key = `w-${weapon.id}`;
+    attackOptions.push({
+      key,
+      effective,
+      node: (
+        <DisabledTip key={key} reason={fightActionReason}>
+          <Button
+            variant="destructive"
+            onClick={() => handleAttack(weapon)}
+            disabled={actionsDisabled}
+            className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
+          >
+            <span className="truncate">{weapon.name}</span>
+            <span className="text-xs opacity-70">{weapon.damage}</span>
+          </Button>
+        </DisabledTip>
+      ),
+    });
+  }
+
+  if (isSmiteEligible && smiteWeapon) {
+    const baseAvg = averageDamage(smiteWeapon.damage);
+    const weaponPart = (baseAvg + weaponFlatBonus) * weaponMultiplier;
+    const smiteDiceAvg = (smiteSlotLevel + 1) * 4.5;
+    const effective = smiteOutOfSlots
+      ? 0
+      : weaponPart * monsterDmgMult(smiteWeapon.damageType) +
+        smiteDiceAvg * monsterDmgMult("radiant");
+    attackOptions.push({
+      key: "smite",
+      effective,
+      node: (
+        <DisabledTip key="smite" reason={smiteReason}>
+          <Button
+            className="h-auto w-full flex-col gap-0 bg-amber-500 py-1.5 leading-tight text-white hover:bg-amber-500/90"
+            onClick={() => handleSmite(smiteWeapon, smiteSlotLevel)}
+            disabled={actionsDisabled || smiteOutOfSlots}
+          >
+            <span className="truncate">
+              {smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
+            </span>
+            <span className="text-xs opacity-80">
+              {smiteOutOfSlots
+                ? "+?d8 radiant"
+                : `+${smiteSlotLevel + 1}d8 radiant`}
+            </span>
+          </Button>
+        </DisabledTip>
+      ),
+    });
+  }
+
+  for (const spell of player.equippedSpells) {
+    const slotsMax = player.spellSlots[String(spell.level)] ?? 0;
+    const slotsLeft = spell.level === 0 ? Infinity : slotsMax;
+    const outOfSlots = spell.level > 0 && slotsLeft <= 0;
+    const slotInfo =
+      spell.level === 0
+        ? "cantrip"
+        : `L${spell.level} · ${slotsLeft}/${slotsMax}`;
+    const spellReason =
+      fightActionReason ??
+      (outOfSlots
+        ? `Out of L${spell.level} spell slots — REST to refill`
+        : null);
+    const effective =
+      averageDamage(spell.damage) * monsterDmgMult(spell.damageType);
+    const key = `s-${spell.id}`;
+    attackOptions.push({
+      key,
+      effective,
+      node: (
+        <DisabledTip key={key} reason={spellReason}>
+          <Button
+            className="h-auto w-full flex-col gap-0 bg-indigo-600 py-1.5 leading-tight text-white hover:bg-indigo-600/90"
+            onClick={() =>
+              handleCastSpell(
+                spell.id,
+                spell.level,
+                spell.damage,
+                spell.damageType,
+              )
+            }
+            disabled={actionsDisabled || outOfSlots}
+          >
+            <span className="truncate">{spell.name}</span>
+            <span className="text-xs opacity-70">
+              {spell.damage} · {slotInfo}
+            </span>
+          </Button>
+        </DisabledTip>
+      ),
+    });
+  }
+
+  for (const group of consumableGroups) {
+    if (group.representative.kind !== "scroll") continue;
+    const c = group.representative;
+    const count = group.ids.length;
+    const useId = group.ids[0];
+    const effective = averageDamage(c.damage) * monsterDmgMult(c.damageType);
+    const key = `sc-${group.key}`;
+    attackOptions.push({
+      key,
+      effective,
+      node: (
+        <DisabledTip key={key} reason={fightActionReason}>
+          <Button
+            variant="secondary"
+            onClick={() => handleUseScroll(useId, c.damage, c.damageType)}
+            disabled={actionsDisabled}
+            className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
+          >
+            <span className="truncate">
+              {c.spellName}
+              {count > 1 ? ` ×${count}` : ""}
+            </span>
+            <span className="text-xs opacity-70">Scroll · {c.damage}</span>
+          </Button>
+        </DisabledTip>
+      ),
+    });
+  }
+
+  attackOptions.sort((a, b) => b.effective - a.effective);
+
+  const TOP_ATTACK_LIMIT = 3;
+  const visibleAttackOptions = attackOptions.slice(0, TOP_ATTACK_LIMIT);
+  const hiddenAttackOptions = attackOptions.slice(TOP_ATTACK_LIMIT);
+
+  const potionGroups = consumableGroups.filter(
+    (g) => g.representative.kind === "potion",
+  );
+
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-6">
       <h1 className="text-center text-3xl font-bold tracking-tight">
@@ -781,99 +1206,39 @@ export function Arena() {
             </div>
           )}
           <CommandPanel>
-            {player.weapons.map((weapon) => (
-              <DisabledTip key={weapon.id} reason={fightActionReason}>
-                <Button
-                  variant="destructive"
-                  onClick={() => handleAttack(weapon.name, weapon.damage)}
-                  disabled={actionsDisabled}
-                  className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
-                >
-                  <span className="truncate">{weapon.name}</span>
-                  <span className="text-xs opacity-70">{weapon.damage}</span>
-                </Button>
-              </DisabledTip>
-            ))}
-            {isSmiteEligible && smiteWeapon ? (
-              <DisabledTip reason={smiteReason}>
-                <Button
-                  className="h-auto w-full flex-col gap-0 bg-amber-500 py-1.5 leading-tight text-white hover:bg-amber-500/90"
-                  onClick={() =>
-                    handleSmite(
-                      smiteWeapon.name,
-                      smiteWeapon.damage,
-                      smiteSlotLevel,
-                    )
+            {visibleAttackOptions.map((o) => o.node)}
+            {hiddenAttackOptions.length > 0 ? (
+              <Popover
+                open={state.attacksExpanded}
+                onOpenChange={(open) =>
+                  dispatch({ type: "SET_ATTACKS_EXPANDED", expanded: open })
+                }
+              >
+                <PopoverTrigger
+                  render={
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      Show {hiddenAttackOptions.length} more
+                    </Button>
                   }
-                  disabled={actionsDisabled || smiteOutOfSlots}
+                />
+                <PopoverContent
+                  side="left"
+                  align="start"
+                  className="flex w-64 flex-col gap-2"
                 >
-                  <span className="truncate">
-                    {smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
-                  </span>
-                  <span className="text-xs opacity-80">
-                    {smiteOutOfSlots
-                      ? "+?d8 radiant"
-                      : `+${smiteSlotLevel + 1}d8 radiant`}
-                  </span>
-                </Button>
-              </DisabledTip>
+                  {hiddenAttackOptions.map((o) => o.node)}
+                </PopoverContent>
+              </Popover>
             ) : null}
-            {player.equippedSpells.map((spell) => {
-              const slotsLeft =
-                spell.level === 0
-                  ? Infinity
-                  : player.spellSlots[String(spell.level)] ?? 0;
-              const outOfSlots = spell.level > 0 && slotsLeft <= 0;
-              const slotInfo =
-                spell.level === 0
-                  ? "cantrip"
-                  : `L${spell.level} · ${slotsLeft}/${player.spellSlots[String(spell.level)] ?? 0}`;
-              const spellReason =
-                fightActionReason ??
-                (outOfSlots
-                  ? `Out of L${spell.level} spell slots — REST to refill`
-                  : null);
-              return (
-                <DisabledTip key={spell.id} reason={spellReason}>
-                  <Button
-                    className="h-auto w-full flex-col gap-0 bg-indigo-600 py-1.5 leading-tight text-white hover:bg-indigo-600/90"
-                    onClick={() =>
-                      handleCastSpell(spell.id, spell.level, spell.damage)
-                    }
-                    disabled={actionsDisabled || outOfSlots}
-                  >
-                    <span className="truncate">{spell.name}</span>
-                    <span className="text-xs opacity-70">
-                      {spell.damage} · {slotInfo}
-                    </span>
-                  </Button>
-                </DisabledTip>
-              );
-            })}
-            {groupConsumables(player.consumables).map((group) => {
+            {potionGroups.map((group) => {
+              if (group.representative.kind !== "potion") return null;
               const c = group.representative;
               const count = group.ids.length;
               const useId = group.ids[0];
-              if (c.kind === "scroll") {
-                return (
-                  <DisabledTip key={group.key} reason={fightActionReason}>
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleUseScroll(useId, c.damage)}
-                      disabled={actionsDisabled}
-                      className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
-                    >
-                      <span className="truncate">
-                        {c.spellName}
-                        {count > 1 ? ` ×${count}` : ""}
-                      </span>
-                      <span className="text-xs opacity-70">
-                        Scroll · {c.damage}
-                      </span>
-                    </Button>
-                  </DisabledTip>
-                );
-              }
               const potionFull = player.health >= player.maxHealth;
               const potionReason =
                 fightActionReason ??

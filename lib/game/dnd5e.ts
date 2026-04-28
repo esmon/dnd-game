@@ -15,13 +15,21 @@ function crToQueryValue(cr: string): string {
 
 type RawMonsterIndex = { index: string; name: string; url?: string };
 
+type RawMonsterDamage = {
+  damage_dice?: string;
+  damage_type?: { name?: string };
+};
+
 type RawMonsterAction = {
   name?: string;
-  damage?: Array<{
-    damage_dice?: string;
-    damage_type?: { name?: string };
-  }>;
+  attack_bonus?: number;
+  damage?: RawMonsterDamage[];
 };
+
+type RawMonsterAc =
+  | number
+  | Array<{ value?: number; type?: string }>
+  | undefined;
 
 type RawMonster = {
   index: string;
@@ -32,6 +40,10 @@ type RawMonster = {
   challenge_rating?: number;
   image?: string | null;
   actions?: RawMonsterAction[];
+  armor_class?: RawMonsterAc;
+  damage_resistances?: string[];
+  damage_immunities?: string[];
+  damage_vulnerabilities?: string[];
 };
 
 export async function fetchMonsterIndexList(level: number): Promise<MonsterIndex[]> {
@@ -52,14 +64,56 @@ export async function fetchMonsterIndexList(level: number): Promise<MonsterIndex
   return results.map((r) => ({ index: r.index, name: r.name }));
 }
 
-// Pull the first action's first damage die out of the statblock. Some monsters
-// (e.g. Awakened Shrub) have no actions; fall back to hit_dice so combat can
-// continue with something sensible rather than crashing.
-function pickDamageDice(raw: RawMonster): string {
-  const action = raw.actions?.find((a) => a.damage && a.damage.length > 0);
-  const dice = action?.damage?.[0]?.damage_dice;
-  if (dice && /\d+d\d+/.test(dice)) return dice;
-  return raw.hit_dice || "1d4";
+// Estimate "biggest" damage by max die value (NdM → N*M). Avoids needing to
+// roll just to compare actions.
+function diceMax(dice: string): number {
+  const m = dice.match(/^(\d+)d(\d+)/);
+  if (!m) return 0;
+  return parseInt(m[1], 10) * parseInt(m[2], 10);
+}
+
+type PickedAction = {
+  damageDice: string;
+  attackBonus: number;
+  damageType: string;
+};
+
+function pickPrimaryAction(raw: RawMonster): PickedAction {
+  let best: PickedAction | null = null;
+  for (const a of raw.actions ?? []) {
+    const d = a.damage?.[0];
+    const dice = d?.damage_dice;
+    if (!dice || !/\d+d\d+/.test(dice)) continue;
+    const candidate: PickedAction = {
+      damageDice: dice,
+      attackBonus: typeof a.attack_bonus === "number" ? a.attack_bonus : 0,
+      damageType: (d?.damage_type?.name ?? "bludgeoning").toLowerCase(),
+    };
+    if (!best || diceMax(candidate.damageDice) > diceMax(best.damageDice)) {
+      best = candidate;
+    }
+  }
+  if (best) return best;
+  // Fallback: monsters like Awakened Shrub have no actions.
+  return {
+    damageDice: raw.hit_dice || "1d4",
+    attackBonus: 0,
+    damageType: "bludgeoning",
+  };
+}
+
+function parseAc(raw: RawMonsterAc): number {
+  if (typeof raw === "number") return raw;
+  if (Array.isArray(raw) && raw.length > 0) {
+    const v = raw[0]?.value;
+    if (typeof v === "number") return v;
+  }
+  return 10;
+}
+
+function lower(list: string[] | undefined): string[] {
+  if (!Array.isArray(list)) return [];
+  return list.map((s) => s.toLowerCase());
 }
 
 export async function fetchMonster(index: string): Promise<Monster> {
@@ -72,6 +126,7 @@ export async function fetchMonster(index: string): Promise<Monster> {
     throw new Error(`dnd5eapi monster ${index} failed: ${res.status}`);
   }
   const data = (await res.json()) as RawMonster;
+  const action = pickPrimaryAction(data);
 
   return {
     index: data.index,
@@ -80,9 +135,15 @@ export async function fetchMonster(index: string): Promise<Monster> {
     maxHealth: data.hit_points,
     health: data.hit_points,
     xp: data.xp,
-    damageDice: pickDamageDice(data),
+    damageDice: action.damageDice,
     challengeRating: typeof data.challenge_rating === "number"
       ? data.challenge_rating
       : 0,
+    ac: parseAc(data.armor_class),
+    attackBonus: action.attackBonus,
+    damageType: action.damageType,
+    damageResistances: lower(data.damage_resistances),
+    damageVulnerabilities: lower(data.damage_vulnerabilities),
+    damageImmunities: lower(data.damage_immunities),
   };
 }
