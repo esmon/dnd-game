@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { CombatLog } from "@/components/game/combat-log";
 import { CommandPanel } from "@/components/game/command-panel";
 import { PlayerPanel } from "@/components/game/player-panel";
@@ -209,10 +210,24 @@ export function Arena() {
         }
         const indices = (await monstersRes.json()) as MonsterIndex[];
 
+        // Count of session's characters drives whether the Switch button
+        // shows up. Fetch alongside bootstrap so it's ready in the lobby.
+        let count = 1;
+        try {
+          const listRes = await fetchWithSession("/api/characters");
+          if (listRes.ok) {
+            const all = (await listRes.json()) as Character[];
+            count = all.length;
+          }
+        } catch (err) {
+          console.error("character count fetch failed", err);
+        }
+
         if (cancelled) return;
         indexLevelRef.current = player.level;
         lastSyncedRef.current = { id: character.id, level: player.level };
         dispatch({ type: "BOOTSTRAP_DONE", player, indices });
+        dispatch({ type: "SET_CHARACTER_COUNT", count });
       } catch (err) {
         console.error("bootstrap failed", err);
       }
@@ -580,6 +595,13 @@ export function Arena() {
     needsPersistRef.current = true;
   }, []);
 
+  const handleSelectCharacter = useCallback((id: string) => {
+    setActiveCharacterId(id);
+    // Cleanest reset for everything (game state, refs, fetched indices) is a
+    // full page reload — bootstrap will pick up the new active character.
+    window.location.reload();
+  }, []);
+
   if (state.loading || !state.player) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -603,7 +625,7 @@ export function Arena() {
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-6">
       <h1 className="text-center text-3xl font-bold tracking-tight">
-        Monster Slayer
+        DND 5e Monster Slayer
       </h1>
 
       <StatsBar stats={stats} />
@@ -732,6 +754,16 @@ export function Arena() {
             <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
               INVENTORY
             </Button>
+            {state.characterCount > 1 ? (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open: true })
+                }
+              >
+                Switch Character
+              </Button>
+            ) : null}
             {process.env.NODE_ENV === "development" ? (
               <Button
                 size="sm"
@@ -763,6 +795,16 @@ export function Arena() {
             >
               Create New Character
             </Button>
+            {state.characterCount > 1 ? (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open: true })
+                }
+              >
+                Switch Character
+              </Button>
+            ) : null}
             {process.env.NODE_ENV === "development" ? (
               <Button
                 size="sm"
@@ -825,6 +867,15 @@ export function Arena() {
         onEquipSpell={handleEquipSpell}
         onUnequipSpell={handleUnequipSpell}
         onDiscardConsumable={handleDiscardConsumable}
+      />
+
+      <CharacterPickerDialog
+        open={state.characterPickerOpen}
+        onOpenChange={(open) =>
+          dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open })
+        }
+        currentCharacterId={player.id ?? ""}
+        onSelect={handleSelectCharacter}
       />
     </div>
   );

@@ -41,6 +41,8 @@ export type GameState = {
   asiPending: number[];
   victory: VictoryInfo | null;
   inventoryOpen: boolean;
+  characterCount: number;
+  characterPickerOpen: boolean;
 };
 
 export const initialState: GameState = {
@@ -56,6 +58,8 @@ export const initialState: GameState = {
   asiPending: [],
   victory: null,
   inventoryOpen: false,
+  characterCount: 0,
+  characterPickerOpen: false,
 };
 
 export type Action =
@@ -78,6 +82,8 @@ export type Action =
   | { type: "DEV_NEXT_LEVEL" }
   | { type: "DISMISS_VICTORY"; keepLoot?: boolean }
   | { type: "SET_INVENTORY_OPEN"; open: boolean }
+  | { type: "SET_CHARACTER_COUNT"; count: number }
+  | { type: "SET_CHARACTER_PICKER_OPEN"; open: boolean }
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
@@ -280,6 +286,12 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "SET_INVENTORY_OPEN":
       return { ...state, inventoryOpen: action.open };
+
+    case "SET_CHARACTER_COUNT":
+      return { ...state, characterCount: action.count };
+
+    case "SET_CHARACTER_PICKER_OPEN":
+      return { ...state, characterPickerOpen: action.open };
 
     case "DISMISS_VICTORY": {
       const keepLoot = action.keepLoot ?? true;
