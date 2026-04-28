@@ -37,42 +37,51 @@ function crStringToNumber(s: string): number {
   return Number(s);
 }
 
-const LEVEL_TO_MAX_CR: Record<number, number> = {
-  1: 0.25,
-  2: 0.5,
-  3: 1,
-  4: 2,
-  5: 3,
-  6: 4,
-  7: 5,
-  8: 6,
-  9: 7,
-  10: 8,
-  11: 10,
-  12: 11,
-  13: 12,
-  14: 14,
-  15: 15,
-  16: 16,
-  17: 17,
-  18: 18,
-  19: 19,
-  20: 20,
+// Each level gets a CR floor + ceiling — a narrow band of "appropriate
+// challenge" monsters. At L20 a player should not be fighting CR 0 shrubs.
+const LEVEL_TO_CR_BAND: Record<number, [number, number]> = {
+  1: [0, 0.25],
+  2: [0, 0.5],
+  3: [0.125, 1],
+  4: [0.25, 2],
+  5: [0.5, 3],
+  6: [1, 4],
+  7: [2, 5],
+  8: [3, 6],
+  9: [4, 7],
+  10: [5, 8],
+  11: [6, 10],
+  12: [7, 11],
+  13: [8, 12],
+  14: [9, 14],
+  15: [10, 15],
+  16: [11, 16],
+  17: [12, 17],
+  18: [13, 18],
+  19: [14, 19],
+  20: [15, 20],
 };
 
+function bandForLevel(level: number): [number, number] {
+  if (level < 1) return LEVEL_TO_CR_BAND[1];
+  if (level > 20) return LEVEL_TO_CR_BAND[20];
+  return LEVEL_TO_CR_BAND[level];
+}
+
+export function minCrForLevel(level: number): number {
+  return bandForLevel(level)[0];
+}
+
 export function maxCrForLevel(level: number): number {
-  if (level < 1) return LEVEL_TO_MAX_CR[1];
-  if (level > 20) return LEVEL_TO_MAX_CR[20];
-  return LEVEL_TO_MAX_CR[level];
+  return bandForLevel(level)[1];
 }
 
 export function crsForLevel(level: number): string[] {
-  const ceiling = maxCrForLevel(level);
-  // Always keep low-CR variety so the pool isn't only deadly fights at high level.
-  const baseline = new Set<string>(["0", "1/8", "1/4"]);
+  const [floor, ceiling] = bandForLevel(level);
   const result: string[] = [];
   for (const s of ALL_CR_STRINGS) {
-    if (baseline.has(s) || crStringToNumber(s) <= ceiling) {
+    const n = crStringToNumber(s);
+    if (n >= floor && n <= ceiling) {
       result.push(s);
     }
   }
