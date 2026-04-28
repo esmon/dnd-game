@@ -9,7 +9,7 @@ import {
   xpThresholdForLevel,
 } from "@/lib/dnd/leveling";
 import { rollLoot } from "@/lib/dnd/loot";
-import { slotsForLevel } from "@/lib/dnd/spells";
+import { mintSpell, slotsForLevel, spellsByBaseId } from "@/lib/dnd/spells";
 import type {
   AbilityScores,
   Consumable,
@@ -69,7 +69,7 @@ export type Action =
   | { type: "SET_MONSTER"; monster: Monster }
   | { type: "START_FIGHT" }
   | { type: "RETURN_TO_LOBBY" }
-  | { type: "PLAYER_ATTACK"; damage: number; weaponName: string }
+  | { type: "PLAYER_ATTACK"; damage: number; weaponName: string; note?: string }
   | { type: "MONSTER_PENDING" }
   | { type: "MONSTER_ATTACK"; damage: number }
   | { type: "PLAYER_HEAL"; amount: number }
@@ -89,6 +89,13 @@ export type Action =
   | { type: "UNEQUIP_WEAPON"; id: string }
   | { type: "DISCARD_WEAPON"; id: string }
   | { type: "CAST_SPELL"; spellId: string; damage: number }
+  | {
+      type: "SMITE_ATTACK";
+      damage: number;
+      weaponName: string;
+      smiteDamage: number;
+      smiteSlotLevel: number;
+    }
   | { type: "USE_SCROLL"; scrollId: string; damage: number }
   | { type: "USE_POTION"; potionId: string; healed: number }
   | { type: "REFILL_SLOTS" }
@@ -139,6 +146,23 @@ function applyLevelUps(
     };
     if (isAsiLevel(lvl)) newAsi.push(lvl);
     texts.push(`${p.name} reaches level ${lvl}!`);
+
+    const learned = klass.spellsByLevel?.[lvl] ?? [];
+    if (learned.length > 0) {
+      const newKnown = [...p.knownSpells];
+      const newEquipped = [...p.equippedSpells];
+      for (const baseId of learned) {
+        const def = spellsByBaseId[baseId];
+        if (!def) continue;
+        const spell = mintSpell(def);
+        newKnown.push(spell);
+        if (newEquipped.length < EQUIPPED_SPELL_CAP) {
+          newEquipped.push(spell);
+        }
+        texts.push(`${p.name} learns ${spell.name}!`);
+      }
+      p = { ...p, knownSpells: newKnown, equippedSpells: newEquipped };
+    }
   }
   if (klass.isCaster && p.level !== player.level) {
     p = { ...p, spellSlots: slotsForLevel(p.level) };
@@ -191,7 +215,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
       if (!state.monster || !state.player) return state;
       const newHealth = Math.max(0, state.monster.health - action.damage);
       const monster: Monster = { ...state.monster, health: newHealth };
-      const text = `${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp`;
+      const note = action.note ? ` (${action.note})` : "";
+      const text = `${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp${note}`;
       return pushTurn({ ...state, monster }, true, text);
     }
 
@@ -446,6 +471,20 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const monster: Monster = { ...state.monster, health: newHealth };
       const player: Player = { ...state.player, spellSlots };
       const text = `${player.name} casts ${spell.name} for ${action.damage} hp`;
+      return pushTurn({ ...state, monster, player }, true, text);
+    }
+
+    case "SMITE_ATTACK": {
+      if (!state.player || !state.monster) return state;
+      const key = String(action.smiteSlotLevel);
+      const remaining = state.player.spellSlots[key] ?? 0;
+      if (remaining <= 0) return state;
+      const spellSlots = { ...state.player.spellSlots, [key]: remaining - 1 };
+      const total = action.damage + action.smiteDamage;
+      const newHealth = Math.max(0, state.monster.health - total);
+      const monster: Monster = { ...state.monster, health: newHealth };
+      const player: Player = { ...state.player, spellSlots };
+      const text = `${player.name} smites ${monster.name} with ${action.weaponName} for ${total} hp (L${action.smiteSlotLevel} smite +${action.smiteDamage})`;
       return pushTurn({ ...state, monster, player }, true, text);
     }
 

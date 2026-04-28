@@ -134,7 +134,7 @@ export default function CreatePage() {
       })
       .filter((w): w is NonNullable<typeof w> => w !== null);
     const starterSpells = klass.isCaster
-      ? klass.starterSpells
+      ? (klass.spellsByLevel?.[1] ?? [])
           .map((baseId) => {
             const def = spellsByBaseId[baseId];
             if (!def) return null;

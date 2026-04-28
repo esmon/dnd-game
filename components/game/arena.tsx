@@ -16,6 +16,10 @@ import { MonsterCard } from "@/components/game/monster-card";
 import { StatsBar } from "@/components/game/stats-bar";
 import { VictoryDialog } from "@/components/game/victory-dialog";
 import { rollDice, randomInt } from "@/lib/game/dice";
+import {
+  classFeatureLabel,
+  computeWeaponAttackDamage,
+} from "@/lib/dnd/class-features";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { slotsForLevel } from "@/lib/dnd/spells";
 import { WEAPONS } from "@/lib/dnd/weapons";
@@ -446,9 +450,19 @@ export function Arena() {
       ) {
         return;
       }
-      const damage = rollDice(damageDice);
+      const damage = computeWeaponAttackDamage(
+        snap.player.classId,
+        snap.player.level,
+        damageDice,
+      );
+      const note = classFeatureLabel(snap.player.classId, snap.player.level);
       const newMonsterHealth = Math.max(0, snap.monster.health - damage);
-      dispatch({ type: "PLAYER_ATTACK", damage, weaponName });
+      dispatch({
+        type: "PLAYER_ATTACK",
+        damage,
+        weaponName,
+        note: note || undefined,
+      });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
         const newWins = snap.stats.wins + 1;
@@ -511,6 +525,50 @@ export function Arena() {
       const damage = rollDice(damageDice);
       const newMonsterHealth = Math.max(0, snap.monster.health - damage);
       dispatch({ type: "CAST_SPELL", spellId, damage });
+      if (newMonsterHealth <= 0) {
+        dispatch({ type: "WIN" });
+        const newWins = snap.stats.wins + 1;
+        if (newWins > 0 && newWins % 3 === 0) {
+          dispatch({ type: "FULL_HEAL" });
+        }
+        needsPersistRef.current = true;
+      } else {
+        triggerMonsterAttack();
+      }
+    },
+    [triggerMonsterAttack],
+  );
+
+  const handleSmite = useCallback(
+    (weaponName: string, damageDice: string, smiteSlotLevel: number) => {
+      const snap = stateRef.current;
+      if (
+        snap.status !== "fighting" ||
+        !snap.monster ||
+        !snap.player ||
+        snap.monsterPending ||
+        snap.monster.health <= 0
+      ) {
+        return;
+      }
+      const remaining =
+        snap.player.spellSlots[String(smiteSlotLevel)] ?? 0;
+      if (remaining <= 0) return;
+      const damage = computeWeaponAttackDamage(
+        snap.player.classId,
+        snap.player.level,
+        damageDice,
+      );
+      const smiteDamage = rollDice(`${smiteSlotLevel + 1}d8`);
+      const total = damage + smiteDamage;
+      const newMonsterHealth = Math.max(0, snap.monster.health - total);
+      dispatch({
+        type: "SMITE_ATTACK",
+        damage,
+        weaponName,
+        smiteDamage,
+        smiteSlotLevel,
+      });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
         const newWins = snap.stats.wins + 1;
@@ -716,6 +774,48 @@ export function Arena() {
                 </Button>
               </DisabledTip>
             ))}
+            {player.classId.toLowerCase() === "paladin" &&
+            player.level >= 2 &&
+            player.weapons.length > 0
+              ? (() => {
+                  const slotEntry = Object.entries(player.spellSlots)
+                    .map(([k, v]) => [Number(k), v] as const)
+                    .filter(([k, v]) => k > 0 && v > 0)
+                    .sort((a, b) => a[0] - b[0])[0];
+                  const smiteSlotLevel = slotEntry ? slotEntry[0] : 0;
+                  const outOfSlots = !slotEntry;
+                  const smiteWeapon = player.weapons[0];
+                  const smiteReason =
+                    fightActionReason ??
+                    (outOfSlots
+                      ? "Out of spell slots — REST to refill"
+                      : null);
+                  const smiteDice = outOfSlots
+                    ? "+?d8 radiant"
+                    : `+${smiteSlotLevel + 1}d8 radiant`;
+                  const label = outOfSlots
+                    ? "Smite"
+                    : `Smite (L${smiteSlotLevel})`;
+                  return (
+                    <DisabledTip key="smite-action" reason={smiteReason}>
+                      <Button
+                        className="h-auto w-full flex-col gap-0 bg-amber-500 py-1.5 leading-tight text-white hover:bg-amber-500/90"
+                        onClick={() =>
+                          handleSmite(
+                            smiteWeapon.name,
+                            smiteWeapon.damage,
+                            smiteSlotLevel,
+                          )
+                        }
+                        disabled={actionsDisabled || outOfSlots}
+                      >
+                        <span className="truncate">{label}</span>
+                        <span className="text-xs opacity-80">{smiteDice}</span>
+                      </Button>
+                    </DisabledTip>
+                  );
+                })()
+              : null}
             {player.equippedSpells.map((spell) => {
               const slotsLeft =
                 spell.level === 0

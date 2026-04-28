@@ -14,7 +14,7 @@ export type DnDClass = {
   description: string;
   isCaster: boolean;
   spellcastingAbility?: keyof AbilityScores;
-  starterSpells: string[];
+  spellsByLevel?: Record<number, string[]>;
 };
 
 export const CLASSES: readonly DnDClass[] = [
@@ -29,7 +29,6 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A fierce warrior of primitive background who can enter a battle rage.",
     isCaster: false,
-    starterSpells: [],
   },
   {
     id: "bard",
@@ -43,7 +42,16 @@ export const CLASSES: readonly DnDClass[] = [
     description: "An inspiring magician whose power echoes the music of creation.",
     isCaster: true,
     spellcastingAbility: "cha",
-    starterSpells: ["toll-the-dead", "magic-missile", "witch-bolt"],
+    spellsByLevel: {
+      1: ["toll-the-dead", "magic-missile", "witch-bolt"],
+      3: ["shatter"],
+      5: ["lightning-bolt"],
+      7: ["ice-storm"],
+      9: ["cone-of-cold"],
+      11: ["chain-lightning"],
+      13: ["finger-of-death"],
+      15: ["psychic-scream"],
+    },
   },
   {
     id: "cleric",
@@ -57,7 +65,16 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A priestly champion who wields divine magic in service of a higher power.",
     isCaster: true,
     spellcastingAbility: "wis",
-    starterSpells: ["sacred-flame", "guiding-bolt", "inflict-wounds"],
+    spellsByLevel: {
+      1: ["sacred-flame", "guiding-bolt", "inflict-wounds"],
+      3: ["shatter"],
+      5: ["fireball"],
+      7: ["ice-storm"],
+      9: ["flame-strike"],
+      11: ["chain-lightning"],
+      13: ["finger-of-death"],
+      15: ["sunburst"],
+    },
   },
   {
     id: "druid",
@@ -71,7 +88,16 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A priest of the Old Faith, wielding the powers of nature and adopting animal forms.",
     isCaster: true,
     spellcastingAbility: "wis",
-    starterSpells: ["poison-spray", "witch-bolt", "flaming-sphere"],
+    spellsByLevel: {
+      1: ["poison-spray", "witch-bolt", "flaming-sphere"],
+      3: ["shatter"],
+      5: ["lightning-bolt"],
+      7: ["ice-storm"],
+      9: ["cone-of-cold"],
+      11: ["chain-lightning"],
+      15: ["sunburst"],
+      17: ["incendiary-cloud"],
+    },
   },
   {
     id: "fighter",
@@ -84,7 +110,6 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A master of martial combat, skilled with a variety of weapons and armor.",
     isCaster: false,
-    starterSpells: [],
   },
   {
     id: "monk",
@@ -97,7 +122,6 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A master of martial arts, harnessing the power of the body in pursuit of perfection.",
     isCaster: false,
-    starterSpells: [],
   },
   {
     id: "paladin",
@@ -111,7 +135,13 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A holy warrior bound to a sacred oath.",
     isCaster: true,
     spellcastingAbility: "cha",
-    starterSpells: ["guiding-bolt"],
+    spellsByLevel: {
+      2: ["guiding-bolt"],
+      5: ["scorching-ray"],
+      9: ["flame-strike"],
+      13: ["finger-of-death"],
+      17: ["sunburst"],
+    },
   },
   {
     id: "ranger",
@@ -125,7 +155,13 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A warrior who combats threats on the edges of civilization.",
     isCaster: true,
     spellcastingAbility: "wis",
-    starterSpells: ["guiding-bolt"],
+    spellsByLevel: {
+      2: ["guiding-bolt"],
+      5: ["flaming-sphere"],
+      9: ["ice-storm"],
+      13: ["cone-of-cold"],
+      17: ["sunburst"],
+    },
   },
   {
     id: "rogue",
@@ -138,7 +174,6 @@ export const CLASSES: readonly DnDClass[] = [
     ],
     description: "A scoundrel who uses stealth and trickery to overcome obstacles and enemies.",
     isCaster: false,
-    starterSpells: [],
   },
   {
     id: "sorcerer",
@@ -152,7 +187,17 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A spellcaster who draws on inherent magic from a gift or bloodline.",
     isCaster: true,
     spellcastingAbility: "cha",
-    starterSpells: ["fire-bolt", "burning-hands", "magic-missile", "scorching-ray"],
+    spellsByLevel: {
+      1: ["fire-bolt", "burning-hands", "magic-missile"],
+      3: ["scorching-ray"],
+      5: ["fireball", "lightning-bolt"],
+      7: ["ice-storm"],
+      9: ["cone-of-cold"],
+      11: ["disintegrate", "chain-lightning"],
+      13: ["delayed-blast-fireball"],
+      15: ["sunburst"],
+      17: ["meteor-swarm"],
+    },
   },
   {
     id: "warlock",
@@ -166,7 +211,16 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A wielder of magic derived from a bargain with an extraplanar entity.",
     isCaster: true,
     spellcastingAbility: "cha",
-    starterSpells: ["eldritch-blast", "witch-bolt"],
+    spellsByLevel: {
+      1: ["eldritch-blast", "witch-bolt"],
+      3: ["scorching-ray"],
+      5: ["fireball"],
+      7: ["ice-storm"],
+      9: ["flame-strike"],
+      11: ["chain-lightning"],
+      13: ["finger-of-death"],
+      17: ["psychic-scream"],
+    },
   },
   {
     id: "wizard",
@@ -180,6 +234,17 @@ export const CLASSES: readonly DnDClass[] = [
     description: "A scholarly magic-user capable of manipulating the structures of reality.",
     isCaster: true,
     spellcastingAbility: "int",
-    starterSpells: ["fire-bolt", "magic-missile", "burning-hands", "scorching-ray"],
+    spellsByLevel: {
+      1: ["fire-bolt", "magic-missile", "burning-hands", "witch-bolt"],
+      2: ["toll-the-dead"],
+      3: ["scorching-ray", "shatter"],
+      5: ["fireball", "lightning-bolt"],
+      7: ["ice-storm"],
+      9: ["cone-of-cold", "flame-strike"],
+      11: ["disintegrate", "chain-lightning"],
+      13: ["finger-of-death", "delayed-blast-fireball"],
+      15: ["sunburst"],
+      17: ["meteor-swarm"],
+    },
   },
 ];

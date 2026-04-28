@@ -41,6 +41,15 @@ export const SPELLS: readonly SpellDef[] = [
 
   { baseId: "disintegrate", name: "Disintegrate", level: 6, damage: "10d6+40", damageType: "force", school: "transmutation" },
   { baseId: "chain-lightning", name: "Chain Lightning", level: 6, damage: "10d8", damageType: "lightning", school: "evocation" },
+
+  { baseId: "finger-of-death", name: "Finger of Death", level: 7, damage: "7d8+30", damageType: "necrotic", school: "necromancy" },
+  { baseId: "delayed-blast-fireball", name: "Delayed Blast Fireball", level: 7, damage: "12d6", damageType: "fire", school: "evocation" },
+
+  { baseId: "sunburst", name: "Sunburst", level: 8, damage: "12d6", damageType: "radiant", school: "evocation" },
+  { baseId: "incendiary-cloud", name: "Incendiary Cloud", level: 8, damage: "10d8", damageType: "fire", school: "conjuration" },
+
+  { baseId: "meteor-swarm", name: "Meteor Swarm", level: 9, damage: "40d6", damageType: "fire", school: "evocation" },
+  { baseId: "psychic-scream", name: "Psychic Scream", level: 9, damage: "14d6", damageType: "psychic", school: "enchantment" },
 ];
 
 export const spellsByBaseId: Record<string, SpellDef> = SPELLS.reduce(
