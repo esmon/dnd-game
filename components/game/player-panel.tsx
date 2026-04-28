@@ -1,7 +1,14 @@
+import { Button } from "@/components/ui/button";
 import { MAX_LEVEL, xpProgressInLevel } from "@/lib/dnd/leveling";
 import type { Player } from "@/lib/game/types";
 
-export function FightStatsPanel({ player }: { player: Player }) {
+export function PlayerPanel({
+  player,
+  onOpenInventory,
+}: {
+  player: Player;
+  onOpenInventory: () => void;
+}) {
   const atMax = player.level >= MAX_LEVEL;
   const { inLevel, needed } = xpProgressInLevel(player.xp, player.level);
 
@@ -16,6 +23,14 @@ export function FightStatsPanel({ player }: { player: Player }) {
         label="XP"
         value={atMax ? "MAX" : `${inLevel}/${needed}`}
       />
+      <Button
+        size="sm"
+        variant="outline"
+        className="mt-3 w-full text-xs font-bold uppercase tracking-widest"
+        onClick={onOpenInventory}
+      >
+        Inventory
+      </Button>
     </div>
   );
 }

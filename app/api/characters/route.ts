@@ -6,6 +6,7 @@ import type {
   Character,
   NewCharacter,
 } from "@/lib/db/schema";
+import type { Weapon } from "@/lib/game/types";
 
 const ABILITY_KEYS: ReadonlyArray<keyof AbilityScores> = [
   "str",
@@ -20,6 +21,30 @@ function isAbilityScores(v: unknown): v is AbilityScores {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
   return ABILITY_KEYS.every((k) => typeof o[k] === "number");
+}
+
+function isWeapon(v: unknown): v is Weapon {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.baseId === "string" &&
+    typeof o.name === "string" &&
+    typeof o.damage === "string" &&
+    typeof o.bonus === "number"
+  );
+}
+
+function isWeaponArray(v: unknown): v is Weapon[] {
+  return Array.isArray(v) && v.every(isWeapon);
+}
+
+function weaponsAreSubsetById(
+  equipped: Weapon[],
+  inventory: Weapon[],
+): boolean {
+  const ids = new Set(inventory.map((w) => w.id));
+  return equipped.every((w) => ids.has(w.id));
 }
 
 export async function GET(request: NextRequest) {
@@ -65,6 +90,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
 
+  if (!isWeaponArray(body.weapons)) {
+    return NextResponse.json(
+      { error: "invalid weapons: expected Weapon[]" },
+      { status: 400 },
+    );
+  }
+  if (!isWeaponArray(body.inventory)) {
+    return NextResponse.json(
+      { error: "invalid inventory: expected Weapon[]" },
+      { status: 400 },
+    );
+  }
+  if (!weaponsAreSubsetById(body.weapons, body.inventory)) {
+    return NextResponse.json(
+      { error: "every equipped weapon id must exist in inventory" },
+      { status: 400 },
+    );
+  }
+
   const insert: NewCharacter = {
     session_id: sessionId,
     name: body.name,
@@ -80,7 +124,8 @@ export async function POST(request: NextRequest) {
     max_hp: body.max_hp,
     current_hp: body.current_hp ?? body.max_hp,
     proficiency_bonus: body.proficiency_bonus ?? 2,
-    weapons: body.weapons ?? [],
+    weapons: body.weapons,
+    inventory: body.inventory,
     avatar_url: body.avatar_url ?? null,
   };
 

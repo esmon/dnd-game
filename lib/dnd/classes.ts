@@ -1,12 +1,16 @@
 import type { AbilityScores } from "@/lib/db/schema";
-import type { Weapon } from "@/lib/game/types";
+
+export type ClassWeaponRef = {
+  baseId: string;
+  bonus: 0 | 1 | 2 | 3;
+};
 
 export type DnDClass = {
   id: string;
   name: string;
   hitDie: 6 | 8 | 10 | 12;
   primaryAbility: keyof AbilityScores;
-  weapons: Weapon[];
+  weapons: ClassWeaponRef[];
   description: string;
 };
 
@@ -17,8 +21,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 12,
     primaryAbility: "str",
     weapons: [
-      { name: "Greataxe", damage: "1d12" },
-      { name: "Handaxe", damage: "1d6" },
+      { baseId: "greataxe", bonus: 0 },
+      { baseId: "handaxe", bonus: 0 },
     ],
     description: "A fierce warrior of primitive background who can enter a battle rage.",
   },
@@ -28,8 +32,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 8,
     primaryAbility: "cha",
     weapons: [
-      { name: "Rapier", damage: "1d8" },
-      { name: "Dagger", damage: "1d4" },
+      { baseId: "rapier", bonus: 0 },
+      { baseId: "dagger", bonus: 0 },
     ],
     description: "An inspiring magician whose power echoes the music of creation.",
   },
@@ -39,8 +43,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 8,
     primaryAbility: "wis",
     weapons: [
-      { name: "Mace", damage: "1d6" },
-      { name: "Light Crossbow", damage: "1d8" },
+      { baseId: "mace", bonus: 0 },
+      { baseId: "light-crossbow", bonus: 0 },
     ],
     description: "A priestly champion who wields divine magic in service of a higher power.",
   },
@@ -50,8 +54,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 8,
     primaryAbility: "wis",
     weapons: [
-      { name: "Scimitar", damage: "1d6" },
-      { name: "Quarterstaff", damage: "1d6" },
+      { baseId: "scimitar", bonus: 0 },
+      { baseId: "quarterstaff", bonus: 0 },
     ],
     description: "A priest of the Old Faith, wielding the powers of nature and adopting animal forms.",
   },
@@ -61,8 +65,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 10,
     primaryAbility: "str",
     weapons: [
-      { name: "Longsword", damage: "1d8" },
-      { name: "Light Crossbow", damage: "1d8" },
+      { baseId: "longsword", bonus: 0 },
+      { baseId: "light-crossbow", bonus: 0 },
     ],
     description: "A master of martial combat, skilled with a variety of weapons and armor.",
   },
@@ -72,8 +76,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 8,
     primaryAbility: "dex",
     weapons: [
-      { name: "Shortsword", damage: "1d6" },
-      { name: "Dart", damage: "1d4" },
+      { baseId: "shortsword", bonus: 0 },
+      { baseId: "dart", bonus: 0 },
     ],
     description: "A master of martial arts, harnessing the power of the body in pursuit of perfection.",
   },
@@ -83,8 +87,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 10,
     primaryAbility: "str",
     weapons: [
-      { name: "Longsword", damage: "1d8" },
-      { name: "Javelin", damage: "1d6" },
+      { baseId: "longsword", bonus: 0 },
+      { baseId: "javelin", bonus: 0 },
     ],
     description: "A holy warrior bound to a sacred oath.",
   },
@@ -94,8 +98,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 10,
     primaryAbility: "dex",
     weapons: [
-      { name: "Longsword", damage: "1d8" },
-      { name: "Shortbow", damage: "1d6" },
+      { baseId: "longsword", bonus: 0 },
+      { baseId: "shortbow", bonus: 0 },
     ],
     description: "A warrior who combats threats on the edges of civilization.",
   },
@@ -105,8 +109,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 8,
     primaryAbility: "dex",
     weapons: [
-      { name: "Shortsword", damage: "1d6" },
-      { name: "Shortbow", damage: "1d6" },
+      { baseId: "shortsword", bonus: 0 },
+      { baseId: "shortbow", bonus: 0 },
     ],
     description: "A scoundrel who uses stealth and trickery to overcome obstacles and enemies.",
   },
@@ -116,8 +120,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 6,
     primaryAbility: "cha",
     weapons: [
-      { name: "Dagger", damage: "1d4" },
-      { name: "Light Crossbow", damage: "1d8" },
+      { baseId: "dagger", bonus: 0 },
+      { baseId: "light-crossbow", bonus: 0 },
     ],
     description: "A spellcaster who draws on inherent magic from a gift or bloodline.",
   },
@@ -127,8 +131,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 8,
     primaryAbility: "cha",
     weapons: [
-      { name: "Light Crossbow", damage: "1d8" },
-      { name: "Dagger", damage: "1d4" },
+      { baseId: "light-crossbow", bonus: 0 },
+      { baseId: "dagger", bonus: 0 },
     ],
     description: "A wielder of magic derived from a bargain with an extraplanar entity.",
   },
@@ -138,8 +142,8 @@ export const CLASSES: readonly DnDClass[] = [
     hitDie: 6,
     primaryAbility: "int",
     weapons: [
-      { name: "Quarterstaff", damage: "1d6" },
-      { name: "Dagger", damage: "1d4" },
+      { baseId: "quarterstaff", bonus: 0 },
+      { baseId: "dagger", bonus: 0 },
     ],
     description: "A scholarly magic-user capable of manipulating the structures of reality.",
   },

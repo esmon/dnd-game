@@ -22,6 +22,7 @@ import { ReviewStep } from "@/components/create/review-step";
 import { RACES } from "@/lib/dnd/races";
 import { CLASSES } from "@/lib/dnd/classes";
 import { BACKGROUNDS } from "@/lib/dnd/backgrounds";
+import { mintWeapon, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
   ABILITY_KEYS,
   applyRaceASI,
@@ -120,6 +121,13 @@ export default function CreatePage() {
       return;
     }
     dispatch({ type: "SUBMIT_START" });
+    const starterWeapons = klass.weapons
+      .map((ref) => {
+        const def = weaponsByBaseId[ref.baseId];
+        if (!def) return null;
+        return mintWeapon(def, ref.bonus);
+      })
+      .filter((w): w is NonNullable<typeof w> => w !== null);
     const payload: NewCharacter = {
       session_id: "",
       name: trimmedName,
@@ -135,7 +143,8 @@ export default function CreatePage() {
       max_hp: maxHp,
       current_hp: maxHp,
       proficiency_bonus: 2,
-      weapons: klass.weapons,
+      weapons: starterWeapons,
+      inventory: starterWeapons,
       avatar_url: null,
     };
     try {

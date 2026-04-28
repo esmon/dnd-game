@@ -8,6 +8,7 @@ import {
   proficiencyBonusForLevel,
   xpThresholdForLevel,
 } from "@/lib/dnd/leveling";
+import { rollLoot } from "@/lib/dnd/loot";
 import type {
   AbilityScores,
   GameStats,
@@ -17,7 +18,10 @@ import type {
   Player,
   Turn,
   VictoryInfo,
+  Weapon,
 } from "./types";
+
+export const EQUIP_CAP = 3;
 
 export type GameState = {
   status: GameStatus;
@@ -65,7 +69,11 @@ export type Action =
   | { type: "FULL_HEAL" }
   | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
   | { type: "DEV_NEXT_LEVEL" }
-  | { type: "DISMISS_VICTORY" };
+  | { type: "DISMISS_VICTORY" }
+  | { type: "ADD_LOOT"; weapon: Weapon }
+  | { type: "EQUIP_WEAPON"; id: string }
+  | { type: "UNEQUIP_WEAPON"; id: string }
+  | { type: "DISCARD_WEAPON"; id: string };
 
 function pushTurn(
   state: GameState,
@@ -220,14 +228,19 @@ export function gameReducer(state: GameState, action: Action): GameState {
         ...state.player,
         xp: state.player.xp + xpGained,
       };
-      const { player, asiPending, texts: levelUpTexts } = applyLevelUps(
-        playerWithXp,
-        state.asiPending,
-      );
+      const { player: leveledPlayer, asiPending, texts: levelUpTexts } =
+        applyLevelUps(playerWithXp, state.asiPending);
       const levelsGained: number[] = [];
-      for (let l = startLevel + 1; l <= player.level; l++) {
+      for (let l = startLevel + 1; l <= leveledPlayer.level; l++) {
         levelsGained.push(l);
       }
+      const loot = rollLoot({
+        challengeRating: state.monster.challengeRating,
+        xp: state.monster.xp,
+      });
+      const player: Player = loot
+        ? { ...leveledPlayer, inventory: [...leveledPlayer.inventory, loot] }
+        : leveledPlayer;
       const winText = `${player.name} wins!`;
       const wins = state.stats.wins + 1;
       let next: GameState = {
@@ -238,7 +251,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         monsterPending: false,
         stats: { ...state.stats, wins },
         asiPending,
-        victory: { monsterName, xpGained, levelsGained },
+        victory: { monsterName, xpGained, levelsGained, loot },
       };
       next = pushTurn(next, true, winText);
       for (const t of levelUpTexts) {
@@ -321,6 +334,48 @@ export function gameReducer(state: GameState, action: Action): GameState {
         player,
         asiPending: state.asiPending.slice(1),
       };
+    }
+
+    case "ADD_LOOT": {
+      if (!state.player) return state;
+      const player: Player = {
+        ...state.player,
+        inventory: [...state.player.inventory, action.weapon],
+      };
+      return { ...state, player };
+    }
+
+    case "EQUIP_WEAPON": {
+      if (!state.player) return state;
+      if (state.player.weapons.length >= EQUIP_CAP) return state;
+      if (state.player.weapons.some((w) => w.id === action.id)) return state;
+      const target = state.player.inventory.find((w) => w.id === action.id);
+      if (!target) return state;
+      const player: Player = {
+        ...state.player,
+        weapons: [...state.player.weapons, target],
+      };
+      return { ...state, player };
+    }
+
+    case "UNEQUIP_WEAPON": {
+      if (!state.player) return state;
+      if (!state.player.weapons.some((w) => w.id === action.id)) return state;
+      const player: Player = {
+        ...state.player,
+        weapons: state.player.weapons.filter((w) => w.id !== action.id),
+      };
+      return { ...state, player };
+    }
+
+    case "DISCARD_WEAPON": {
+      if (!state.player) return state;
+      const player: Player = {
+        ...state.player,
+        weapons: state.player.weapons.filter((w) => w.id !== action.id),
+        inventory: state.player.inventory.filter((w) => w.id !== action.id),
+      };
+      return { ...state, player };
     }
 
     default:

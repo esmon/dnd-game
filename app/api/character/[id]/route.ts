@@ -6,6 +6,7 @@ import type {
   Character,
   CharacterUpdate,
 } from "@/lib/db/schema";
+import type { Weapon } from "@/lib/game/types";
 
 const ABILITY_KEYS: ReadonlyArray<keyof AbilityScores> = [
   "str",
@@ -20,6 +21,30 @@ function isAbilityScores(v: unknown): v is AbilityScores {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
   return ABILITY_KEYS.every((k) => typeof o[k] === "number");
+}
+
+function isWeapon(v: unknown): v is Weapon {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.baseId === "string" &&
+    typeof o.name === "string" &&
+    typeof o.damage === "string" &&
+    typeof o.bonus === "number"
+  );
+}
+
+function isWeaponArray(v: unknown): v is Weapon[] {
+  return Array.isArray(v) && v.every(isWeapon);
+}
+
+function weaponsAreSubsetById(
+  equipped: Weapon[],
+  inventory: Weapon[],
+): boolean {
+  const ids = new Set(inventory.map((w) => w.id));
+  return equipped.every((w) => ids.has(w.id));
 }
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -93,11 +118,35 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  if (body.weapons !== undefined && !isWeaponArray(body.weapons)) {
+    return NextResponse.json(
+      { error: "invalid weapons: expected Weapon[]" },
+      { status: 400 },
+    );
+  }
+  if (body.inventory !== undefined && !isWeaponArray(body.inventory)) {
+    return NextResponse.json(
+      { error: "invalid inventory: expected Weapon[]" },
+      { status: 400 },
+    );
+  }
+  if (
+    body.weapons !== undefined &&
+    body.inventory !== undefined &&
+    !weaponsAreSubsetById(body.weapons, body.inventory)
+  ) {
+    return NextResponse.json(
+      { error: "every equipped weapon id must exist in inventory" },
+      { status: 400 },
+    );
+  }
+
   const update: CharacterUpdate = {};
   if (typeof body.current_hp === "number") update.current_hp = body.current_hp;
   if (typeof body.xp === "number") update.xp = body.xp;
   if (typeof body.level === "number") update.level = body.level;
-  if (Array.isArray(body.weapons)) update.weapons = body.weapons;
+  if (body.weapons !== undefined) update.weapons = body.weapons;
+  if (body.inventory !== undefined) update.inventory = body.inventory;
   if (typeof body.max_hp === "number") update.max_hp = body.max_hp;
   if (typeof body.proficiency_bonus === "number") {
     update.proficiency_bonus = body.proficiency_bonus;

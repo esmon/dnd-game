@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CLASSES } from "@/lib/dnd/classes";
+import { weaponsByBaseId } from "@/lib/dnd/weapons";
 import { ABILITY_LABELS } from "@/lib/dnd/derive";
 
 type Props = {
@@ -38,11 +39,15 @@ export function ClassStep({ selectedId, onSelect }: Props) {
               <CardContent className="flex flex-col gap-2">
                 <p className="text-sm text-muted-foreground">{klass.description}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {klass.weapons.map((w) => (
-                    <Badge key={w.name} variant="secondary">
-                      {w.name} ({w.damage})
-                    </Badge>
-                  ))}
+                  {klass.weapons.map((w) => {
+                    const def = weaponsByBaseId[w.baseId];
+                    if (!def) return null;
+                    return (
+                      <Badge key={w.baseId} variant="secondary">
+                        {def.name} ({def.damage})
+                      </Badge>
+                    );
+                  })}
                 </div>
               </CardContent>
               {selected ? (

@@ -12,6 +12,7 @@ export type CachedPlayerState = {
   proficiency_bonus: number;
   ability_scores: AbilityScores;
   weapons: Weapon[];
+  inventory: Weapon[];
   updatedAt: number;
 };
 

@@ -29,6 +29,7 @@ type RawMonster = {
   hit_points: number;
   hit_dice: string;
   xp: number;
+  challenge_rating?: number;
   image?: string | null;
   actions?: RawMonsterAction[];
 };
@@ -80,5 +81,8 @@ export async function fetchMonster(index: string): Promise<Monster> {
     health: data.hit_points,
     xp: data.xp,
     damageDice: pickDamageDice(data),
+    challengeRating: typeof data.challenge_rating === "number"
+      ? data.challenge_rating
+      : 0,
   };
 }

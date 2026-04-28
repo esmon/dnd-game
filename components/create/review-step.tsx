@@ -17,6 +17,7 @@ import type { DnDClass } from "@/lib/dnd/classes";
 import type { Race } from "@/lib/dnd/races";
 import type { AbilityScores } from "@/lib/db/schema";
 import { ABILITY_KEYS, ABILITY_LABELS, abilityModifier } from "@/lib/dnd/derive";
+import { weaponsByBaseId } from "@/lib/dnd/weapons";
 
 type Props = {
   name: string;
@@ -121,11 +122,15 @@ export function ReviewStep({
         <div>
           <p className="mb-2 text-muted-foreground">Starting weapons</p>
           <div className="flex flex-wrap gap-1.5">
-            {klass.weapons.map((w) => (
-              <Badge key={w.name} variant="secondary">
-                {w.name} ({w.damage})
-              </Badge>
-            ))}
+            {klass.weapons.map((w) => {
+              const def = weaponsByBaseId[w.baseId];
+              if (!def) return null;
+              return (
+                <Badge key={w.baseId} variant="secondary">
+                  {def.name} ({def.damage})
+                </Badge>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -19,6 +19,7 @@ export interface Character {
   current_hp: number;
   proficiency_bonus: number;
   weapons: Weapon[];
+  inventory: Weapon[];
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -35,6 +36,7 @@ export type CharacterUpdate = {
   xp?: number;
   level?: number;
   weapons?: Weapon[];
+  inventory?: Weapon[];
   max_hp?: number;
   proficiency_bonus?: number;
   ability_scores?: AbilityScores;
@@ -49,6 +51,7 @@ export function characterToPlayer(c: Character): Player {
     health: c.current_hp,
     xp: c.xp,
     weapons: c.weapons,
+    inventory: c.inventory,
     level: c.level,
     classId: c.class,
     abilityScores: c.ability_scores,

@@ -1,25 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CombatLog } from "@/components/game/combat-log";
-import { FightStatsPanel } from "@/components/game/fight-stats-panel";
+import { PlayerPanel } from "@/components/game/player-panel";
+import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
 import { MonsterCard } from "@/components/game/monster-card";
 import { StatsBar } from "@/components/game/stats-bar";
 import { VictoryDialog } from "@/components/game/victory-dialog";
 import { rollDice, randomInt } from "@/lib/game/dice";
 import { MAX_LEVEL } from "@/lib/dnd/leveling";
+import { WEAPONS } from "@/lib/dnd/weapons";
 import {
+  EQUIP_CAP,
   gameReducer,
   initialState,
   type GameState,
 } from "@/lib/game/reducer";
 import type { AbilityScores } from "@/lib/db/schema";
-import type { Monster, MonsterIndex, Player } from "@/lib/game/types";
+import type { Monster, MonsterIndex, Player, Weapon } from "@/lib/game/types";
 import type { Character, CharacterUpdate } from "@/lib/db/schema";
 import { characterToPlayer } from "@/lib/db/schema";
 import {
@@ -32,6 +35,31 @@ import {
   clearPlayerStateCache,
 } from "@/lib/session";
 
+// Migration helper: legacy weapons stored as { name, damage } only.
+// Map by case-insensitive name to a SRD baseId.
+function legacyWeaponToWeapon(w: { name: string; damage: string }): Weapon {
+  const match = WEAPONS.find(
+    (def) => def.name.toLowerCase() === w.name.toLowerCase(),
+  );
+  return {
+    id: crypto.randomUUID(),
+    baseId: match?.baseId ?? "",
+    name: w.name,
+    damage: w.damage,
+    bonus: 0,
+  };
+}
+
+function isFullyShapedWeapon(w: unknown): boolean {
+  if (!w || typeof w !== "object") return false;
+  const o = w as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.baseId === "string" &&
+    typeof o.bonus === "number"
+  );
+}
+
 function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
   if (indices.length === 0) return null;
   return indices[Math.floor(Math.random() * indices.length)];
@@ -40,6 +68,7 @@ function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
 export function Arena() {
   const router = useRouter();
   const [state, dispatch] = useReducer(gameReducer, initialState);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   // We need fresh state inside async timeouts (player health after the
   // attack may have changed). Keep a ref in sync to avoid stale closures.
   const stateRef = useRef<GameState>(state);
@@ -108,7 +137,39 @@ export function Arena() {
             proficiency_bonus: cache.proficiency_bonus,
             ability_scores: cache.ability_scores,
             weapons: cache.weapons,
+            inventory: cache.inventory,
           };
+        }
+
+        // Legacy migration: pre-inventory characters have weapons missing
+        // id/baseId/bonus and an empty inventory. Normalize once and persist.
+        const inventoryEmpty =
+          !Array.isArray(character.inventory) || character.inventory.length === 0;
+        const hasLegacyWeapons =
+          Array.isArray(character.weapons) &&
+          character.weapons.length > 0 &&
+          character.weapons.some((w) => !isFullyShapedWeapon(w));
+        if (inventoryEmpty && hasLegacyWeapons) {
+          const normalized = character.weapons.map((w) =>
+            isFullyShapedWeapon(w) ? (w as Weapon) : legacyWeaponToWeapon(w),
+          );
+          character = {
+            ...character,
+            weapons: normalized,
+            inventory: normalized,
+          };
+          try {
+            await fetchWithSession(`/api/character/${character.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                weapons: normalized,
+                inventory: normalized,
+              } satisfies CharacterUpdate),
+            });
+          } catch (err) {
+            console.error("legacy weapon migration patch failed", err);
+          }
         }
 
         const player = characterToPlayer(character);
@@ -142,6 +203,7 @@ export function Arena() {
       proficiency_bonus: player.proficiencyBonus,
       ability_scores: player.abilityScores,
       weapons: player.weapons,
+      inventory: player.inventory,
     });
   }, []);
 
@@ -156,6 +218,7 @@ export function Arena() {
         proficiency_bonus: player.proficiencyBonus,
         ability_scores: player.abilityScores,
         weapons: player.weapons,
+        inventory: player.inventory,
       };
       try {
         const res = await fetchWithSession(`/api/character/${player.id}`, {
@@ -355,6 +418,21 @@ export function Arena() {
     dispatch({ type: "APPLY_ASI", deltas });
   }, []);
 
+  const handleEquip = useCallback((id: string) => {
+    dispatch({ type: "EQUIP_WEAPON", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleUnequip = useCallback((id: string) => {
+    dispatch({ type: "UNEQUIP_WEAPON", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleDiscard = useCallback((id: string) => {
+    dispatch({ type: "DISCARD_WEAPON", id });
+    needsPersistRef.current = true;
+  }, []);
+
   if (state.loading || !state.player) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -385,7 +463,10 @@ export function Arena() {
 
       {status === "fighting" ? (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
-          <FightStatsPanel player={player} />
+          <PlayerPanel
+            player={player}
+            onOpenInventory={() => setInventoryOpen(true)}
+          />
           {monster ? (
             <MonsterCard monster={monster} />
           ) : (
@@ -401,7 +482,7 @@ export function Arena() {
             </p>
             {player.weapons.map((weapon) => (
               <Button
-                key={weapon.name}
+                key={weapon.id}
                 variant="destructive"
                 onClick={() => handleAttack(weapon.name, weapon.damage)}
                 disabled={actionsDisabled}
@@ -430,7 +511,10 @@ export function Arena() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
-          <FightStatsPanel player={player} />
+          <PlayerPanel
+            player={player}
+            onOpenInventory={() => setInventoryOpen(true)}
+          />
           <div className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 md:col-start-3">
             <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
               Command
@@ -508,6 +592,17 @@ export function Arena() {
           onConfirm={handleAsiConfirm}
         />
       ) : null}
+
+      <InventoryDialog
+        open={inventoryOpen}
+        onOpenChange={setInventoryOpen}
+        inventory={player.inventory}
+        equippedIds={player.weapons.map((w) => w.id)}
+        equipCap={EQUIP_CAP}
+        onEquip={handleEquip}
+        onUnequip={handleUnequip}
+        onDiscard={handleDiscard}
+      />
     </div>
   );
 }

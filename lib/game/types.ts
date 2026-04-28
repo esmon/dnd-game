@@ -1,8 +1,11 @@
 export type GameStatus = "lobby" | "fighting";
 
 export type Weapon = {
+  id: string;
+  baseId: string;
   name: string;
-  damage: string; // dice notation, e.g. "2d6", "1d4+2"
+  damage: string; // dice notation including bonus, e.g. "1d8+1"
+  bonus: number; // 0 mundane | 1 | 2 | 3
 };
 
 export type AbilityScores = {
@@ -22,6 +25,7 @@ export type Player = {
   health: number;
   xp: number;
   weapons: Weapon[];
+  inventory: Weapon[];
   level: number;
   classId: string;
   abilityScores: AbilityScores;
@@ -36,6 +40,7 @@ export type Monster = {
   health: number;
   xp: number;
   damageDice: string; // dice notation used for monster turn damage
+  challengeRating: number;
 };
 
 export type Turn = {
@@ -55,6 +60,7 @@ export type VictoryInfo = {
   monsterName: string;
   xpGained: number;
   levelsGained: number[];
+  loot: Weapon | null;
 };
 
 export type MonsterIndex = {
