@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CombatLog } from "@/components/game/combat-log";
+import { FightStatsPanel } from "@/components/game/fight-stats-panel";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
 import { MonsterCard } from "@/components/game/monster-card";
-import { PlayerCard } from "@/components/game/player-card";
 import { StatsBar } from "@/components/game/stats-bar";
+import { VictoryDialog } from "@/components/game/victory-dialog";
 import { rollDice, randomInt } from "@/lib/game/dice";
 import { MAX_LEVEL } from "@/lib/dnd/leveling";
 import {
@@ -200,11 +201,12 @@ export function Arena() {
     };
   }, [state.player?.level]);
 
-  // Fire deferred persist once the ASI queue is empty and we're in the lobby.
-  // Always caches to localStorage; only PATCHes Supabase if the level changed
-  // (or this is the first sync for a new active character).
+  // Fire deferred persist once the victory + ASI dialogs are dismissed and
+  // we're in the lobby. Always caches to localStorage; only PATCHes Supabase
+  // if the level changed (or this is the first sync for a new character).
   useEffect(() => {
     if (!needsPersistRef.current) return;
+    if (state.victory) return;
     if (state.asiPending.length > 0) return;
     if (state.status !== "lobby") return;
     if (!state.player) return;
@@ -222,6 +224,7 @@ export function Arena() {
       void syncToSupabase(player);
     }
   }, [
+    state.victory,
     state.asiPending.length,
     state.status,
     state.player,
@@ -380,100 +383,36 @@ export function Arena() {
 
       <StatsBar stats={stats} />
 
-      {status === "fighting" && monster ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <PlayerCard player={player} />
-          <MonsterCard monster={monster} />
-        </div>
-      ) : (
-        <div className="mx-auto w-full max-w-md">
-          <PlayerCard player={player} />
-        </div>
-      )}
-
-      {status === "fighting" && !monster ? (
-        <p className="text-center text-sm text-muted-foreground">
-          A new challenger approaches...
-        </p>
-      ) : null}
-
-      <Separator />
-
-      <CombatLog turns={turns} />
-
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        {status === "lobby" && playerAlive ? (
-          <>
-            <Button
-              size="lg"
-              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-              onClick={startFight}
-              disabled={asiPending.length > 0}
-            >
-              FIGHT
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={handleHeal}
-              disabled={
-                player.health >= player.maxHealth || asiPending.length > 0
-              }
-            >
-              REST
-            </Button>
-          </>
-        ) : null}
-
-        {status === "lobby" && !playerAlive ? (
-          <>
-            <Button
-              size="lg"
-              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-              onClick={handlePlayAgain}
-            >
-              Play Again
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              onClick={() => router.push("/create")}
-            >
-              Create New Character
-            </Button>
-          </>
-        ) : null}
-
-        {process.env.NODE_ENV === "development" && status === "lobby" ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="text-xs opacity-60"
-            onClick={() => {
-              dispatch({ type: "DEV_NEXT_LEVEL" });
-              needsPersistRef.current = true;
-            }}
-            disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
-          >
-            [DEV] +1 Level
-          </Button>
-        ) : null}
-
-        {status === "fighting" ? (
-          <>
+      {status === "fighting" ? (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+          <FightStatsPanel player={player} />
+          {monster ? (
+            <MonsterCard monster={monster} />
+          ) : (
+            <div className="flex min-h-[200px] items-center justify-center rounded-xl border bg-card p-6">
+              <p className="text-sm text-muted-foreground">
+                A new challenger approaches...
+              </p>
+            </div>
+          )}
+          <div className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3">
+            <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
+              Command
+            </p>
             {player.weapons.map((weapon) => (
               <Button
                 key={weapon.name}
-                size="lg"
                 variant="destructive"
                 onClick={() => handleAttack(weapon.name, weapon.damage)}
                 disabled={actionsDisabled}
               >
-                {weapon.name} attack ({weapon.damage})
+                {weapon.name}
+                <span className="ml-1 text-xs opacity-70">
+                  ({weapon.damage})
+                </span>
               </Button>
             ))}
             <Button
-              size="lg"
               className="bg-emerald-500 text-white hover:bg-emerald-500/90"
               onClick={handleHeal}
               disabled={actionsDisabled || player.health >= player.maxHealth}
@@ -481,18 +420,87 @@ export function Arena() {
               HEAL
             </Button>
             <Button
-              size="lg"
               variant="outline"
               onClick={handleRunAway}
               disabled={actionsDisabled}
             >
               RUN AWAY
             </Button>
-          </>
-        ) : null}
-      </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+          <FightStatsPanel player={player} />
+          <div className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 md:col-start-3">
+            <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
+              Command
+            </p>
+            {playerAlive ? (
+              <>
+                <Button
+                  className="bg-emerald-500 text-white hover:bg-emerald-500/90"
+                  onClick={startFight}
+                  disabled={asiPending.length > 0}
+                >
+                  FIGHT
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleHeal}
+                  disabled={
+                    player.health >= player.maxHealth || asiPending.length > 0
+                  }
+                >
+                  REST
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  className="bg-emerald-500 text-white hover:bg-emerald-500/90"
+                  onClick={handlePlayAgain}
+                >
+                  Play Again
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push("/create")}
+                >
+                  Create New Character
+                </Button>
+              </>
+            )}
+            {process.env.NODE_ENV === "development" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs opacity-60"
+                onClick={() => {
+                  dispatch({ type: "DEV_NEXT_LEVEL" });
+                  needsPersistRef.current = true;
+                }}
+                disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
+              >
+                [DEV] +1 Level
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      )}
 
-      {pendingAsiLevel !== undefined ? (
+      <Separator />
+
+      <CombatLog turns={turns} />
+
+      {state.victory ? (
+        <VictoryDialog
+          victory={state.victory}
+          playerName={player.name}
+          onDismiss={() => dispatch({ type: "DISMISS_VICTORY" })}
+        />
+      ) : null}
+
+      {!state.victory && pendingAsiLevel !== undefined ? (
         <LevelUpDialog
           key={pendingAsiLevel}
           level={pendingAsiLevel}

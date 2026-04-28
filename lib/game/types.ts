@@ -51,6 +51,12 @@ export type GameStats = {
   runaways: number;
 };
 
+export type VictoryInfo = {
+  monsterName: string;
+  xpGained: number;
+  levelsGained: number[];
+};
+
 export type MonsterIndex = {
   index: string;
   name: string;

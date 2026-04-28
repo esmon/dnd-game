@@ -16,6 +16,7 @@ import type {
   MonsterIndex,
   Player,
   Turn,
+  VictoryInfo,
 } from "./types";
 
 export type GameState = {
@@ -29,6 +30,7 @@ export type GameState = {
   monsterPending: boolean; // true while monster's 1s counter-attack is queued
   nextTurnId: number;
   asiPending: number[];
+  victory: VictoryInfo | null;
 };
 
 export const initialState: GameState = {
@@ -42,6 +44,7 @@ export const initialState: GameState = {
   monsterPending: false,
   nextTurnId: 1,
   asiPending: [],
+  victory: null,
 };
 
 export type Action =
@@ -61,7 +64,8 @@ export type Action =
   | { type: "LOSE" }
   | { type: "FULL_HEAL" }
   | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
-  | { type: "DEV_NEXT_LEVEL" };
+  | { type: "DEV_NEXT_LEVEL" }
+  | { type: "DISMISS_VICTORY" };
 
 function pushTurn(
   state: GameState,
@@ -127,7 +131,11 @@ export function gameReducer(state: GameState, action: Action): GameState {
       return { ...state, monsterIndices: action.indices };
 
     case "SET_MONSTER":
-      return { ...state, monster: action.monster, monsterPending: false };
+      return pushTurn(
+        { ...state, monster: action.monster, monsterPending: false },
+        true,
+        `You have encountered a ${action.monster.name}!`,
+      );
 
     case "START_FIGHT":
       // Caller is responsible for following up with SET_MONSTER once fetched.
@@ -205,14 +213,21 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "WIN": {
       if (!state.player || !state.monster) return state;
+      const xpGained = state.monster.xp;
+      const monsterName = state.monster.name;
+      const startLevel = state.player.level;
       const playerWithXp: Player = {
         ...state.player,
-        xp: state.player.xp + state.monster.xp,
+        xp: state.player.xp + xpGained,
       };
       const { player, asiPending, texts: levelUpTexts } = applyLevelUps(
         playerWithXp,
         state.asiPending,
       );
+      const levelsGained: number[] = [];
+      for (let l = startLevel + 1; l <= player.level; l++) {
+        levelsGained.push(l);
+      }
       const winText = `${player.name} wins!`;
       const wins = state.stats.wins + 1;
       let next: GameState = {
@@ -223,6 +238,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         monsterPending: false,
         stats: { ...state.stats, wins },
         asiPending,
+        victory: { monsterName, xpGained, levelsGained },
       };
       next = pushTurn(next, true, winText);
       for (const t of levelUpTexts) {
@@ -230,6 +246,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
       }
       return next;
     }
+
+    case "DISMISS_VICTORY":
+      return { ...state, victory: null };
 
     case "DEV_NEXT_LEVEL": {
       if (!state.player) return state;

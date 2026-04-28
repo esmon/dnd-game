@@ -4,7 +4,7 @@ import type { Turn } from "@/lib/game/types";
 
 export function CombatLog({ turns }: { turns: Turn[] }) {
   return (
-    <ScrollArea className="h-80 w-full rounded-xl border bg-card p-3 ring-1 ring-foreground/10">
+    <ScrollArea className="h-80 w-full rounded-md border-2 border-zinc-900 bg-card p-3">
       {turns.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
           The arena is silent... for now.
@@ -15,7 +15,7 @@ export function CombatLog({ turns }: { turns: Turn[] }) {
             <li
               key={turn.id}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-semibold",
+                "rounded-md px-3 py-1.5 font-mono text-sm font-semibold",
                 turn.kind === "levelup"
                   ? "border-2 border-emerald-400 bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-100"
                   : turn.isPlayer
