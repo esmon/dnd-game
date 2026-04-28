@@ -78,6 +78,10 @@ new Vue({
         this.player.healthCount = 0;
         this.player.healthBar = 0;
 
+        if(this.player.xp > this.monster.xp) {
+          this.player.xp = this.player.xp - this.monster.xp;
+        }
+
         this.logEvent(false, null, null, false);
 
         setTimeout(function() {
