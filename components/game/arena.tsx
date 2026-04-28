@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { CombatLog } from "@/components/game/combat-log";
+import { CommandPanel } from "@/components/game/command-panel";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
@@ -483,10 +484,7 @@ export function Arena() {
 
       {status === "fighting" ? (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
-          <PlayerPanel
-            player={player}
-            onOpenInventory={() => setInventoryOpen(true)}
-          />
+          <PlayerPanel player={player} />
           {monster ? (
             <MonsterCard monster={monster} />
           ) : (
@@ -496,10 +494,7 @@ export function Arena() {
               </p>
             </div>
           )}
-          <div className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3">
-            <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
-              Command
-            </p>
+          <CommandPanel>
             {player.weapons.map((weapon) => (
               <Button
                 key={weapon.id}
@@ -527,53 +522,34 @@ export function Arena() {
             >
               RUN AWAY
             </Button>
-          </div>
+            <Button variant="outline" onClick={() => setInventoryOpen(true)}>
+              INVENTORY
+            </Button>
+          </CommandPanel>
         </div>
-      ) : (
+      ) : playerAlive ? (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
-          <PlayerPanel
-            player={player}
-            onOpenInventory={() => setInventoryOpen(true)}
-          />
-          <div className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 md:col-start-3">
-            <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
-              Command
-            </p>
-            {playerAlive ? (
-              <>
-                <Button
-                  className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-                  onClick={startFight}
-                  disabled={asiPending.length > 0}
-                >
-                  FIGHT
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleHeal}
-                  disabled={
-                    player.health >= player.maxHealth || asiPending.length > 0
-                  }
-                >
-                  REST
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-                  onClick={handlePlayAgain}
-                >
-                  Play Again
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => router.push("/create")}
-                >
-                  Create New Character
-                </Button>
-              </>
-            )}
+          <PlayerPanel player={player} />
+          <CommandPanel className="md:col-start-3">
+            <Button
+              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
+              onClick={startFight}
+              disabled={asiPending.length > 0}
+            >
+              FIGHT
+            </Button>
+            {player.health < player.maxHealth ? (
+              <Button
+                variant="outline"
+                onClick={handleHeal}
+                disabled={asiPending.length > 0}
+              >
+                REST
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={() => setInventoryOpen(true)}>
+              INVENTORY
+            </Button>
             {process.env.NODE_ENV === "development" ? (
               <Button
                 size="sm"
@@ -588,7 +564,41 @@ export function Arena() {
                 [DEV] +1 Level
               </Button>
             ) : null}
-          </div>
+          </CommandPanel>
+        </div>
+      ) : (
+        <div className="mx-auto w-full max-w-xs">
+          <CommandPanel>
+            <Button
+              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
+              onClick={handlePlayAgain}
+            >
+              Play Again
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/create")}
+            >
+              Create New Character
+            </Button>
+            <Button variant="outline" onClick={() => setInventoryOpen(true)}>
+              INVENTORY
+            </Button>
+            {process.env.NODE_ENV === "development" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs opacity-60"
+                onClick={() => {
+                  dispatch({ type: "DEV_NEXT_LEVEL" });
+                  needsPersistRef.current = true;
+                }}
+                disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
+              >
+                [DEV] +1 Level
+              </Button>
+            ) : null}
+          </CommandPanel>
         </div>
       )}
 

@@ -1,14 +1,8 @@
-import { Button } from "@/components/ui/button";
+import { HealthBar } from "@/components/game/health-bar";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import type { Player } from "@/lib/game/types";
 
-export function PlayerPanel({
-  player,
-  onOpenInventory,
-}: {
-  player: Player;
-  onOpenInventory: () => void;
-}) {
+export function PlayerPanel({ player }: { player: Player }) {
   const atMax = player.level >= MAX_LEVEL;
   const nextThreshold = atMax ? null : xpThresholdForLevel(player.level + 1);
 
@@ -19,18 +13,15 @@ export function PlayerPanel({
       </p>
       <StatRow label="LV" value={String(player.level)} />
       <StatRow label="HP" value={`${player.health}/${player.maxHealth}`} />
+      <HealthBar
+        current={player.health}
+        max={player.maxHealth}
+        className="h-2"
+      />
       <StatRow
         label="XP"
         value={atMax ? "MAX" : `${player.xp}/${nextThreshold}`}
       />
-      <Button
-        size="sm"
-        variant="outline"
-        className="mt-3 w-full text-xs font-bold uppercase tracking-widest"
-        onClick={onOpenInventory}
-      >
-        Inventory
-      </Button>
     </div>
   );
 }
