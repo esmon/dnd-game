@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,39 @@ import { ABILITY_KEYS, ABILITY_LABELS } from "@/lib/dnd/derive";
 import type { AbilityScores } from "@/lib/db/schema";
 
 type Mode = "plus2" | "plus1plus1";
+
+type State = {
+  mode: Mode;
+  one: keyof AbilityScores | null;
+  twoA: keyof AbilityScores | null;
+  twoB: keyof AbilityScores | null;
+};
+
+type Action =
+  | { type: "SET_MODE"; mode: Mode }
+  | { type: "SET_ONE"; ability: keyof AbilityScores }
+  | { type: "SET_TWO_A"; ability: keyof AbilityScores }
+  | { type: "SET_TWO_B"; ability: keyof AbilityScores };
+
+const initialState: State = {
+  mode: "plus2",
+  one: null,
+  twoA: null,
+  twoB: null,
+};
+
+function asiReducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "SET_MODE":
+      return { mode: action.mode, one: null, twoA: null, twoB: null };
+    case "SET_ONE":
+      return { ...state, one: action.ability };
+    case "SET_TWO_A":
+      return { ...state, twoA: action.ability };
+    case "SET_TWO_B":
+      return { ...state, twoB: action.ability };
+  }
+}
 
 type Props = {
   level: number;
@@ -47,10 +80,10 @@ function resultingScore(
 }
 
 export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
-  const [mode, setMode] = useState<Mode>("plus2");
-  const [one, setOne] = useState<keyof AbilityScores | null>(null);
-  const [twoA, setTwoA] = useState<keyof AbilityScores | null>(null);
-  const [twoB, setTwoB] = useState<keyof AbilityScores | null>(null);
+  const [{ mode, one, twoA, twoB }, dispatch] = useReducer(
+    asiReducer,
+    initialState,
+  );
 
   const deltas = useMemo(
     () => buildDeltas(mode, one, [twoA, twoB]),
@@ -70,13 +103,6 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
   function handleConfirm() {
     if (!deltas || !valid) return;
     onConfirm(deltas);
-  }
-
-  function setModeReset(next: Mode) {
-    setMode(next);
-    setOne(null);
-    setTwoA(null);
-    setTwoB(null);
   }
 
   return (
@@ -100,7 +126,7 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
               type="button"
               variant={mode === "plus2" ? "default" : "outline"}
               size="sm"
-              onClick={() => setModeReset("plus2")}
+              onClick={() => dispatch({ type: "SET_MODE", mode: "plus2" })}
             >
               +2 to one ability
             </Button>
@@ -108,7 +134,7 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
               type="button"
               variant={mode === "plus1plus1" ? "default" : "outline"}
               size="sm"
-              onClick={() => setModeReset("plus1plus1")}
+              onClick={() => dispatch({ type: "SET_MODE", mode: "plus1plus1" })}
             >
               +1 to two abilities
             </Button>
@@ -128,7 +154,7 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
                     variant={selected ? "default" : "outline"}
                     size="sm"
                     disabled={disabled}
-                    onClick={() => setOne(k)}
+                    onClick={() => dispatch({ type: "SET_ONE", ability: k })}
                     className="justify-between"
                   >
                     <span>{ABILITY_LABELS[k]}</span>
@@ -158,7 +184,7 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
                         variant={selected ? "default" : "outline"}
                         size="sm"
                         disabled={disabled}
-                        onClick={() => setTwoA(k)}
+                        onClick={() => dispatch({ type: "SET_TWO_A", ability: k })}
                         className="justify-between"
                       >
                         <span>{ABILITY_LABELS[k]}</span>
@@ -187,7 +213,7 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
                         variant={selected ? "default" : "outline"}
                         size="sm"
                         disabled={disabled}
-                        onClick={() => setTwoB(k)}
+                        onClick={() => dispatch({ type: "SET_TWO_B", ability: k })}
                         className="justify-between"
                       >
                         <span>{ABILITY_LABELS[k]}</span>

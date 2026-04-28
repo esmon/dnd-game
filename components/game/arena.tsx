@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -69,7 +69,6 @@ function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
 export function Arena() {
   const router = useRouter();
   const [state, dispatch] = useReducer(gameReducer, initialState);
-  const [inventoryOpen, setInventoryOpen] = useState(false);
   // We need fresh state inside async timeouts (player health after the
   // attack may have changed). Keep a ref in sync to avoid stale closures.
   const stateRef = useRef<GameState>(state);
@@ -526,7 +525,7 @@ export function Arena() {
             >
               RUN AWAY
             </Button>
-            <Button variant="outline" onClick={() => setInventoryOpen(true)}>
+            <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
               INVENTORY
             </Button>
           </CommandPanel>
@@ -551,7 +550,7 @@ export function Arena() {
                 REST
               </Button>
             ) : null}
-            <Button variant="outline" onClick={() => setInventoryOpen(true)}>
+            <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
               INVENTORY
             </Button>
             {process.env.NODE_ENV === "development" ? (
@@ -632,8 +631,8 @@ export function Arena() {
       ) : null}
 
       <InventoryDialog
-        open={inventoryOpen}
-        onOpenChange={setInventoryOpen}
+        open={state.inventoryOpen}
+        onOpenChange={(open) => dispatch({ type: "SET_INVENTORY_OPEN", open })}
         inventory={player.inventory}
         equippedIds={player.weapons.map((w) => w.id)}
         equipCap={EQUIP_CAP}

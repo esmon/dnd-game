@@ -35,6 +35,7 @@ export type GameState = {
   nextTurnId: number;
   asiPending: number[];
   victory: VictoryInfo | null;
+  inventoryOpen: boolean;
 };
 
 export const initialState: GameState = {
@@ -49,6 +50,7 @@ export const initialState: GameState = {
   nextTurnId: 1,
   asiPending: [],
   victory: null,
+  inventoryOpen: false,
 };
 
 export type Action =
@@ -70,6 +72,7 @@ export type Action =
   | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
   | { type: "DEV_NEXT_LEVEL" }
   | { type: "DISMISS_VICTORY"; keepLoot?: boolean }
+  | { type: "SET_INVENTORY_OPEN"; open: boolean }
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
@@ -259,6 +262,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
       }
       return next;
     }
+
+    case "SET_INVENTORY_OPEN":
+      return { ...state, inventoryOpen: action.open };
 
     case "DISMISS_VICTORY": {
       const keepLoot = action.keepLoot ?? true;
