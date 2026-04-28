@@ -68,6 +68,7 @@ export function characterToPlayer(c: Character): Player {
     inventory: c.inventory,
     level: c.level,
     classId: c.class,
+    raceId: c.race,
     abilityScores: c.ability_scores,
     proficiencyBonus: c.proficiency_bonus,
     knownSpells: c.known_spells ?? [],

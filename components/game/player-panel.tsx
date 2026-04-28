@@ -1,5 +1,7 @@
 import { HealthBar } from "@/components/game/health-bar";
+import { CLASSES } from "@/lib/dnd/classes";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
+import { RACES } from "@/lib/dnd/races";
 import type { Player } from "@/lib/game/types";
 
 export function PlayerPanel({ player }: { player: Player }) {
@@ -16,12 +18,19 @@ export function PlayerPanel({ player }: { player: Player }) {
           ),
         )
       : 100;
+  const race = RACES.find((r) => r.id === player.raceId);
+  const klass = CLASSES.find((c) => c.id === player.classId);
 
   return (
     <div className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono">
-      <p className="mb-2 truncate text-center text-sm font-bold uppercase tracking-widest">
+      <p className="truncate text-center text-sm font-bold uppercase tracking-widest">
         {player.name}
       </p>
+      {race || klass ? (
+        <p className="mb-2 truncate text-center text-xs uppercase tracking-widest text-muted-foreground">
+          {race?.name ?? player.raceId} · {klass?.name ?? player.classId}
+        </p>
+      ) : null}
       <StatRow label="LV" value={String(player.level)} />
       <StatRow label="HP" value={`${player.health}/${player.maxHealth}`} />
       <HealthBar

@@ -58,6 +58,7 @@ export type Player = {
   inventory: Weapon[];
   level: number;
   classId: string;
+  raceId: string;
   abilityScores: AbilityScores;
   proficiencyBonus: number;
   knownSpells: Spell[];
