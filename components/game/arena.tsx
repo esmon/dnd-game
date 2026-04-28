@@ -18,6 +18,7 @@ import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { WEAPONS } from "@/lib/dnd/weapons";
 import {
   EQUIP_CAP,
+  EQUIPPED_SPELL_CAP,
   gameReducer,
   initialState,
   type GameState,
@@ -141,6 +142,11 @@ export function Arena() {
             ability_scores: cache.ability_scores,
             weapons: cache.weapons,
             inventory: cache.inventory,
+            known_spells: cache.known_spells ?? character.known_spells ?? [],
+            equipped_spells:
+              cache.equipped_spells ?? character.equipped_spells ?? [],
+            spell_slots: cache.spell_slots ?? character.spell_slots ?? {},
+            consumables: cache.consumables ?? character.consumables ?? [],
           };
         }
 
@@ -227,6 +233,10 @@ export function Arena() {
       ability_scores: player.abilityScores,
       weapons: player.weapons,
       inventory: player.inventory,
+      known_spells: player.knownSpells,
+      equipped_spells: player.equippedSpells,
+      spell_slots: player.spellSlots,
+      consumables: player.consumables,
     });
   }, []);
 
@@ -242,6 +252,10 @@ export function Arena() {
         ability_scores: player.abilityScores,
         weapons: player.weapons,
         inventory: player.inventory,
+        known_spells: player.knownSpells,
+        equipped_spells: player.equippedSpells,
+        spell_slots: player.spellSlots,
+        consumables: player.consumables,
       };
       try {
         const res = await fetchWithSession(`/api/character/${player.id}`, {
@@ -420,6 +434,115 @@ export function Arena() {
     }
   }, [triggerMonsterAttack]);
 
+  // REST in lobby: full heal + refill spell slots, both persisted.
+  const handleRest = useCallback(() => {
+    const snap = stateRef.current;
+    if (!snap.player) return;
+    if (snap.player.health < snap.player.maxHealth) {
+      const amount = randomInt(1, 10);
+      dispatch({ type: "PLAYER_HEAL", amount });
+    }
+    dispatch({ type: "REFILL_SLOTS" });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleCastSpell = useCallback(
+    (spellId: string, spellLevel: number, damageDice: string) => {
+      const snap = stateRef.current;
+      if (
+        snap.status !== "fighting" ||
+        !snap.monster ||
+        !snap.player ||
+        snap.monsterPending ||
+        snap.monster.health <= 0
+      ) {
+        return;
+      }
+      if (spellLevel > 0) {
+        const remaining = snap.player.spellSlots[String(spellLevel)] ?? 0;
+        if (remaining <= 0) return;
+      }
+      const damage = rollDice(damageDice);
+      const newMonsterHealth = Math.max(0, snap.monster.health - damage);
+      dispatch({ type: "CAST_SPELL", spellId, damage });
+      if (newMonsterHealth <= 0) {
+        dispatch({ type: "WIN" });
+        const newWins = snap.stats.wins + 1;
+        if (newWins > 0 && newWins % 3 === 0) {
+          dispatch({ type: "FULL_HEAL" });
+        }
+        needsPersistRef.current = true;
+      } else {
+        triggerMonsterAttack();
+      }
+    },
+    [triggerMonsterAttack],
+  );
+
+  const handleUseScroll = useCallback(
+    (scrollId: string, damageDice: string) => {
+      const snap = stateRef.current;
+      if (
+        snap.status !== "fighting" ||
+        !snap.monster ||
+        !snap.player ||
+        snap.monsterPending ||
+        snap.monster.health <= 0
+      ) {
+        return;
+      }
+      const damage = rollDice(damageDice);
+      const newMonsterHealth = Math.max(0, snap.monster.health - damage);
+      dispatch({ type: "USE_SCROLL", scrollId, damage });
+      if (newMonsterHealth <= 0) {
+        dispatch({ type: "WIN" });
+        const newWins = snap.stats.wins + 1;
+        if (newWins > 0 && newWins % 3 === 0) {
+          dispatch({ type: "FULL_HEAL" });
+        }
+        needsPersistRef.current = true;
+      } else {
+        triggerMonsterAttack();
+      }
+    },
+    [triggerMonsterAttack],
+  );
+
+  const handleUsePotion = useCallback(
+    (potionId: string, healDice: string) => {
+      const snap = stateRef.current;
+      if (!snap.player) return;
+      if (snap.monsterPending) return;
+      const healed = rollDice(healDice);
+      dispatch({ type: "USE_POTION", potionId, healed });
+      // In a fight, drinking still costs a turn — monster swings back.
+      if (
+        snap.status === "fighting" &&
+        snap.monster &&
+        snap.monster.health > 0
+      ) {
+        triggerMonsterAttack();
+      }
+      needsPersistRef.current = true;
+    },
+    [triggerMonsterAttack],
+  );
+
+  const handleEquipSpell = useCallback((id: string) => {
+    dispatch({ type: "EQUIP_SPELL", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleUnequipSpell = useCallback((id: string) => {
+    dispatch({ type: "UNEQUIP_SPELL", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleDiscardConsumable = useCallback((id: string) => {
+    dispatch({ type: "DISCARD_CONSUMABLE", id });
+    needsPersistRef.current = true;
+  }, []);
+
   const handlePlayAgain = useCallback(() => {
     dispatch({ type: "FULL_HEAL" });
     needsPersistRef.current = true;
@@ -511,6 +634,64 @@ export function Arena() {
                 </span>
               </Button>
             ))}
+            {player.equippedSpells.map((spell) => {
+              const slotsLeft =
+                spell.level === 0
+                  ? Infinity
+                  : player.spellSlots[String(spell.level)] ?? 0;
+              const outOfSlots = spell.level > 0 && slotsLeft <= 0;
+              const slotInfo =
+                spell.level === 0
+                  ? "cantrip"
+                  : `${slotsLeft}/${player.spellSlots[String(spell.level)] ?? 0} L${spell.level}`;
+              return (
+                <Button
+                  key={spell.id}
+                  className="bg-indigo-600 text-white hover:bg-indigo-600/90"
+                  onClick={() =>
+                    handleCastSpell(spell.id, spell.level, spell.damage)
+                  }
+                  disabled={actionsDisabled || outOfSlots}
+                >
+                  {spell.name}
+                  <span className="ml-1 text-xs opacity-70">
+                    ({spell.damage} · {slotInfo})
+                  </span>
+                </Button>
+              );
+            })}
+            {player.consumables.map((c) => {
+              if (c.kind === "scroll") {
+                return (
+                  <Button
+                    key={c.id}
+                    variant="secondary"
+                    onClick={() => handleUseScroll(c.id, c.damage)}
+                    disabled={actionsDisabled}
+                  >
+                    {c.spellName} (Scroll)
+                    <span className="ml-1 text-xs opacity-70">
+                      ({c.damage})
+                    </span>
+                  </Button>
+                );
+              }
+              return (
+                <Button
+                  key={c.id}
+                  variant="secondary"
+                  onClick={() => handleUsePotion(c.id, c.healDice)}
+                  disabled={
+                    actionsDisabled || player.health >= player.maxHealth
+                  }
+                >
+                  {c.name} (Potion)
+                  <span className="ml-1 text-xs opacity-70">
+                    ({c.healDice})
+                  </span>
+                </Button>
+              );
+            })}
             <Button
               className="bg-emerald-500 text-white hover:bg-emerald-500/90"
               onClick={handleHeal}
@@ -541,15 +722,13 @@ export function Arena() {
             >
               FIGHT
             </Button>
-            {player.health < player.maxHealth ? (
-              <Button
-                variant="outline"
-                onClick={handleHeal}
-                disabled={asiPending.length > 0}
-              >
-                REST
-              </Button>
-            ) : null}
+            <Button
+              variant="outline"
+              onClick={handleRest}
+              disabled={asiPending.length > 0}
+            >
+              REST
+            </Button>
             <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
               INVENTORY
             </Button>
@@ -636,9 +815,16 @@ export function Arena() {
         inventory={player.inventory}
         equippedIds={player.weapons.map((w) => w.id)}
         equipCap={EQUIP_CAP}
+        knownSpells={player.knownSpells}
+        equippedSpellIds={player.equippedSpells.map((s) => s.id)}
+        spellCap={EQUIPPED_SPELL_CAP}
+        consumables={player.consumables}
         onEquip={handleEquip}
         onUnequip={handleUnequip}
         onDiscard={handleDiscard}
+        onEquipSpell={handleEquipSpell}
+        onUnequipSpell={handleUnequipSpell}
+        onDiscardConsumable={handleDiscardConsumable}
       />
     </div>
   );

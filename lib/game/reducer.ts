@@ -9,19 +9,24 @@ import {
   xpThresholdForLevel,
 } from "@/lib/dnd/leveling";
 import { rollLoot } from "@/lib/dnd/loot";
+import { slotsForLevel } from "@/lib/dnd/spells";
 import type {
   AbilityScores,
+  Consumable,
   GameStats,
   GameStatus,
   Monster,
   MonsterIndex,
   Player,
+  Potion,
+  Scroll,
   Turn,
   VictoryInfo,
   Weapon,
 } from "./types";
 
 export const EQUIP_CAP = 3;
+export const EQUIPPED_SPELL_CAP = 5;
 
 export type GameState = {
   status: GameStatus;
@@ -76,7 +81,14 @@ export type Action =
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
-  | { type: "DISCARD_WEAPON"; id: string };
+  | { type: "DISCARD_WEAPON"; id: string }
+  | { type: "CAST_SPELL"; spellId: string; damage: number }
+  | { type: "USE_SCROLL"; scrollId: string; damage: number }
+  | { type: "USE_POTION"; potionId: string; healed: number }
+  | { type: "REFILL_SLOTS" }
+  | { type: "EQUIP_SPELL"; id: string }
+  | { type: "UNEQUIP_SPELL"; id: string }
+  | { type: "DISCARD_CONSUMABLE"; id: string };
 
 function pushTurn(
   state: GameState,
@@ -121,6 +133,9 @@ function applyLevelUps(
     };
     if (isAsiLevel(lvl)) newAsi.push(lvl);
     texts.push(`${p.name} reaches level ${lvl}!`);
+  }
+  if (klass.isCaster && p.level !== player.level) {
+    p = { ...p, spellSlots: slotsForLevel(p.level) };
   }
   return { player: p, asiPending: newAsi, texts };
 }
@@ -270,12 +285,24 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const keepLoot = action.keepLoot ?? true;
       const loot = state.victory?.loot;
       if (keepLoot && loot && state.player) {
+        if ("kind" in loot) {
+          const consumable: Consumable = loot;
+          return {
+            ...state,
+            victory: null,
+            player: {
+              ...state.player,
+              consumables: [...state.player.consumables, consumable],
+            },
+          };
+        }
+        const weapon: Weapon = loot;
         return {
           ...state,
           victory: null,
           player: {
             ...state.player,
-            inventory: [...state.player.inventory, loot],
+            inventory: [...state.player.inventory, weapon],
           },
         };
       }
@@ -393,6 +420,116 @@ export function gameReducer(state: GameState, action: Action): GameState {
         ...state.player,
         weapons: state.player.weapons.filter((w) => w.id !== action.id),
         inventory: state.player.inventory.filter((w) => w.id !== action.id),
+      };
+      return { ...state, player };
+    }
+
+    case "CAST_SPELL": {
+      if (!state.player || !state.monster) return state;
+      const spell = state.player.equippedSpells.find(
+        (s) => s.id === action.spellId,
+      );
+      if (!spell) return state;
+      let spellSlots = state.player.spellSlots;
+      if (spell.level > 0) {
+        const key = String(spell.level);
+        const remaining = spellSlots[key] ?? 0;
+        if (remaining <= 0) return state;
+        spellSlots = { ...spellSlots, [key]: remaining - 1 };
+      }
+      const newHealth = Math.max(0, state.monster.health - action.damage);
+      const monster: Monster = { ...state.monster, health: newHealth };
+      const player: Player = { ...state.player, spellSlots };
+      const text = `${player.name} casts ${spell.name} for ${action.damage} hp`;
+      return pushTurn({ ...state, monster, player }, true, text);
+    }
+
+    case "USE_SCROLL": {
+      if (!state.player || !state.monster) return state;
+      const scroll = state.player.consumables.find(
+        (c): c is Scroll => c.kind === "scroll" && c.id === action.scrollId,
+      );
+      if (!scroll) return state;
+      const newHealth = Math.max(0, state.monster.health - action.damage);
+      const monster: Monster = { ...state.monster, health: newHealth };
+      const player: Player = {
+        ...state.player,
+        consumables: state.player.consumables.filter(
+          (c) => c.id !== action.scrollId,
+        ),
+      };
+      const text = `${player.name} reads a scroll of ${scroll.spellName} for ${action.damage} hp`;
+      return pushTurn({ ...state, monster, player }, true, text);
+    }
+
+    case "USE_POTION": {
+      if (!state.player) return state;
+      const potion = state.player.consumables.find(
+        (c): c is Potion => c.kind === "potion" && c.id === action.potionId,
+      );
+      if (!potion) return state;
+      const healed = Math.min(
+        state.player.maxHealth - state.player.health,
+        action.healed,
+      );
+      const player: Player = {
+        ...state.player,
+        health: state.player.health + healed,
+        consumables: state.player.consumables.filter(
+          (c) => c.id !== action.potionId,
+        ),
+      };
+      const text = `${player.name} drinks a ${potion.name} for ${healed} hp`;
+      return pushTurn({ ...state, player }, true, text);
+    }
+
+    case "REFILL_SLOTS": {
+      if (!state.player) return state;
+      const klass = CLASSES.find(
+        (c) => c.id.toLowerCase() === state.player!.classId.toLowerCase(),
+      );
+      if (!klass || !klass.isCaster) return state;
+      const player: Player = {
+        ...state.player,
+        spellSlots: slotsForLevel(state.player.level),
+      };
+      return { ...state, player };
+    }
+
+    case "EQUIP_SPELL": {
+      if (!state.player) return state;
+      if (state.player.equippedSpells.length >= EQUIPPED_SPELL_CAP) return state;
+      if (state.player.equippedSpells.some((s) => s.id === action.id))
+        return state;
+      const target = state.player.knownSpells.find((s) => s.id === action.id);
+      if (!target) return state;
+      const player: Player = {
+        ...state.player,
+        equippedSpells: [...state.player.equippedSpells, target],
+      };
+      return { ...state, player };
+    }
+
+    case "UNEQUIP_SPELL": {
+      if (!state.player) return state;
+      if (!state.player.equippedSpells.some((s) => s.id === action.id))
+        return state;
+      const player: Player = {
+        ...state.player,
+        equippedSpells: state.player.equippedSpells.filter(
+          (s) => s.id !== action.id,
+        ),
+      };
+      return { ...state, player };
+    }
+
+    case "DISCARD_CONSUMABLE": {
+      if (!state.player) return state;
+      const player: Player = {
+        ...state.player,
+        consumables: state.player.consumables.filter(
+          (c) => c.id !== action.id,
+        ),
       };
       return { ...state, player };
     }

@@ -6,7 +6,7 @@ import type {
   Character,
   CharacterUpdate,
 } from "@/lib/db/schema";
-import type { Weapon } from "@/lib/game/types";
+import type { Consumable, Spell, Weapon } from "@/lib/game/types";
 
 const ABILITY_KEYS: ReadonlyArray<keyof AbilityScores> = [
   "str",
@@ -39,12 +39,70 @@ function isWeaponArray(v: unknown): v is Weapon[] {
   return Array.isArray(v) && v.every(isWeapon);
 }
 
+function isSpell(v: unknown): v is Spell {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.baseId === "string" &&
+    typeof o.name === "string" &&
+    typeof o.level === "number" &&
+    typeof o.damage === "string" &&
+    typeof o.damageType === "string" &&
+    typeof o.school === "string"
+  );
+}
+
+function isSpellArray(v: unknown): v is Spell[] {
+  return Array.isArray(v) && v.every(isSpell);
+}
+
+function isConsumable(v: unknown): v is Consumable {
+  if (!v || typeof v !== "object") return false;
+  const o = v as Record<string, unknown>;
+  if (o.kind === "scroll") {
+    return (
+      typeof o.id === "string" &&
+      typeof o.spellName === "string" &&
+      typeof o.spellLevel === "number" &&
+      typeof o.damage === "string" &&
+      typeof o.damageType === "string"
+    );
+  }
+  if (o.kind === "potion") {
+    return (
+      typeof o.id === "string" &&
+      typeof o.baseId === "string" &&
+      typeof o.name === "string" &&
+      typeof o.healDice === "string" &&
+      typeof o.rarity === "string"
+    );
+  }
+  return false;
+}
+
+function isConsumableArray(v: unknown): v is Consumable[] {
+  return Array.isArray(v) && v.every(isConsumable);
+}
+
+function isSpellSlots(v: unknown): v is Record<string, number> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  return Object.values(v as Record<string, unknown>).every(
+    (n) => typeof n === "number",
+  );
+}
+
 function weaponsAreSubsetById(
   equipped: Weapon[],
   inventory: Weapon[],
 ): boolean {
   const ids = new Set(inventory.map((w) => w.id));
   return equipped.every((w) => ids.has(w.id));
+}
+
+function spellsAreSubsetById(equipped: Spell[], known: Spell[]): boolean {
+  const ids = new Set(known.map((s) => s.id));
+  return equipped.every((s) => ids.has(s.id));
 }
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -141,6 +199,48 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  if (body.known_spells !== undefined && !isSpellArray(body.known_spells)) {
+    return NextResponse.json(
+      { error: "invalid known_spells: expected Spell[]" },
+      { status: 400 },
+    );
+  }
+  if (
+    body.equipped_spells !== undefined &&
+    !isSpellArray(body.equipped_spells)
+  ) {
+    return NextResponse.json(
+      { error: "invalid equipped_spells: expected Spell[]" },
+      { status: 400 },
+    );
+  }
+  if (body.spell_slots !== undefined && !isSpellSlots(body.spell_slots)) {
+    return NextResponse.json(
+      { error: "invalid spell_slots: expected Record<string, number>" },
+      { status: 400 },
+    );
+  }
+  if (body.consumables !== undefined && !isConsumableArray(body.consumables)) {
+    return NextResponse.json(
+      { error: "invalid consumables: expected Consumable[]" },
+      { status: 400 },
+    );
+  }
+  // When both arrive together, equipped must be a subset by id of known.
+  // When only equipped arrives, validate against the row's existing known_spells.
+  if (body.equipped_spells !== undefined) {
+    const known =
+      body.known_spells !== undefined
+        ? body.known_spells
+        : (owned.row.known_spells ?? []);
+    if (!spellsAreSubsetById(body.equipped_spells, known)) {
+      return NextResponse.json(
+        { error: "every equipped spell id must exist in known_spells" },
+        { status: 400 },
+      );
+    }
+  }
+
   const update: CharacterUpdate = {};
   if (typeof body.current_hp === "number") update.current_hp = body.current_hp;
   if (typeof body.xp === "number") update.xp = body.xp;
@@ -154,6 +254,12 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   if (isAbilityScores(body.ability_scores)) {
     update.ability_scores = body.ability_scores;
   }
+  if (body.known_spells !== undefined) update.known_spells = body.known_spells;
+  if (body.equipped_spells !== undefined) {
+    update.equipped_spells = body.equipped_spells;
+  }
+  if (body.spell_slots !== undefined) update.spell_slots = body.spell_slots;
+  if (body.consumables !== undefined) update.consumables = body.consumables;
 
   const { data, error } = await supabaseAdmin
     .from("characters")

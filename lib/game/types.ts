@@ -17,6 +17,36 @@ export type AbilityScores = {
   cha: number;
 };
 
+export type Spell = {
+  id: string;
+  baseId: string;
+  name: string;
+  level: number; // 0 = cantrip, 1..9 leveled
+  damage: string;
+  damageType: string;
+  school: string;
+};
+
+export type Scroll = {
+  kind: "scroll";
+  id: string;
+  spellName: string;
+  spellLevel: number;
+  damage: string;
+  damageType: string;
+};
+
+export type Potion = {
+  kind: "potion";
+  id: string;
+  baseId: string;
+  name: string;
+  healDice: string;
+  rarity: "common" | "uncommon" | "rare" | "very-rare";
+};
+
+export type Consumable = Scroll | Potion;
+
 export type Player = {
   id?: string;
   name: string;
@@ -30,6 +60,10 @@ export type Player = {
   classId: string;
   abilityScores: AbilityScores;
   proficiencyBonus: number;
+  knownSpells: Spell[];
+  equippedSpells: Spell[];
+  spellSlots: Record<string, number>;
+  consumables: Consumable[];
 };
 
 export type Monster = {
@@ -60,7 +94,7 @@ export type VictoryInfo = {
   monsterName: string;
   xpGained: number;
   levelsGained: number[];
-  loot: Weapon | null;
+  loot: Weapon | Scroll | Potion | null;
 };
 
 export type MonsterIndex = {

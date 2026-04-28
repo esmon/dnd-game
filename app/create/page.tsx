@@ -24,6 +24,11 @@ import { CLASSES } from "@/lib/dnd/classes";
 import { BACKGROUNDS } from "@/lib/dnd/backgrounds";
 import { mintWeapon, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
+  mintSpell,
+  slotsForLevel,
+  spellsByBaseId,
+} from "@/lib/dnd/spells";
+import {
   ABILITY_KEYS,
   applyRaceASI,
   computeMaxHp,
@@ -128,6 +133,24 @@ export default function CreatePage() {
         return mintWeapon(def, ref.bonus);
       })
       .filter((w): w is NonNullable<typeof w> => w !== null);
+    const starterSpells = klass.isCaster
+      ? klass.starterSpells
+          .map((baseId) => {
+            const def = spellsByBaseId[baseId];
+            if (!def) return null;
+            return mintSpell(def);
+          })
+          .filter((s): s is NonNullable<typeof s> => s !== null)
+      : [];
+    const allSlots = klass.isCaster ? slotsForLevel(1) : {};
+    // Filter to spell levels the caster has spells for (cantrips are free).
+    const accessibleLevels = new Set(
+      starterSpells.filter((s) => s.level > 0).map((s) => String(s.level)),
+    );
+    const filteredSlots: Record<string, number> = {};
+    for (const [k, v] of Object.entries(allSlots)) {
+      if (accessibleLevels.has(k)) filteredSlots[k] = v;
+    }
     const payload: NewCharacter = {
       session_id: "",
       name: trimmedName,
@@ -145,6 +168,10 @@ export default function CreatePage() {
       proficiency_bonus: 2,
       weapons: starterWeapons,
       inventory: starterWeapons,
+      known_spells: starterSpells,
+      equipped_spells: starterSpells,
+      spell_slots: filteredSlots,
+      consumables: [],
       avatar_url: null,
     };
     try {

@@ -1,4 +1,9 @@
-import type { AbilityScores, Weapon } from "@/lib/game/types";
+import type {
+  AbilityScores,
+  Consumable,
+  Spell,
+  Weapon,
+} from "@/lib/game/types";
 
 const SESSION_KEY = "dnd-session-id";
 const ACTIVE_CHARACTER_KEY = "dnd-active-character-id";
@@ -13,6 +18,10 @@ export type CachedPlayerState = {
   ability_scores: AbilityScores;
   weapons: Weapon[];
   inventory: Weapon[];
+  known_spells: Spell[];
+  equipped_spells: Spell[];
+  spell_slots: Record<string, number>;
+  consumables: Consumable[];
   updatedAt: number;
 };
 

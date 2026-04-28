@@ -17,6 +17,22 @@ type Props = {
   onDiscard: () => void;
 };
 
+function lootDisplay(loot: NonNullable<VictoryInfo["loot"]>): {
+  name: string;
+  detail: string;
+} {
+  if ("kind" in loot) {
+    if (loot.kind === "scroll") {
+      return {
+        name: `Scroll of ${loot.spellName}`,
+        detail: `${loot.damage} ${loot.damageType}`,
+      };
+    }
+    return { name: loot.name, detail: loot.healDice };
+  }
+  return { name: loot.name, detail: loot.damage };
+}
+
 export function VictoryDialog({
   victory,
   playerName,
@@ -26,6 +42,7 @@ export function VictoryDialog({
   const { monsterName, xpGained, levelsGained, loot } = victory;
   const leveledUp = levelsGained.length > 0;
   const finalLevel = levelsGained[levelsGained.length - 1];
+  const display = loot ? lootDisplay(loot) : null;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onKeep()}>
@@ -49,23 +66,23 @@ export function VictoryDialog({
             </p>
           ) : null}
         </div>
-        {loot ? (
+        {display ? (
           <div className="flex flex-col gap-2">
             <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
               Loot
             </p>
             <div className="flex items-center justify-between rounded-md border-2 border-zinc-900 bg-card px-3 py-2">
               <span className="font-mono text-sm font-bold uppercase tracking-widest">
-                {loot.name}
+                {display.name}
               </span>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {loot.damage}
+                {display.detail}
               </span>
             </div>
           </div>
         ) : null}
         <DialogFooter>
-          {loot ? (
+          {display ? (
             <div className="flex w-full gap-2">
               <Button variant="outline" onClick={onDiscard} className="flex-1">
                 Discard

@@ -1,4 +1,10 @@
-import type { AbilityScores, Player, Weapon } from "@/lib/game/types";
+import type {
+  AbilityScores,
+  Consumable,
+  Player,
+  Spell,
+  Weapon,
+} from "@/lib/game/types";
 
 export type { AbilityScores };
 
@@ -20,6 +26,10 @@ export interface Character {
   proficiency_bonus: number;
   weapons: Weapon[];
   inventory: Weapon[];
+  known_spells: Spell[];
+  equipped_spells: Spell[];
+  spell_slots: Record<string, number>;
+  consumables: Consumable[];
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -40,6 +50,10 @@ export type CharacterUpdate = {
   max_hp?: number;
   proficiency_bonus?: number;
   ability_scores?: AbilityScores;
+  known_spells?: Spell[];
+  equipped_spells?: Spell[];
+  spell_slots?: Record<string, number>;
+  consumables?: Consumable[];
 };
 
 export function characterToPlayer(c: Character): Player {
@@ -56,5 +70,9 @@ export function characterToPlayer(c: Character): Player {
     classId: c.class,
     abilityScores: c.ability_scores,
     proficiencyBonus: c.proficiency_bonus,
+    knownSpells: c.known_spells ?? [],
+    equippedSpells: c.equipped_spells ?? [],
+    spellSlots: c.spell_slots ?? {},
+    consumables: c.consumables ?? [],
   };
 }
