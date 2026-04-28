@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { CombatLog } from "@/components/game/combat-log";
 import { CommandPanel } from "@/components/game/command-panel";
+import { DisabledTip } from "@/components/game/disabled-tip";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
@@ -16,6 +17,7 @@ import { StatsBar } from "@/components/game/stats-bar";
 import { VictoryDialog } from "@/components/game/victory-dialog";
 import { rollDice, randomInt } from "@/lib/game/dice";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
+import { slotsForLevel } from "@/lib/dnd/spells";
 import { WEAPONS } from "@/lib/dnd/weapons";
 import {
   EQUIP_CAP,
@@ -25,7 +27,13 @@ import {
   type GameState,
 } from "@/lib/game/reducer";
 import type { AbilityScores } from "@/lib/db/schema";
-import type { Monster, MonsterIndex, Player, Weapon } from "@/lib/game/types";
+import type {
+  Consumable,
+  Monster,
+  MonsterIndex,
+  Player,
+  Weapon,
+} from "@/lib/game/types";
 import type { Character, CharacterUpdate } from "@/lib/db/schema";
 import { characterToPlayer } from "@/lib/db/schema";
 import {
@@ -66,6 +74,29 @@ function isFullyShapedWeapon(w: unknown): boolean {
 function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
   if (indices.length === 0) return null;
   return indices[Math.floor(Math.random() * indices.length)];
+}
+
+type ConsumableGroup = {
+  key: string;
+  ids: string[];
+  representative: Consumable;
+};
+
+function groupConsumables(consumables: Consumable[]): ConsumableGroup[] {
+  const groups = new Map<string, ConsumableGroup>();
+  for (const c of consumables) {
+    const key =
+      c.kind === "scroll"
+        ? `scroll:${c.spellName}:${c.spellLevel}`
+        : `potion:${c.baseId}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.ids.push(c.id);
+    } else {
+      groups.set(key, { key, ids: [c.id], representative: c });
+    }
+  }
+  return Array.from(groups.values());
 }
 
 export function Arena() {
@@ -620,6 +651,35 @@ export function Arena() {
     !playerAlive ||
     asiPending.length > 0;
 
+  // Shared reason text for the common "you can't take any action right now"
+  // disabled states. Returns null when actions are allowed.
+  const fightActionReason: string | null = (() => {
+    if (asiPending.length > 0) return "Resolve level-up first";
+    if (monsterPending) return "Wait for the monster's turn";
+    if (!monster) return "Loading monster...";
+    if (monster && monster.health <= 0) return "Monster is already defeated";
+    if (!playerAlive) return "You can't act while defeated";
+    return null;
+  })();
+
+  const lobbyActionReason: string | null =
+    asiPending.length > 0 ? "Resolve level-up first" : null;
+
+  // REST is heal + refill spell slots. Pointless only when HP is already
+  // full AND every slot is already at the level's max (or no slots, for
+  // non-casters whose spellSlots is just {}).
+  const restPointless = (() => {
+    if (player.health < player.maxHealth) return false;
+    const max = slotsForLevel(player.level);
+    for (const lvl of Object.keys(player.spellSlots)) {
+      if ((player.spellSlots[lvl] ?? 0) < (max[lvl] ?? 0)) return false;
+    }
+    return true;
+  })();
+  const restReason: string | null =
+    lobbyActionReason ??
+    (restPointless ? "Already at full HP and full slots" : null);
+
   const pendingAsiLevel = asiPending[0];
 
   return (
@@ -644,17 +704,17 @@ export function Arena() {
           )}
           <CommandPanel>
             {player.weapons.map((weapon) => (
-              <Button
-                key={weapon.id}
-                variant="destructive"
-                onClick={() => handleAttack(weapon.name, weapon.damage)}
-                disabled={actionsDisabled}
-              >
-                {weapon.name}
-                <span className="ml-1 text-xs opacity-70">
-                  ({weapon.damage})
-                </span>
-              </Button>
+              <DisabledTip key={weapon.id} reason={fightActionReason}>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleAttack(weapon.name, weapon.damage)}
+                  disabled={actionsDisabled}
+                  className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
+                >
+                  <span className="truncate">{weapon.name}</span>
+                  <span className="text-xs opacity-70">{weapon.damage}</span>
+                </Button>
+              </DisabledTip>
             ))}
             {player.equippedSpells.map((spell) => {
               const slotsLeft =
@@ -665,69 +725,104 @@ export function Arena() {
               const slotInfo =
                 spell.level === 0
                   ? "cantrip"
-                  : `${slotsLeft}/${player.spellSlots[String(spell.level)] ?? 0} L${spell.level}`;
+                  : `L${spell.level} · ${slotsLeft}/${player.spellSlots[String(spell.level)] ?? 0}`;
+              const spellReason =
+                fightActionReason ??
+                (outOfSlots
+                  ? `Out of L${spell.level} spell slots — REST to refill`
+                  : null);
               return (
-                <Button
-                  key={spell.id}
-                  className="bg-indigo-600 text-white hover:bg-indigo-600/90"
-                  onClick={() =>
-                    handleCastSpell(spell.id, spell.level, spell.damage)
-                  }
-                  disabled={actionsDisabled || outOfSlots}
-                >
-                  {spell.name}
-                  <span className="ml-1 text-xs opacity-70">
-                    ({spell.damage} · {slotInfo})
-                  </span>
-                </Button>
-              );
-            })}
-            {player.consumables.map((c) => {
-              if (c.kind === "scroll") {
-                return (
+                <DisabledTip key={spell.id} reason={spellReason}>
                   <Button
-                    key={c.id}
-                    variant="secondary"
-                    onClick={() => handleUseScroll(c.id, c.damage)}
-                    disabled={actionsDisabled}
+                    className="h-auto w-full flex-col gap-0 bg-indigo-600 py-1.5 leading-tight text-white hover:bg-indigo-600/90"
+                    onClick={() =>
+                      handleCastSpell(spell.id, spell.level, spell.damage)
+                    }
+                    disabled={actionsDisabled || outOfSlots}
                   >
-                    {c.spellName} (Scroll)
-                    <span className="ml-1 text-xs opacity-70">
-                      ({c.damage})
+                    <span className="truncate">{spell.name}</span>
+                    <span className="text-xs opacity-70">
+                      {spell.damage} · {slotInfo}
                     </span>
                   </Button>
-                );
-              }
-              return (
-                <Button
-                  key={c.id}
-                  variant="secondary"
-                  onClick={() => handleUsePotion(c.id, c.healDice)}
-                  disabled={
-                    actionsDisabled || player.health >= player.maxHealth
-                  }
-                >
-                  {c.name} (Potion)
-                  <span className="ml-1 text-xs opacity-70">
-                    ({c.healDice})
-                  </span>
-                </Button>
+                </DisabledTip>
               );
             })}
-            <Button
-              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-              onClick={handleHeal}
-              disabled={actionsDisabled || player.health >= player.maxHealth}
+            {groupConsumables(player.consumables).map((group) => {
+              const c = group.representative;
+              const count = group.ids.length;
+              const useId = group.ids[0];
+              if (c.kind === "scroll") {
+                return (
+                  <DisabledTip key={group.key} reason={fightActionReason}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleUseScroll(useId, c.damage)}
+                      disabled={actionsDisabled}
+                      className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
+                    >
+                      <span className="truncate">
+                        {c.spellName}
+                        {count > 1 ? ` ×${count}` : ""}
+                      </span>
+                      <span className="text-xs opacity-70">
+                        Scroll · {c.damage}
+                      </span>
+                    </Button>
+                  </DisabledTip>
+                );
+              }
+              const potionFull = player.health >= player.maxHealth;
+              const potionReason =
+                fightActionReason ??
+                (potionFull ? "Already at full HP" : null);
+              return (
+                <DisabledTip key={group.key} reason={potionReason}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleUsePotion(useId, c.healDice)}
+                    disabled={actionsDisabled || potionFull}
+                    className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
+                  >
+                    <span className="truncate">
+                      {c.name}
+                      {count > 1 ? ` ×${count}` : ""}
+                    </span>
+                    <span className="text-xs opacity-70">
+                      Potion · {c.healDice}
+                    </span>
+                  </Button>
+                </DisabledTip>
+              );
+            })}
+            <DisabledTip
+              reason={
+                fightActionReason ??
+                (player.health >= player.maxHealth
+                  ? "Already at full HP"
+                  : null)
+              }
             >
-              HEAL
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleRunAway}
-              disabled={actionsDisabled}
-            >
-              RUN AWAY
-            </Button>
+              <Button
+                className="w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
+                onClick={handleHeal}
+                disabled={
+                  actionsDisabled || player.health >= player.maxHealth
+                }
+              >
+                HEAL
+              </Button>
+            </DisabledTip>
+            <DisabledTip reason={fightActionReason}>
+              <Button
+                variant="outline"
+                onClick={handleRunAway}
+                disabled={actionsDisabled}
+                className="w-full"
+              >
+                RUN AWAY
+              </Button>
+            </DisabledTip>
             <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
               INVENTORY
             </Button>
@@ -737,20 +832,25 @@ export function Arena() {
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
           <PlayerPanel player={player} />
           <CommandPanel className="md:col-start-3">
-            <Button
-              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-              onClick={startFight}
-              disabled={asiPending.length > 0}
-            >
-              FIGHT
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleRest}
-              disabled={asiPending.length > 0}
-            >
-              REST
-            </Button>
+            <DisabledTip reason={lobbyActionReason}>
+              <Button
+                className="w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
+                onClick={startFight}
+                disabled={asiPending.length > 0}
+              >
+                FIGHT
+              </Button>
+            </DisabledTip>
+            <DisabledTip reason={restReason}>
+              <Button
+                variant="outline"
+                onClick={handleRest}
+                disabled={asiPending.length > 0 || restPointless}
+                className="w-full"
+              >
+                REST
+              </Button>
+            </DisabledTip>
             <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
               INVENTORY
             </Button>
@@ -765,18 +865,26 @@ export function Arena() {
               </Button>
             ) : null}
             {process.env.NODE_ENV === "development" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs opacity-60"
-                onClick={() => {
-                  dispatch({ type: "DEV_NEXT_LEVEL" });
-                  needsPersistRef.current = true;
-                }}
-                disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
+              <DisabledTip
+                reason={
+                  player.level >= MAX_LEVEL
+                    ? "Already at max level"
+                    : lobbyActionReason
+                }
               >
-                [DEV] +1 Level
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs opacity-60"
+                  onClick={() => {
+                    dispatch({ type: "DEV_NEXT_LEVEL" });
+                    needsPersistRef.current = true;
+                  }}
+                  disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
+                >
+                  [DEV] +1 Level
+                </Button>
+              </DisabledTip>
             ) : null}
           </CommandPanel>
         </div>
@@ -806,18 +914,26 @@ export function Arena() {
               </Button>
             ) : null}
             {process.env.NODE_ENV === "development" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs opacity-60"
-                onClick={() => {
-                  dispatch({ type: "DEV_NEXT_LEVEL" });
-                  needsPersistRef.current = true;
-                }}
-                disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
+              <DisabledTip
+                reason={
+                  player.level >= MAX_LEVEL
+                    ? "Already at max level"
+                    : lobbyActionReason
+                }
               >
-                [DEV] +1 Level
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs opacity-60"
+                  onClick={() => {
+                    dispatch({ type: "DEV_NEXT_LEVEL" });
+                    needsPersistRef.current = true;
+                  }}
+                  disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
+                >
+                  [DEV] +1 Level
+                </Button>
+              </DisabledTip>
             ) : null}
           </CommandPanel>
         </div>

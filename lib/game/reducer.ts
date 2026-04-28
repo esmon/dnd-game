@@ -25,7 +25,7 @@ import type {
   Weapon,
 } from "./types";
 
-export const EQUIP_CAP = 3;
+export const EQUIP_CAP = 2;
 export const EQUIPPED_SPELL_CAP = 5;
 
 export type GameState = {

@@ -54,7 +54,7 @@ export function VictoryDialog({
         </DialogHeader>
         <div className="flex flex-col items-center gap-2 text-center">
           <p>
-            <span className="font-bold">{playerName}</span> defeated{" "}
+            <span className="font-bold">{playerName}</span> defeated a{" "}
             <span className="font-bold">{monsterName}</span>!
           </p>
           <p className="font-mono text-sm tabular-nums text-muted-foreground">
