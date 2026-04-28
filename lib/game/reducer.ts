@@ -69,7 +69,7 @@ export type Action =
   | { type: "FULL_HEAL" }
   | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
   | { type: "DEV_NEXT_LEVEL" }
-  | { type: "DISMISS_VICTORY" }
+  | { type: "DISMISS_VICTORY"; keepLoot?: boolean }
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
@@ -238,9 +238,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
         challengeRating: state.monster.challengeRating,
         xp: state.monster.xp,
       });
-      const player: Player = loot
-        ? { ...leveledPlayer, inventory: [...leveledPlayer.inventory, loot] }
-        : leveledPlayer;
+      // Loot is held in victory.loot until the player decides to keep or
+      // discard it via DISMISS_VICTORY.
+      const player: Player = leveledPlayer;
       const winText = `${player.name} wins!`;
       const wins = state.stats.wins + 1;
       let next: GameState = {
@@ -260,8 +260,21 @@ export function gameReducer(state: GameState, action: Action): GameState {
       return next;
     }
 
-    case "DISMISS_VICTORY":
+    case "DISMISS_VICTORY": {
+      const keepLoot = action.keepLoot ?? true;
+      const loot = state.victory?.loot;
+      if (keepLoot && loot && state.player) {
+        return {
+          ...state,
+          victory: null,
+          player: {
+            ...state.player,
+            inventory: [...state.player.inventory, loot],
+          },
+        };
+      }
       return { ...state, victory: null };
+    }
 
     case "DEV_NEXT_LEVEL": {
       if (!state.player) return state;

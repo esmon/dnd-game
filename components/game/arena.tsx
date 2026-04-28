@@ -86,6 +86,9 @@ export function Arena() {
   // Last (id, level) we wrote to Supabase. Used to decide when to sync —
   // we only push to Supabase on level changes; otherwise we just cache.
   const lastSyncedRef = useRef<{ id: string; level: number } | null>(null);
+  // One-shot flag: force the next persist effect to also push to Supabase
+  // (used after loot keep/discard so inventory decisions never sit unsynced).
+  const forceSyncRef = useRef(false);
 
   // Bootstrap: load the active character from Supabase + monster index list.
   // If no active id is set, fall back to the most recent character for this
@@ -304,7 +307,8 @@ export function Arena() {
     const levelChanged =
       !!playerId &&
       (!last || last.id !== playerId || last.level !== player.level);
-    if (levelChanged) {
+    if (levelChanged || forceSyncRef.current) {
+      forceSyncRef.current = false;
       void syncToSupabase(player);
     }
   }, [
@@ -607,7 +611,14 @@ export function Arena() {
         <VictoryDialog
           victory={state.victory}
           playerName={player.name}
-          onDismiss={() => dispatch({ type: "DISMISS_VICTORY" })}
+          onKeep={() => {
+            if (state.victory?.loot) forceSyncRef.current = true;
+            dispatch({ type: "DISMISS_VICTORY", keepLoot: true });
+          }}
+          onDiscard={() => {
+            if (state.victory?.loot) forceSyncRef.current = true;
+            dispatch({ type: "DISMISS_VICTORY", keepLoot: false });
+          }}
         />
       ) : null}
 

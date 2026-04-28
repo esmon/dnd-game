@@ -13,16 +13,22 @@ import type { VictoryInfo } from "@/lib/game/types";
 type Props = {
   victory: VictoryInfo;
   playerName: string;
-  onDismiss: () => void;
+  onKeep: () => void;
+  onDiscard: () => void;
 };
 
-export function VictoryDialog({ victory, playerName, onDismiss }: Props) {
+export function VictoryDialog({
+  victory,
+  playerName,
+  onKeep,
+  onDiscard,
+}: Props) {
   const { monsterName, xpGained, levelsGained, loot } = victory;
   const leveledUp = levelsGained.length > 0;
   const finalLevel = levelsGained[levelsGained.length - 1];
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onDismiss()}>
+    <Dialog open onOpenChange={(open) => !open && onKeep()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
@@ -56,15 +62,26 @@ export function VictoryDialog({ victory, playerName, onDismiss }: Props) {
                 {loot.damage}
               </span>
             </div>
-            <p className="text-center text-xs text-muted-foreground">
-              Added to inventory
-            </p>
           </div>
         ) : null}
         <DialogFooter>
-          <Button onClick={onDismiss} className="w-full">
-            Continue
-          </Button>
+          {loot ? (
+            <div className="flex w-full gap-2">
+              <Button variant="outline" onClick={onDiscard} className="flex-1">
+                Discard
+              </Button>
+              <Button
+                onClick={onKeep}
+                className="flex-1 bg-emerald-500 text-white hover:bg-emerald-500/90"
+              >
+                Keep
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={onKeep} className="w-full">
+              Continue
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
