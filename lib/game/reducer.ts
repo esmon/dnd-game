@@ -195,10 +195,11 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "START_FIGHT":
       // Caller is responsible for following up with SET_MONSTER once fetched.
+      // Combat log persists across fights — SET_MONSTER's "encountered"
+      // entry marks the start of each new battle.
       return {
         ...state,
         status: "fighting",
-        turns: [],
         monster: null,
         monsterPending: false,
       };
@@ -322,9 +323,14 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const keepLoot = action.keepLoot ?? true;
       const loot = state.victory?.loot;
       if (keepLoot && loot && state.player) {
+        const lootName =
+          "kind" in loot && loot.kind === "scroll"
+            ? `Scroll of ${loot.spellName}`
+            : loot.name;
+        const text = `${state.player.name} picks up ${lootName}!`;
         if ("kind" in loot) {
           const consumable: Consumable = loot;
-          return {
+          const next: GameState = {
             ...state,
             victory: null,
             player: {
@@ -332,9 +338,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
               consumables: [...state.player.consumables, consumable],
             },
           };
+          return pushTurn(next, true, text, "loot");
         }
         const weapon: Weapon = loot;
-        return {
+        const next: GameState = {
           ...state,
           victory: null,
           player: {
@@ -342,6 +349,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
             inventory: [...state.player.inventory, weapon],
           },
         };
+        return pushTurn(next, true, text, "loot");
       }
       return { ...state, victory: null };
     }

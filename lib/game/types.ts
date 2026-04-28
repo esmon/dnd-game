@@ -82,7 +82,7 @@ export type Turn = {
   id: number;
   isPlayer: boolean;
   text: string;
-  kind?: "levelup";
+  kind?: "levelup" | "loot";
 };
 
 export type GameStats = {
