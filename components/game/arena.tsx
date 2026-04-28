@@ -13,7 +13,7 @@ import { MonsterCard } from "@/components/game/monster-card";
 import { StatsBar } from "@/components/game/stats-bar";
 import { VictoryDialog } from "@/components/game/victory-dialog";
 import { rollDice, randomInt } from "@/lib/game/dice";
-import { MAX_LEVEL } from "@/lib/dnd/leveling";
+import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { WEAPONS } from "@/lib/dnd/weapons";
 import {
   EQUIP_CAP,
@@ -169,6 +169,26 @@ export function Arena() {
             });
           } catch (err) {
             console.error("legacy weapon migration patch failed", err);
+          }
+        }
+
+        // XP floor migration: characters whose XP fell below their current
+        // level's threshold (from the old LOSE clamp-to-0 behavior) get
+        // bumped up to the floor so the XP bar stops looking stuck at 0.
+        const levelFloor = xpThresholdForLevel(character.level);
+        if (character.xp < levelFloor) {
+          character = { ...character, xp: levelFloor };
+          try {
+            await fetchWithSession(`/api/character/${character.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                xp: levelFloor,
+              } satisfies CharacterUpdate),
+            });
+            clearPlayerStateCache(character.id);
+          } catch (err) {
+            console.error("xp floor migration patch failed", err);
           }
         }
 
