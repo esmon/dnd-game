@@ -22,6 +22,15 @@ export const ABILITY_LABELS: Record<keyof AbilityScores, string> = {
   cha: "Charisma",
 };
 
+export const ABILITY_DESCRIPTIONS: Record<keyof AbilityScores, string> = {
+  str: "Physical power. Drives melee weapon attacks and damage, athletics, and carrying capacity.",
+  dex: "Agility and reflexes. Drives ranged attacks, finesse weapons, AC, initiative, and stealth.",
+  con: "Health and stamina. Adds to HP at every level and powers concentration saves.",
+  int: "Reasoning and memory. Spellcasting ability for Wizards. Used for Arcana, History, and Investigation.",
+  wis: "Awareness and intuition. Spellcasting ability for Clerics, Druids, and Rangers. Used for Perception and Insight.",
+  cha: "Force of personality. Spellcasting ability for Bards, Sorcerers, Warlocks, and Paladins. Used for Persuasion and Deception.",
+};
+
 export function applyRaceASI(
   base: AbilityScores,
   race: Race,

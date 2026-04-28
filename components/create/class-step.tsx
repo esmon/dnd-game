@@ -1,5 +1,7 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -22,14 +24,19 @@ export function ClassStep({ selectedId, onSelect }: Props) {
             key={klass.id}
             type="button"
             onClick={() => onSelect(klass.id)}
-            className="text-left"
+            className="cursor-pointer text-left"
           >
             <Card
               className={cn(
-                "h-full transition-colors hover:bg-muted/40",
+                "relative h-full transition-colors hover:bg-muted/40",
                 selected && "ring-2 ring-primary",
               )}
             >
+              {selected ? (
+                <span className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <CheckIcon className="size-4" />
+                </span>
+              ) : null}
               <CardHeader>
                 <CardTitle>{klass.name}</CardTitle>
                 <CardDescription>
@@ -50,11 +57,6 @@ export function ClassStep({ selectedId, onSelect }: Props) {
                   })}
                 </div>
               </CardContent>
-              {selected ? (
-                <CardContent>
-                  <Badge>Selected</Badge>
-                </CardContent>
-              ) : null}
             </Card>
           </button>
         );

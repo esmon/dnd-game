@@ -1,7 +1,8 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { RACES } from "@/lib/dnd/races";
 import { ABILITY_LABELS } from "@/lib/dnd/derive";
@@ -33,14 +34,19 @@ export function RaceStep({ selectedId, onSelect }: Props) {
             key={race.id}
             type="button"
             onClick={() => onSelect(race.id)}
-            className="text-left"
+            className="cursor-pointer text-left"
           >
             <Card
               className={cn(
-                "h-full transition-colors hover:bg-muted/40",
+                "relative h-full transition-colors hover:bg-muted/40",
                 selected && "ring-2 ring-primary",
               )}
             >
+              {selected ? (
+                <span className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <CheckIcon className="size-4" />
+                </span>
+              ) : null}
               <CardHeader>
                 <CardTitle>{race.name}</CardTitle>
                 <CardDescription>{asiSummary(race.asi)} · Speed {race.speed}</CardDescription>
@@ -48,11 +54,6 @@ export function RaceStep({ selectedId, onSelect }: Props) {
               <CardContent>
                 <p className="text-sm text-muted-foreground">{race.description}</p>
               </CardContent>
-              {selected ? (
-                <CardContent>
-                  <Badge>Selected</Badge>
-                </CardContent>
-              ) : null}
             </Card>
           </button>
         );

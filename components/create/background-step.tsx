@@ -1,7 +1,8 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { BACKGROUNDS } from "@/lib/dnd/backgrounds";
 
@@ -20,25 +21,25 @@ export function BackgroundStep({ selectedId, onSelect }: Props) {
             key={bg.id}
             type="button"
             onClick={() => onSelect(bg.id)}
-            className="text-left"
+            className="cursor-pointer text-left"
           >
             <Card
               className={cn(
-                "h-full transition-colors hover:bg-muted/40",
+                "relative h-full transition-colors hover:bg-muted/40",
                 selected && "ring-2 ring-primary",
               )}
             >
+              {selected ? (
+                <span className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                  <CheckIcon className="size-4" />
+                </span>
+              ) : null}
               <CardHeader>
                 <CardTitle>{bg.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">{bg.description}</p>
               </CardContent>
-              {selected ? (
-                <CardContent>
-                  <Badge>Selected</Badge>
-                </CardContent>
-              ) : null}
             </Card>
           </button>
         );

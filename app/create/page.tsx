@@ -11,7 +11,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 
 import { RaceStep } from "@/components/create/race-step";
 import { ClassStep } from "@/components/create/class-step";
@@ -205,92 +204,97 @@ export default function CreatePage() {
 
   return (
     <main className="flex min-h-screen flex-1 items-start justify-center bg-zinc-50 p-6 dark:bg-black">
-      <Card className="w-full max-w-5xl">
-        <CardHeader>
-          <CardTitle>
-            Step {state.step + 1} of {STEP_LABELS.length} · {STEP_LABELS[state.step]}
-          </CardTitle>
-          <Progress value={progress} className="mt-2" />
-        </CardHeader>
-        <CardContent className="flex flex-col gap-5">
-          {state.step === 0 ? (
-            <RaceStep
-              selectedId={state.raceId}
-              onSelect={(id) => dispatch({ type: "SET_RACE", raceId: id })}
-            />
-          ) : null}
-          {state.step === 1 ? (
-            <ClassStep
-              selectedId={state.classId}
-              onSelect={(id) => dispatch({ type: "SET_CLASS", classId: id })}
-            />
-          ) : null}
-          {state.step === 2 ? (
-            <BackgroundStep
-              selectedId={state.backgroundId}
-              onSelect={(id) =>
-                dispatch({ type: "SET_BACKGROUND", backgroundId: id })
-              }
-            />
-          ) : null}
-          {state.step === 3 ? (
-            <AbilitiesStep
-              abilities={state.abilities}
-              race={race}
-              onChange={(ability, value) =>
-                dispatch({ type: "SET_ABILITY", ability, value })
-              }
-            />
-          ) : null}
-          {state.step === 4 && race && klass && background && finalAbilities && maxHp !== null ? (
-            <ReviewStep
-              name={state.name}
-              alignment={state.alignment}
-              race={race}
-              klass={klass}
-              background={background}
-              finalAbilities={finalAbilities}
-              maxHp={maxHp}
-              onNameChange={(n) => dispatch({ type: "SET_NAME", name: n })}
-              onAlignmentChange={(a) =>
-                dispatch({ type: "SET_ALIGNMENT", alignment: a })
-              }
-            />
-          ) : null}
+      <div className="flex w-full max-w-5xl flex-col gap-4">
+        <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest">
+          DND 5e — Character Creation
+        </h1>
+        <Card className="w-full overflow-visible">
+          <CardHeader>
+            <CardTitle>
+              Step {state.step + 1} of {STEP_LABELS.length} · {STEP_LABELS[state.step]}
+            </CardTitle>
+            <Progress value={progress} className="mt-2" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            {state.step === 0 ? (
+              <RaceStep
+                selectedId={state.raceId}
+                onSelect={(id) => dispatch({ type: "SET_RACE", raceId: id })}
+              />
+            ) : null}
+            {state.step === 1 ? (
+              <ClassStep
+                selectedId={state.classId}
+                onSelect={(id) => dispatch({ type: "SET_CLASS", classId: id })}
+              />
+            ) : null}
+            {state.step === 2 ? (
+              <BackgroundStep
+                selectedId={state.backgroundId}
+                onSelect={(id) =>
+                  dispatch({ type: "SET_BACKGROUND", backgroundId: id })
+                }
+              />
+            ) : null}
+            {state.step === 3 ? (
+              <AbilitiesStep
+                abilities={state.abilities}
+                race={race}
+                klass={klass}
+                onChange={(ability, value) =>
+                  dispatch({ type: "SET_ABILITY", ability, value })
+                }
+              />
+            ) : null}
+            {state.step === 4 && race && klass && background && finalAbilities && maxHp !== null ? (
+              <ReviewStep
+                name={state.name}
+                alignment={state.alignment}
+                race={race}
+                klass={klass}
+                background={background}
+                finalAbilities={finalAbilities}
+                maxHp={maxHp}
+                onNameChange={(n) => dispatch({ type: "SET_NAME", name: n })}
+                onAlignmentChange={(a) =>
+                  dispatch({ type: "SET_ALIGNMENT", alignment: a })
+                }
+              />
+            ) : null}
 
-          {state.error ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {state.error}
+            {state.error ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {state.error}
+              </div>
+            ) : null}
+
+            <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-between rounded-b-xl border-t bg-card px-6 py-4 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.04)]">
+              <Button
+                variant="outline"
+                onClick={() => dispatch({ type: "PREV_STEP" })}
+                disabled={state.step === 0 || state.submitting}
+              >
+                Back
+              </Button>
+              {isLastStep ? (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!canAdvance || state.submitting}
+                >
+                  {state.submitting ? "Creating..." : "Create Character"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => dispatch({ type: "NEXT_STEP" })}
+                  disabled={!canAdvance}
+                >
+                  Next
+                </Button>
+              )}
             </div>
-          ) : null}
-
-          <Separator />
-          <div className="flex items-center justify-between">
-            <Button
-              variant="outline"
-              onClick={() => dispatch({ type: "PREV_STEP" })}
-              disabled={state.step === 0 || state.submitting}
-            >
-              Back
-            </Button>
-            {isLastStep ? (
-              <Button
-                onClick={handleSubmit}
-                disabled={!canAdvance || state.submitting}
-              >
-                {state.submitting ? "Creating..." : "Create Character"}
-              </Button>
-            ) : (
-              <Button
-                onClick={() => dispatch({ type: "NEXT_STEP" })}
-                disabled={!canAdvance}
-              >
-                Next
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }
