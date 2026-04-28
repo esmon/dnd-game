@@ -59,7 +59,7 @@ export function InventoryDialog({
                 return (
                   <div
                     key={w.id}
-                    className="flex items-center justify-between gap-2 rounded-md border-2 border-zinc-900 bg-card px-3 py-2"
+                    className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div className="flex min-w-0 flex-col">
                       <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
@@ -69,12 +69,13 @@ export function InventoryDialog({
                         {w.damage}
                       </span>
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    <div className="flex shrink-0 flex-wrap gap-1">
                       <Button
                         size="sm"
                         variant="default"
                         disabled={isEquipped || atCap}
                         onClick={() => onEquip(w.id)}
+                        className="flex-1 sm:flex-none"
                       >
                         Equip
                       </Button>
@@ -83,6 +84,7 @@ export function InventoryDialog({
                         variant="outline"
                         disabled={!isEquipped}
                         onClick={() => onUnequip(w.id)}
+                        className="flex-1 sm:flex-none"
                       >
                         Unequip
                       </Button>
@@ -90,6 +92,7 @@ export function InventoryDialog({
                         size="sm"
                         variant="destructive"
                         onClick={() => onDiscard(w.id)}
+                        className="flex-1 sm:flex-none"
                       >
                         Discard
                       </Button>
