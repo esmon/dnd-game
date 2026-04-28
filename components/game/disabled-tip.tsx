@@ -25,7 +25,7 @@ export function DisabledTip({
       <TooltipTrigger render={<span className="inline-flex" />}>
         {children}
       </TooltipTrigger>
-      <TooltipContent>{reason}</TooltipContent>
+      <TooltipContent side="right">{reason}</TooltipContent>
     </Tooltip>
   );
 }
