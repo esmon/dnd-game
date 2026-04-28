@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "env -u NEXT_PUBLIC_SUPABASE_URL -u NEXT_PUBLIC_SUPABASE_ANON_KEY -u SUPABASE_URL -u SUPABASE_DB_URL -u SUPABASE_SERVICE_ROLE_KEY -u SUPABASE_JWT_SECRET next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
