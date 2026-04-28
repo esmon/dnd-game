@@ -297,7 +297,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-md border-2 border-zinc-900 px-3 py-1 font-mono text-xs uppercase tracking-widest",
+        "cursor-pointer rounded-md border-2 border-zinc-900 px-3 py-1 font-mono text-xs uppercase tracking-widest",
         active
           ? "bg-zinc-900 text-white"
           : "bg-card text-zinc-900 dark:text-zinc-100",
