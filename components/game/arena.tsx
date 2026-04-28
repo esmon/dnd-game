@@ -266,31 +266,21 @@ export function Arena() {
     void fetchAndSetMonster();
   }, [fetchAndSetMonster]);
 
-  // 1s suspense, then the monster swings back. Win/lose resolves from the
-  // post-attack state in the ref so this also handles "monster kills player".
+  // 1s suspense, then the monster swings back. Compute the post-attack HP
+  // from the snapshot so we can dispatch LOSE in the same tick (avoids a
+  // race where stateRef hasn't caught up between MONSTER_ATTACK and LOSE).
   const triggerMonsterAttack = useCallback(() => {
     dispatch({ type: "MONSTER_PENDING" });
     setTimeout(() => {
-      const snapshot = stateRef.current;
-      if (!snapshot.monster || !snapshot.player) return;
-      const damage = rollDice(snapshot.monster.damageDice);
+      const snap = stateRef.current;
+      if (!snap.monster || !snap.player) return;
+      const damage = rollDice(snap.monster.damageDice);
+      const newPlayerHealth = Math.max(0, snap.player.health - damage);
       dispatch({ type: "MONSTER_ATTACK", damage });
-
-      // After the dispatch completes, resolve outcome from the next snapshot.
-      // setTimeout(...,0) ensures the ref has caught up to the new state.
-      setTimeout(() => {
-        const after = stateRef.current;
-        if (!after.player || !after.monster) return;
-        if (after.player.health <= 0) {
-          dispatch({ type: "LOSE" });
-          setTimeout(() => {
-            const post = stateRef.current;
-            if (post.player) {
-              needsPersistRef.current = true;
-            }
-          }, 0);
-        }
-      }, 0);
+      if (newPlayerHealth <= 0) {
+        dispatch({ type: "LOSE" });
+        needsPersistRef.current = true;
+      }
     }, 1000);
   }, []);
 
@@ -307,27 +297,20 @@ export function Arena() {
         return;
       }
       const damage = rollDice(damageDice);
+      const newMonsterHealth = Math.max(0, snap.monster.health - damage);
       dispatch({ type: "PLAYER_ATTACK", damage, weaponName });
-
-      // Resolve on the next tick so we read post-attack health.
-      setTimeout(() => {
-        const after = stateRef.current;
-        if (!after.monster || !after.player) return;
-        if (after.monster.health <= 0) {
-          dispatch({ type: "WIN" });
-          setTimeout(() => {
-            const post = stateRef.current;
-            if (post.stats.wins > 0 && post.stats.wins % 3 === 0) {
-              dispatch({ type: "FULL_HEAL" });
-            }
-            // Persist runs from a useEffect once asiPending drains; flag here
-            // so any pending ASI dialog can resolve before the PATCH.
-            needsPersistRef.current = true;
-          }, 0);
-        } else {
-          triggerMonsterAttack();
+      if (newMonsterHealth <= 0) {
+        dispatch({ type: "WIN" });
+        const newWins = snap.stats.wins + 1;
+        if (newWins > 0 && newWins % 3 === 0) {
+          dispatch({ type: "FULL_HEAL" });
         }
-      }, 0);
+        // Persist runs from a useEffect once asiPending drains; flag here
+        // so any pending ASI dialog can resolve before the PATCH.
+        needsPersistRef.current = true;
+      } else {
+        triggerMonsterAttack();
+      }
     },
     [triggerMonsterAttack],
   );
