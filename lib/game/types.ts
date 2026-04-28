@@ -1,0 +1,49 @@
+export type GameStatus = "lobby" | "fighting";
+
+export type Weapon = {
+  name: string;
+  damage: string; // dice notation, e.g. "2d6", "1d4+2"
+};
+
+export type Player = {
+  name: string;
+  avatar: string | null;
+  maxHealth: number;
+  health: number;
+  xp: number;
+  weapons: Weapon[];
+};
+
+export type Monster = {
+  name: string;
+  index: string; // dnd5eapi index slug, kept for debug/keys
+  avatar: string | null;
+  maxHealth: number;
+  health: number;
+  xp: number;
+  damageDice: string; // dice notation used for monster turn damage
+};
+
+export type Turn = {
+  id: number;
+  isPlayer: boolean;
+  text: string;
+};
+
+export type GameStats = {
+  wins: number;
+  losses: number;
+  runaways: number;
+};
+
+export type MonsterIndex = {
+  index: string;
+  name: string;
+};
+
+export type StarterPlayerResponse = {
+  name: string;
+  avatar: string | null;
+  maxHealth: number;
+  weapons: Weapon[];
+};
