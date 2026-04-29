@@ -49,17 +49,13 @@ export type GameState = {
   // so the player gets a clear post-defeat affordance instead of an empty
   // gap between PlayerPanel and CommandPanel.
   lastDefeatedBy: string | null;
-  // Monotonic counter incremented on every player offensive action. The
-  // monster panel watches this to fire a shake animation — independent of
-  // hit/miss so the player gets feedback even on a missed swing.
-  playerAttackNonce: number;
-  // Damage dealt by the most recent player offensive action (0 on miss).
-  // Drives the monster panel's shake intensity.
-  lastPlayerDamage: number;
-  // Same idea, opposite direction: the player panel shakes when the monster
-  // lands a swing. Bumped on MONSTER_ATTACK regardless of hit/miss.
-  monsterAttackNonce: number;
-  lastMonsterDamage: number;
+  // Snapshot of the most recent attack from each side. `nonce` increments
+  // on every offensive action so panels know to fire a shake animation
+  // (changes on hit and miss). `damage` is 0 on miss, otherwise the actual
+  // hp dealt — drives shake intensity. Stored as one object so the two
+  // values are always updated atomically.
+  lastPlayerAttack: { nonce: number; damage: number };
+  lastMonsterAttack: { nonce: number; damage: number };
 };
 
 export const initialState: GameState = {
@@ -80,10 +76,8 @@ export const initialState: GameState = {
   attacksExpanded: false,
   logExpanded: false,
   lastDefeatedBy: null,
-  playerAttackNonce: 0,
-  lastPlayerDamage: 0,
-  monsterAttackNonce: 0,
-  lastMonsterDamage: 0,
+  lastPlayerAttack: { nonce: 0, damage: 0 },
+  lastMonsterAttack: { nonce: 0, damage: 0 },
 };
 
 export type Action =
@@ -272,8 +266,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
         {
           ...state,
           monster,
-          playerAttackNonce: state.playerAttackNonce + 1,
-          lastPlayerDamage: action.missed ? 0 : action.damage,
+          lastPlayerAttack: {
+            nonce: state.lastPlayerAttack.nonce + 1,
+            damage: action.missed ? 0 : action.damage,
+          },
         },
         true,
         text,
@@ -299,8 +295,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ...state,
           player,
           monsterPending: false,
-          monsterAttackNonce: state.monsterAttackNonce + 1,
-          lastMonsterDamage: action.missed ? 0 : action.damage,
+          lastMonsterAttack: {
+            nonce: state.lastMonsterAttack.nonce + 1,
+            damage: action.missed ? 0 : action.damage,
+          },
         },
         false,
         text,
@@ -602,8 +600,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ...state,
           monster,
           player,
-          playerAttackNonce: state.playerAttackNonce + 1,
-          lastPlayerDamage: action.missed ? 0 : action.damage,
+          lastPlayerAttack: {
+            nonce: state.lastPlayerAttack.nonce + 1,
+            damage: action.missed ? 0 : action.damage,
+          },
         },
         true,
         text,
@@ -638,8 +638,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ...state,
           monster,
           player,
-          playerAttackNonce: state.playerAttackNonce + 1,
-          lastPlayerDamage: action.missed ? 0 : total,
+          lastPlayerAttack: {
+            nonce: state.lastPlayerAttack.nonce + 1,
+            damage: action.missed ? 0 : total,
+          },
         },
         true,
         text,
@@ -674,8 +676,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ...state,
           monster,
           player,
-          playerAttackNonce: state.playerAttackNonce + 1,
-          lastPlayerDamage: action.missed ? 0 : action.damage,
+          lastPlayerAttack: {
+            nonce: state.lastPlayerAttack.nonce + 1,
+            damage: action.missed ? 0 : action.damage,
+          },
         },
         true,
         text,

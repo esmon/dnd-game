@@ -17,7 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { findClass } from "@/lib/dnd/classes";
+import { findClass, type DnDClass } from "@/lib/dnd/classes";
 import {
   ABILITY_DESCRIPTIONS,
   ABILITY_KEYS,
@@ -267,6 +267,59 @@ function conHpPreview(
   return { from: currentMaxHp, to: currentMaxHp + modDelta * playerLevel };
 }
 
+// Renders one of the three ability-pick lists: the +2 list, the +1+1 first
+// pick, or the +1+1 second pick. `excludedAbility` filters one out (used
+// when the second pick can't repeat the first).
+function AbilityList({
+  delta,
+  scores,
+  klass,
+  selectedAbility,
+  excludedAbility,
+  playerLevel,
+  currentMaxHp,
+  onSelect,
+}: {
+  delta: number;
+  scores: AbilityScores;
+  klass: DnDClass | undefined;
+  selectedAbility: keyof AbilityScores | null;
+  excludedAbility?: keyof AbilityScores | null;
+  playerLevel: number;
+  currentMaxHp: number;
+  onSelect: (ability: keyof AbilityScores) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {ABILITY_KEYS.filter((k) => k !== excludedAbility).map((k) => {
+        const cur = scores[k];
+        const { ok } = resultingScore(cur, delta);
+        return (
+          <AbilityChoice
+            key={k}
+            ability={k}
+            current={cur}
+            delta={delta}
+            selected={selectedAbility === k}
+            disabled={!ok}
+            hint={abilityHint(
+              k,
+              klass?.primaryAbility,
+              klass?.spellcastingAbility,
+            )}
+            hpPreview={
+              k === "con"
+                ? conHpPreview(cur, delta, playerLevel, currentMaxHp)
+                : undefined
+            }
+            onSelect={() => onSelect(k)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function LevelUpDialog({
   level,
   classId,
@@ -383,33 +436,15 @@ export function LevelUpDialog({
           </div>
 
           {mode === "plus2" ? (
-            <div className="flex flex-col gap-2">
-              {ABILITY_KEYS.map((k) => {
-                const cur = currentScores[k];
-                const { ok } = resultingScore(cur, 2);
-                return (
-                  <AbilityChoice
-                    key={k}
-                    ability={k}
-                    current={cur}
-                    delta={2}
-                    selected={one === k}
-                    disabled={!ok}
-                    hint={abilityHint(
-                      k,
-                      klass?.primaryAbility,
-                      klass?.spellcastingAbility,
-                    )}
-                    hpPreview={
-                      k === "con"
-                        ? conHpPreview(cur, 2, playerLevel, currentMaxHp)
-                        : undefined
-                    }
-                    onSelect={() => dispatch({ type: "SET_ONE", ability: k })}
-                  />
-                );
-              })}
-            </div>
+            <AbilityList
+              delta={2}
+              scores={currentScores}
+              klass={klass}
+              selectedAbility={one}
+              playerLevel={playerLevel}
+              currentMaxHp={currentMaxHp}
+              onSelect={(k) => dispatch({ type: "SET_ONE", ability: k })}
+            />
           ) : (
             <div className="flex flex-col gap-3">
               {twoA ? (
@@ -424,35 +459,17 @@ export function LevelUpDialog({
                   <Label className="mb-1 block text-xs text-muted-foreground">
                     First ability (+1)
                   </Label>
-                  <div className="flex flex-col gap-2">
-                    {ABILITY_KEYS.map((k) => {
-                      const cur = currentScores[k];
-                      const { ok } = resultingScore(cur, 1);
-                      return (
-                        <AbilityChoice
-                          key={k}
-                          ability={k}
-                          current={cur}
-                          delta={1}
-                          selected={false}
-                          disabled={!ok}
-                          hint={abilityHint(
-                            k,
-                            klass?.primaryAbility,
-                            klass?.spellcastingAbility,
-                          )}
-                          hpPreview={
-                            k === "con"
-                              ? conHpPreview(cur, 1, playerLevel, currentMaxHp)
-                              : undefined
-                          }
-                          onSelect={() =>
-                            dispatch({ type: "SET_TWO_A", ability: k })
-                          }
-                        />
-                      );
-                    })}
-                  </div>
+                  <AbilityList
+                    delta={1}
+                    scores={currentScores}
+                    klass={klass}
+                    selectedAbility={null}
+                    playerLevel={playerLevel}
+                    currentMaxHp={currentMaxHp}
+                    onSelect={(k) =>
+                      dispatch({ type: "SET_TWO_A", ability: k })
+                    }
+                  />
                 </div>
               )}
 
@@ -469,40 +486,18 @@ export function LevelUpDialog({
                     <Label className="mb-1 block text-xs text-muted-foreground">
                       Second ability (+1)
                     </Label>
-                    <div className="flex flex-col gap-2">
-                      {ABILITY_KEYS.filter((k) => k !== twoA).map((k) => {
-                        const cur = currentScores[k];
-                        const { ok } = resultingScore(cur, 1);
-                        return (
-                          <AbilityChoice
-                            key={k}
-                            ability={k}
-                            current={cur}
-                            delta={1}
-                            selected={false}
-                            disabled={!ok}
-                            hint={abilityHint(
-                              k,
-                              klass?.primaryAbility,
-                              klass?.spellcastingAbility,
-                            )}
-                            hpPreview={
-                              k === "con"
-                                ? conHpPreview(
-                                    cur,
-                                    1,
-                                    playerLevel,
-                                    currentMaxHp,
-                                  )
-                                : undefined
-                            }
-                            onSelect={() =>
-                              dispatch({ type: "SET_TWO_B", ability: k })
-                            }
-                          />
-                        );
-                      })}
-                    </div>
+                    <AbilityList
+                      delta={1}
+                      scores={currentScores}
+                      klass={klass}
+                      selectedAbility={null}
+                      excludedAbility={twoA}
+                      playerLevel={playerLevel}
+                      currentMaxHp={currentMaxHp}
+                      onSelect={(k) =>
+                        dispatch({ type: "SET_TWO_B", ability: k })
+                      }
+                    />
                   </div>
                 )
               ) : null}

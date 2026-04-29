@@ -1231,14 +1231,14 @@ export function Arena() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <PlayerPanel
             player={player}
-            attackNonce={state.monsterAttackNonce}
-            attackDamage={state.lastMonsterDamage}
+            attackNonce={state.lastMonsterAttack.nonce}
+            attackDamage={state.lastMonsterAttack.damage}
           />
           {monster ? (
             <MonsterCard
               monster={monster}
-              attackNonce={state.playerAttackNonce}
-              attackDamage={state.lastPlayerDamage}
+              attackNonce={state.lastPlayerAttack.nonce}
+              attackDamage={state.lastPlayerAttack.damage}
             />
           ) : (
             <div className="flex min-h-[200px] items-center justify-center rounded-xl border bg-card p-6">
@@ -1361,8 +1361,8 @@ export function Arena() {
         <div className="grid gap-4 md:grid-cols-3">
           <PlayerPanel
             player={player}
-            attackNonce={state.monsterAttackNonce}
-            attackDamage={state.lastMonsterDamage}
+            attackNonce={state.lastMonsterAttack.nonce}
+            attackDamage={state.lastMonsterAttack.damage}
           />
           {state.victory ? (
             <VictoryPanel

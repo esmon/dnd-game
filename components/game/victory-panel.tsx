@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
 import type { VictoryInfo } from "@/lib/game/types";
 
 function lootDisplay(loot: NonNullable<VictoryInfo["loot"]>): {
@@ -41,7 +42,7 @@ export function VictoryPanel({
   const display = loot ? lootDisplay(loot) : null;
 
   return (
-    <div className="flex h-full flex-col justify-center gap-3 rounded-md border-2 border-zinc-900 bg-card px-4 py-6 font-mono">
+    <LobbyResultFrame className="gap-3">
       <div className="flex flex-col items-center gap-1 text-center">
         <p className="text-2xl font-bold uppercase tracking-widest text-emerald-600">
           Victory
@@ -88,6 +89,6 @@ export function VictoryPanel({
           </div>
         </div>
       ) : null}
-    </div>
+    </LobbyResultFrame>
   );
 }
