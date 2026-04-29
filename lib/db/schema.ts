@@ -11,6 +11,10 @@ export type { AbilityScores };
 export interface Character {
   id: string;
   session_id: string;
+  // Set when an anonymous character has been claimed by a signed-in user
+  // (Phase 4 of cross-device auth). Null until then; access via either
+  // session_id or user_id is allowed in the API.
+  user_id: string | null;
   name: string;
   race: string;
   subrace: string | null;
@@ -35,8 +39,12 @@ export interface Character {
   updated_at: string;
 }
 
-export type NewCharacter = Omit<Character, "id" | "created_at" | "updated_at"> & {
+export type NewCharacter = Omit<
+  Character,
+  "id" | "user_id" | "created_at" | "updated_at"
+> & {
   id?: string;
+  user_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };
