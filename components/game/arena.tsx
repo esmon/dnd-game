@@ -1235,7 +1235,7 @@ export function Arena() {
       <StatsBar stats={stats} />
 
       {status === "fighting" ? (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <PlayerPanel player={player} />
           {monster ? (
             <MonsterCard monster={monster} />

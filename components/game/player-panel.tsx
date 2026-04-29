@@ -39,8 +39,14 @@ export function PlayerPanel({ player }: { player: Player }) {
         {player.name}
       </p>
       {race || klass ? (
-        <p className="mb-2 truncate text-center text-xs uppercase tracking-widest text-muted-foreground">
-          {race?.name ?? player.raceId} · {klass?.name ?? player.classId}
+        <p className="mb-2 text-center text-xs uppercase tracking-widest text-muted-foreground">
+          <span className="block md:inline">
+            {race?.name ?? player.raceId}
+          </span>
+          <span className="hidden md:inline"> · </span>
+          <span className="block md:inline">
+            {klass?.name ?? player.classId}
+          </span>
         </p>
       ) : null}
       <StatRow label="LV" value={String(player.level)} />
