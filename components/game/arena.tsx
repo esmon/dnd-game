@@ -3,6 +3,23 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+import {
+  BackpackIcon,
+  ChevronsUpIcon,
+  FlaskConicalIcon,
+  FootprintsIcon,
+  HeartIcon,
+  MoonIcon,
+  RotateCcwIcon,
+  ScrollTextIcon,
+  SparklesIcon,
+  SunIcon,
+  SwordIcon,
+  SwordsIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -1084,7 +1101,10 @@ export function Arena() {
             disabled={actionsDisabled}
             className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
           >
-            <span className="truncate">{weapon.name}</span>
+            <span className="flex items-center gap-1.5">
+              <SwordIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{weapon.name}</span>
+            </span>
             <span className="text-xs opacity-70">{weapon.damage}</span>
           </Button>
         </DisabledTip>
@@ -1110,8 +1130,11 @@ export function Arena() {
             onClick={() => handleSmite(smiteWeapon, smiteSlotLevel)}
             disabled={actionsDisabled || smiteOutOfSlots}
           >
-            <span className="truncate">
-              {smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
+            <span className="flex items-center gap-1.5">
+              <SunIcon className="size-3.5 shrink-0" />
+              <span className="truncate">
+                {smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
+              </span>
             </span>
             <span className="text-xs opacity-80">
               {smiteOutOfSlots
@@ -1157,7 +1180,10 @@ export function Arena() {
             }
             disabled={actionsDisabled || outOfSlots}
           >
-            <span className="truncate">{spell.name}</span>
+            <span className="flex items-center gap-1.5">
+              <SparklesIcon className="size-3.5 shrink-0" />
+              <span className="truncate">{spell.name}</span>
+            </span>
             <span className="text-xs opacity-70">
               {spell.damage} · {slotInfo}
             </span>
@@ -1185,9 +1211,12 @@ export function Arena() {
             disabled={actionsDisabled}
             className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
           >
-            <span className="truncate">
-              {c.spellName}
-              {count > 1 ? ` ×${count}` : ""}
+            <span className="flex items-center gap-1.5">
+              <ScrollTextIcon className="size-3.5 shrink-0" />
+              <span className="truncate">
+                {c.spellName}
+                {count > 1 ? ` ×${count}` : ""}
+              </span>
             </span>
             <span className="text-xs opacity-70">Scroll · {c.damage}</span>
           </Button>
@@ -1280,9 +1309,12 @@ export function Arena() {
                     disabled={actionsDisabled || potionFull}
                     className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
                   >
-                    <span className="truncate">
-                      {c.name}
-                      {count > 1 ? ` ×${count}` : ""}
+                    <span className="flex items-center gap-1.5">
+                      <FlaskConicalIcon className="size-3.5 shrink-0" />
+                      <span className="truncate">
+                        {c.name}
+                        {count > 1 ? ` ×${count}` : ""}
+                      </span>
                     </span>
                     <span className="text-xs opacity-70">
                       Potion · {c.healDice}
@@ -1303,6 +1335,7 @@ export function Arena() {
                     player.health >= player.maxHealth
                   }
                 >
+                  <HeartIcon className="size-3.5 shrink-0" />
                   HEAL
                 </Button>
               </DisabledTip>
@@ -1314,10 +1347,12 @@ export function Arena() {
                 disabled={actionsDisabled}
                 className="w-full"
               >
+                <FootprintsIcon className="size-3.5 shrink-0" />
                 RUN AWAY
               </Button>
             </DisabledTip>
             <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
+              <BackpackIcon className="size-3.5 shrink-0" />
               INVENTORY
             </Button>
           </CommandPanel>
@@ -1339,6 +1374,7 @@ export function Arena() {
                 onClick={startFight}
                 disabled={asiPending.length > 0}
               >
+                <SwordsIcon className="size-3.5 shrink-0" />
                 FIGHT
               </Button>
             </DisabledTip>
@@ -1349,10 +1385,12 @@ export function Arena() {
                 disabled={asiPending.length > 0 || restPointless}
                 className="w-full"
               >
+                <MoonIcon className="size-3.5 shrink-0" />
                 REST
               </Button>
             </DisabledTip>
             <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
+              <BackpackIcon className="size-3.5 shrink-0" />
               INVENTORY
             </Button>
             {state.characterCount > 1 ? (
@@ -1362,6 +1400,7 @@ export function Arena() {
                   dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open: true })
                 }
               >
+                <UsersIcon className="size-3.5 shrink-0" />
                 Switch Character
               </Button>
             ) : null}
@@ -1383,6 +1422,7 @@ export function Arena() {
                   }}
                   disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
                 >
+                  <ChevronsUpIcon className="size-3.5 shrink-0" />
                   [DEV] +1 Level
                 </Button>
               </DisabledTip>
@@ -1396,12 +1436,14 @@ export function Arena() {
               className="bg-emerald-500 text-white hover:bg-emerald-500/90"
               onClick={handlePlayAgain}
             >
+              <RotateCcwIcon className="size-3.5 shrink-0" />
               Play Again
             </Button>
             <Button
               variant="outline"
               onClick={() => router.push("/create")}
             >
+              <UserPlusIcon className="size-3.5 shrink-0" />
               Create New Character
             </Button>
             {state.characterCount > 1 ? (
@@ -1411,6 +1453,7 @@ export function Arena() {
                   dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open: true })
                 }
               >
+                <UsersIcon className="size-3.5 shrink-0" />
                 Switch Character
               </Button>
             ) : null}
@@ -1432,6 +1475,7 @@ export function Arena() {
                   }}
                   disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
                 >
+                  <ChevronsUpIcon className="size-3.5 shrink-0" />
                   [DEV] +1 Level
                 </Button>
               </DisabledTip>
