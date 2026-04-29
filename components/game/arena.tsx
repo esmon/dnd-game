@@ -22,6 +22,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { CommandButton } from "@/components/game/command-button";
 import {
   Popover,
   PopoverContent,
@@ -30,8 +31,7 @@ import {
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { CombatLog } from "@/components/game/combat-log";
 import { MobileCombatLog } from "@/components/game/mobile-combat-log";
-import { CommandPanel } from "@/components/game/command-panel";
-import { DisabledTip } from "@/components/game/disabled-tip";
+import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
@@ -1077,6 +1077,11 @@ export function Arena() {
     ).mult;
   };
 
+  // Attack options carry a pre-built CommandButton JSX node rather than raw
+  // props because the React compiler refuses object-literal closures that
+  // capture refs (handleAttack/handleSmite/etc all read stateRef.current).
+  // JSX props are fine — the compiler trusts them — so we render here and
+  // route through CommandItem's `render` branch in the commands array below.
   type AttackOption = {
     key: string;
     effective: number;
@@ -1094,20 +1099,15 @@ export function Arena() {
       key,
       effective,
       node: (
-        <DisabledTip key={key} reason={fightActionReason}>
-          <Button
-            variant="destructive"
-            onClick={() => handleAttack(weapon)}
-            disabled={actionsDisabled}
-            className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
-          >
-            <span className="flex items-center gap-1.5">
-              <SwordIcon className="size-3.5 shrink-0" />
-              <span className="truncate">{weapon.name}</span>
-            </span>
-            <span className="text-xs opacity-70">{weapon.damage}</span>
-          </Button>
-        </DisabledTip>
+        <CommandButton
+          kind="weapon"
+          icon={SwordIcon}
+          label={weapon.name}
+          subtitle={weapon.damage}
+          onClick={() => handleAttack(weapon)}
+          disabled={actionsDisabled}
+          disabledReason={fightActionReason}
+        />
       ),
     });
   }
@@ -1124,25 +1124,19 @@ export function Arena() {
       key: "smite",
       effective,
       node: (
-        <DisabledTip key="smite" reason={smiteReason}>
-          <Button
-            className="h-auto w-full flex-col gap-0 bg-amber-500 py-1.5 leading-tight text-white hover:bg-amber-500/90"
-            onClick={() => handleSmite(smiteWeapon, smiteSlotLevel)}
-            disabled={actionsDisabled || smiteOutOfSlots}
-          >
-            <span className="flex items-center gap-1.5">
-              <SunIcon className="size-3.5 shrink-0" />
-              <span className="truncate">
-                {smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
-              </span>
-            </span>
-            <span className="text-xs opacity-80">
-              {smiteOutOfSlots
-                ? "+?d8 radiant"
-                : `+${smiteSlotLevel + 1}d8 radiant`}
-            </span>
-          </Button>
-        </DisabledTip>
+        <CommandButton
+          kind="smite"
+          icon={SunIcon}
+          label={smiteOutOfSlots ? "Smite" : `Smite (L${smiteSlotLevel})`}
+          subtitle={
+            smiteOutOfSlots
+              ? "+?d8 radiant"
+              : `+${smiteSlotLevel + 1}d8 radiant`
+          }
+          onClick={() => handleSmite(smiteWeapon, smiteSlotLevel)}
+          disabled={actionsDisabled || smiteOutOfSlots}
+          disabledReason={smiteReason}
+        />
       ),
     });
   }
@@ -1160,35 +1154,30 @@ export function Arena() {
       (outOfSlots
         ? `Out of L${spell.level} spell slots — REST to refill`
         : null);
-    const effective =
-      averageDamage(spell.damage) * monsterDmgMult(spell.damageType);
+    const effective = outOfSlots
+      ? 0
+      : averageDamage(spell.damage) * monsterDmgMult(spell.damageType);
     const key = `s-${spell.id}`;
     attackOptions.push({
       key,
       effective,
       node: (
-        <DisabledTip key={key} reason={spellReason}>
-          <Button
-            className="h-auto w-full flex-col gap-0 bg-indigo-600 py-1.5 leading-tight text-white hover:bg-indigo-600/90"
-            onClick={() =>
-              handleCastSpell(
-                spell.id,
-                spell.level,
-                spell.damage,
-                spell.damageType,
-              )
-            }
-            disabled={actionsDisabled || outOfSlots}
-          >
-            <span className="flex items-center gap-1.5">
-              <SparklesIcon className="size-3.5 shrink-0" />
-              <span className="truncate">{spell.name}</span>
-            </span>
-            <span className="text-xs opacity-70">
-              {spell.damage} · {slotInfo}
-            </span>
-          </Button>
-        </DisabledTip>
+        <CommandButton
+          kind="spell"
+          icon={SparklesIcon}
+          label={spell.name}
+          subtitle={`${spell.damage} · ${slotInfo}`}
+          onClick={() =>
+            handleCastSpell(
+              spell.id,
+              spell.level,
+              spell.damage,
+              spell.damageType,
+            )
+          }
+          disabled={actionsDisabled || outOfSlots}
+          disabledReason={spellReason}
+        />
       ),
     });
   }
@@ -1204,23 +1193,15 @@ export function Arena() {
       key,
       effective,
       node: (
-        <DisabledTip key={key} reason={fightActionReason}>
-          <Button
-            variant="secondary"
-            onClick={() => handleUseScroll(useId, c.damage, c.damageType)}
-            disabled={actionsDisabled}
-            className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
-          >
-            <span className="flex items-center gap-1.5">
-              <ScrollTextIcon className="size-3.5 shrink-0" />
-              <span className="truncate">
-                {c.spellName}
-                {count > 1 ? ` ×${count}` : ""}
-              </span>
-            </span>
-            <span className="text-xs opacity-70">Scroll · {c.damage}</span>
-          </Button>
-        </DisabledTip>
+        <CommandButton
+          kind="scroll"
+          icon={ScrollTextIcon}
+          label={`${c.spellName}${count > 1 ? ` ×${count}` : ""}`}
+          subtitle={`Scroll · ${c.damage}`}
+          onClick={() => handleUseScroll(useId, c.damage, c.damageType)}
+          disabled={actionsDisabled}
+          disabledReason={fightActionReason}
+        />
       ),
     });
   }
@@ -1263,99 +1244,107 @@ export function Arena() {
               dispatch({ type: "SET_LOG_EXPANDED", expanded })
             }
           />
-          <CommandPanel className="col-span-2 md:col-span-1">
-            {visibleAttackOptions.map((o) => o.node)}
-            {hiddenAttackOptions.length > 0 ? (
-              <Popover
-                open={state.attacksExpanded}
-                onOpenChange={(open) =>
-                  dispatch({ type: "SET_ATTACKS_EXPANDED", expanded: open })
-                }
-              >
-                <PopoverTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                    >
-                      Show {hiddenAttackOptions.length} more
-                    </Button>
-                  }
-                />
-                <PopoverContent
-                  side="left"
-                  align="start"
-                  className="flex w-64 flex-col gap-2"
-                >
-                  {hiddenAttackOptions.map((o) => o.node)}
-                </PopoverContent>
-              </Popover>
-            ) : null}
-            {potionGroups.map((group) => {
-              if (group.representative.kind !== "potion") return null;
-              const c = group.representative;
-              const count = group.ids.length;
-              const useId = group.ids[0];
-              const potionFull = player.health >= player.maxHealth;
-              const potionReason =
-                fightActionReason ??
-                (potionFull ? "Already at full HP" : null);
-              return (
-                <DisabledTip key={group.key} reason={potionReason}>
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleUsePotion(useId, c.healDice)}
-                    disabled={actionsDisabled || potionFull}
-                    className="h-auto w-full flex-col gap-0 py-1.5 leading-tight"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <FlaskConicalIcon className="size-3.5 shrink-0" />
-                      <span className="truncate">
-                        {c.name}
-                        {count > 1 ? ` ×${count}` : ""}
-                      </span>
-                    </span>
-                    <span className="text-xs opacity-70">
-                      Potion · {c.healDice}
-                    </span>
-                  </Button>
-                </DisabledTip>
-              );
-            })}
-            {canSelfHealInCombat ? (
-              <DisabledTip reason={healReason}>
-                <Button
-                  className="w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
-                  onClick={handleHeal}
-                  disabled={
-                    actionsDisabled ||
-                    healUnderMinLevel ||
-                    healOutOfSlots ||
-                    player.health >= player.maxHealth
-                  }
-                >
-                  <HeartIcon className="size-3.5 shrink-0" />
-                  HEAL
-                </Button>
-              </DisabledTip>
-            ) : null}
-            <DisabledTip reason={fightActionReason}>
-              <Button
-                variant="outline"
-                onClick={handleRunAway}
-                disabled={actionsDisabled}
-                className="w-full"
-              >
-                <FootprintsIcon className="size-3.5 shrink-0" />
-                RUN AWAY
-              </Button>
-            </DisabledTip>
-            <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
-              <BackpackIcon className="size-3.5 shrink-0" />
-              INVENTORY
-            </Button>
-          </CommandPanel>
+          <CommandPanel
+            className="col-span-2 md:col-span-1"
+            commands={[
+              ...visibleAttackOptions.map(
+                (o): CommandItem => ({ key: o.key, render: o.node }),
+              ),
+              ...(hiddenAttackOptions.length > 0
+                ? [
+                    {
+                      key: "attacks-popover",
+                      render: (
+                        <Popover
+                          open={state.attacksExpanded}
+                          onOpenChange={(open) =>
+                            dispatch({
+                              type: "SET_ATTACKS_EXPANDED",
+                              expanded: open,
+                            })
+                          }
+                        >
+                          <PopoverTrigger
+                            render={
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                              >
+                                Show {hiddenAttackOptions.length} more
+                              </Button>
+                            }
+                          />
+                          <PopoverContent
+                            side="left"
+                            align="start"
+                            className="flex w-64 flex-col gap-2"
+                          >
+                            {hiddenAttackOptions.map((o) => o.node)}
+                          </PopoverContent>
+                        </Popover>
+                      ),
+                    } satisfies CommandItem,
+                  ]
+                : []),
+              ...potionGroups.flatMap((group): CommandItem[] => {
+                if (group.representative.kind !== "potion") return [];
+                const c = group.representative;
+                const count = group.ids.length;
+                const useId = group.ids[0];
+                const potionFull = player.health >= player.maxHealth;
+                const potionReason =
+                  fightActionReason ??
+                  (potionFull ? "Already at full HP" : null);
+                return [
+                  {
+                    key: group.key,
+                    kind: "potion",
+                    icon: FlaskConicalIcon,
+                    label: `${c.name}${count > 1 ? ` ×${count}` : ""}`,
+                    subtitle: `Potion · ${c.healDice}`,
+                    onClick: () => handleUsePotion(useId, c.healDice),
+                    disabled: actionsDisabled || potionFull,
+                    disabledReason: potionReason,
+                  },
+                ];
+              }),
+              ...(canSelfHealInCombat
+                ? [
+                    {
+                      key: "heal",
+                      kind: "primary",
+                      icon: HeartIcon,
+                      label: "HEAL",
+                      onClick: handleHeal,
+                      disabled:
+                        actionsDisabled ||
+                        healUnderMinLevel ||
+                        healOutOfSlots ||
+                        player.health >= player.maxHealth,
+                      disabledReason: healReason,
+                    } satisfies CommandItem,
+                  ]
+                : []),
+              {
+                key: "run-away",
+                kind: "neutral",
+                icon: FootprintsIcon,
+                label: "RUN AWAY",
+                onClick: handleRunAway,
+                disabled: actionsDisabled,
+                disabledReason: fightActionReason,
+              },
+              {
+                key: "inventory",
+                kind: "neutral",
+                icon: BackpackIcon,
+                label: "INVENTORY",
+                onClick: () =>
+                  dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
+              },
+            ]}
+          />
         </div>
       ) : playerAlive ? (
         <div className="grid gap-4 md:grid-cols-3">
@@ -1367,120 +1356,129 @@ export function Arena() {
               dispatch({ type: "SET_LOG_EXPANDED", expanded })
             }
           />
-          <CommandPanel className="md:col-start-3">
-            <DisabledTip reason={lobbyActionReason}>
-              <Button
-                className="w-full bg-emerald-500 text-white hover:bg-emerald-500/90"
-                onClick={startFight}
-                disabled={asiPending.length > 0}
-              >
-                <SwordsIcon className="size-3.5 shrink-0" />
-                FIGHT
-              </Button>
-            </DisabledTip>
-            <DisabledTip reason={restReason}>
-              <Button
-                variant="outline"
-                onClick={handleRest}
-                disabled={asiPending.length > 0 || restPointless}
-                className="w-full"
-              >
-                <MoonIcon className="size-3.5 shrink-0" />
-                REST
-              </Button>
-            </DisabledTip>
-            <Button variant="outline" onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}>
-              <BackpackIcon className="size-3.5 shrink-0" />
-              INVENTORY
-            </Button>
-            {state.characterCount > 1 ? (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open: true })
-                }
-              >
-                <UsersIcon className="size-3.5 shrink-0" />
-                Switch Character
-              </Button>
-            ) : null}
-            {process.env.NODE_ENV === "development" ? (
-              <DisabledTip
-                reason={
-                  player.level >= MAX_LEVEL
-                    ? "Already at max level"
-                    : lobbyActionReason
-                }
-              >
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs opacity-60"
-                  onClick={() => {
-                    dispatch({ type: "DEV_NEXT_LEVEL" });
-                    needsPersistRef.current = true;
-                  }}
-                  disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
-                >
-                  <ChevronsUpIcon className="size-3.5 shrink-0" />
-                  [DEV] +1 Level
-                </Button>
-              </DisabledTip>
-            ) : null}
-          </CommandPanel>
+          <CommandPanel
+            className="md:col-start-3"
+            commands={[
+              {
+                key: "fight",
+                kind: "primary",
+                icon: SwordsIcon,
+                label: "FIGHT",
+                onClick: startFight,
+                disabled: asiPending.length > 0,
+                disabledReason: lobbyActionReason,
+              },
+              {
+                key: "rest",
+                kind: "neutral",
+                icon: MoonIcon,
+                label: "REST",
+                onClick: handleRest,
+                disabled: asiPending.length > 0 || restPointless,
+                disabledReason: restReason,
+              },
+              {
+                key: "inventory",
+                kind: "neutral",
+                icon: BackpackIcon,
+                label: "INVENTORY",
+                onClick: () =>
+                  dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
+              },
+              ...(state.characterCount > 1
+                ? [
+                    {
+                      key: "switch-character",
+                      kind: "neutral",
+                      icon: UsersIcon,
+                      label: "Switch Character",
+                      onClick: () =>
+                        dispatch({
+                          type: "SET_CHARACTER_PICKER_OPEN",
+                          open: true,
+                        }),
+                    } satisfies CommandItem,
+                  ]
+                : []),
+              ...(process.env.NODE_ENV === "development"
+                ? [
+                    {
+                      key: "dev-next-level",
+                      kind: "dev",
+                      icon: ChevronsUpIcon,
+                      label: "[DEV] +1 Level",
+                      onClick: () => {
+                        dispatch({ type: "DEV_NEXT_LEVEL" });
+                        needsPersistRef.current = true;
+                      },
+                      disabled:
+                        player.level >= MAX_LEVEL || asiPending.length > 0,
+                      disabledReason:
+                        player.level >= MAX_LEVEL
+                          ? "Already at max level"
+                          : lobbyActionReason,
+                    } satisfies CommandItem,
+                  ]
+                : []),
+            ]}
+          />
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
-          <CommandPanel className="md:col-start-2">
-            <Button
-              className="bg-emerald-500 text-white hover:bg-emerald-500/90"
-              onClick={handlePlayAgain}
-            >
-              <RotateCcwIcon className="size-3.5 shrink-0" />
-              Play Again
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => router.push("/create")}
-            >
-              <UserPlusIcon className="size-3.5 shrink-0" />
-              Create New Character
-            </Button>
-            {state.characterCount > 1 ? (
-              <Button
-                variant="outline"
-                onClick={() =>
-                  dispatch({ type: "SET_CHARACTER_PICKER_OPEN", open: true })
-                }
-              >
-                <UsersIcon className="size-3.5 shrink-0" />
-                Switch Character
-              </Button>
-            ) : null}
-            {process.env.NODE_ENV === "development" ? (
-              <DisabledTip
-                reason={
-                  player.level >= MAX_LEVEL
-                    ? "Already at max level"
-                    : lobbyActionReason
-                }
-              >
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs opacity-60"
-                  onClick={() => {
-                    dispatch({ type: "DEV_NEXT_LEVEL" });
-                    needsPersistRef.current = true;
-                  }}
-                  disabled={player.level >= MAX_LEVEL || asiPending.length > 0}
-                >
-                  <ChevronsUpIcon className="size-3.5 shrink-0" />
-                  [DEV] +1 Level
-                </Button>
-              </DisabledTip>
-            ) : null}
-          </CommandPanel>
+          <CommandPanel
+            className="md:col-start-2"
+            commands={[
+              {
+                key: "play-again",
+                kind: "primary",
+                icon: RotateCcwIcon,
+                label: "Play Again",
+                onClick: handlePlayAgain,
+              },
+              {
+                key: "create-new",
+                kind: "neutral",
+                icon: UserPlusIcon,
+                label: "Create New Character",
+                onClick: () => router.push("/create"),
+              },
+              ...(state.characterCount > 1
+                ? [
+                    {
+                      key: "switch-character",
+                      kind: "neutral",
+                      icon: UsersIcon,
+                      label: "Switch Character",
+                      onClick: () =>
+                        dispatch({
+                          type: "SET_CHARACTER_PICKER_OPEN",
+                          open: true,
+                        }),
+                    } satisfies CommandItem,
+                  ]
+                : []),
+              ...(process.env.NODE_ENV === "development"
+                ? [
+                    {
+                      key: "dev-next-level",
+                      kind: "dev",
+                      icon: ChevronsUpIcon,
+                      label: "[DEV] +1 Level",
+                      onClick: () => {
+                        dispatch({ type: "DEV_NEXT_LEVEL" });
+                        needsPersistRef.current = true;
+                      },
+                      disabled:
+                        player.level >= MAX_LEVEL || asiPending.length > 0,
+                      disabledReason:
+                        player.level >= MAX_LEVEL
+                          ? "Already at max level"
+                          : lobbyActionReason,
+                    } satisfies CommandItem,
+                  ]
+                : []),
+            ]}
+          />
         </div>
       )}
 
