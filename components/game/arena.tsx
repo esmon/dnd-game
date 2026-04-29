@@ -1363,6 +1363,11 @@ export function Arena() {
             player={player}
             attackNonce={state.lastMonsterAttack.nonce}
             attackDamage={state.lastMonsterAttack.damage}
+            className={
+              state.victory || state.lastDefeatedBy
+                ? "hidden md:flex"
+                : undefined
+            }
           />
           {state.victory ? (
             <VictoryPanel

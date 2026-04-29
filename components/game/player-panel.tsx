@@ -5,16 +5,19 @@ import { formatDrvi, playerAC } from "@/lib/dnd/combat";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
 import { shakeIntensity, useShakeOnNonce } from "@/lib/use-shake-on-nonce";
+import { cn } from "@/lib/utils";
 import type { Player } from "@/lib/game/types";
 
 export function PlayerPanel({
   player,
   attackNonce = 0,
   attackDamage = 0,
+  className,
 }: {
   player: Player;
   attackNonce?: number;
   attackDamage?: number;
+  className?: string;
 }) {
   // Shake when the monster lands an attack (incoming hit feedback).
   // Intensity scales with damage / max HP.
@@ -47,7 +50,10 @@ export function PlayerPanel({
   return (
     <div
       ref={shakeRef}
-      className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono"
+      className={cn(
+        "flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono",
+        className,
+      )}
     >
       <p className="truncate text-center text-sm font-bold uppercase tracking-widest">
         {player.name}
