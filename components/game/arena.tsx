@@ -70,6 +70,7 @@ import {
 } from "@/lib/game/reducer";
 import { useArenaBootstrap } from "@/lib/arena/use-arena-bootstrap";
 import { useArenaPersistence } from "@/lib/arena/use-arena-persistence";
+import { useUser } from "@/lib/auth/use-user";
 import { groupConsumables } from "@/lib/game/consumables";
 import { pickRandomMonsterIndex } from "@/lib/game/dnd5e";
 import type { AbilityScores } from "@/lib/db/schema";
@@ -99,13 +100,24 @@ export function Arena() {
   // (used after loot keep/discard so inventory decisions never sit unsynced).
   const forceSyncRef = useRef(false);
 
-  useArenaBootstrap({ dispatch, indexLevelRef, lastSyncedRef });
+  // While auth is resolving, pass `undefined` so the bootstrap waits and
+  // persistence stays inert. Once resolved, it's User | null.
+  const { user, loading: authLoading } = useUser();
+  const authedUser = authLoading ? undefined : user;
+
+  useArenaBootstrap({
+    dispatch,
+    indexLevelRef,
+    lastSyncedRef,
+    user: authedUser,
+  });
   useArenaPersistence({
     state,
     stateRef,
     needsPersistRef,
     lastSyncedRef,
     forceSyncRef,
+    user: authedUser,
   });
 
   // Refetch monster index list whenever the player's level crosses a CR pool

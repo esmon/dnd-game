@@ -3,6 +3,8 @@
 import { useEffect, type MutableRefObject } from "react";
 import { useRouter } from "next/navigation";
 
+import type { User } from "@supabase/supabase-js";
+
 import { characterToPlayer } from "@/lib/db/schema";
 import type { Character, CharacterUpdate } from "@/lib/db/schema";
 import { xpThresholdForLevel } from "@/lib/dnd/leveling";
@@ -22,154 +24,57 @@ import {
   readPlayerStateCache,
   setActiveCharacterId,
 } from "@/lib/session";
+import {
+  getLocalCharacter,
+  setLocalCharacter,
+} from "@/lib/storage/local-character";
 
-// One-shot bootstrap for the arena page: load the active character (or fall
-// back to the most recent for this session), overlay any unsynced cache,
-// run legacy weapon / damageType / XP-floor migrations with PATCH-back,
-// then fetch the monster index list and character count. On completion
-// dispatches BOOTSTRAP_DONE and SET_CHARACTER_COUNT.
+// One-shot bootstrap for the arena page. Branches on auth state:
 //
-// Callers pass refs we have to update before the dispatches land, since
-// downstream effects (level-refetch, persistence) read them.
+//   • Anonymous (user === null): single-character localStorage flow. Reads
+//     `dnd-local-character`; if empty, falls back once to any session-id
+//     Supabase characters from the legacy model and migrates the most
+//     recent down to localStorage. After this migration the user is local-
+//     only; signing in eventually moves them up to Supabase via the claim
+//     flow (Phase 6).
+//
+//   • Signed-in (user set): existing Supabase flow keyed by session_id.
+//     Phase 5 will switch this to user_id queries.
+//
+// Caller passes `user`. While `user === undefined` (auth not yet
+// resolved), bootstrap waits — the dispatch happens once we know.
 export function useArenaBootstrap({
   dispatch,
   indexLevelRef,
   lastSyncedRef,
+  user,
 }: {
   dispatch: React.Dispatch<Action>;
   indexLevelRef: MutableRefObject<number | null>;
   lastSyncedRef: MutableRefObject<{ id: string; level: number } | null>;
+  user: User | null | undefined;
 }) {
   const router = useRouter();
   useEffect(() => {
+    if (user === undefined) return; // still resolving auth; wait
     let cancelled = false;
     (async () => {
       try {
         let character: Character | null = null;
-        const activeId = getActiveCharacterId();
 
-        if (activeId) {
-          const res = await fetchWithSession(`/api/character/${activeId}`);
-          if (res.status === 404) {
-            clearActiveCharacterId();
-            router.push("/create");
-            return;
-          }
-          if (!res.ok) {
-            console.error("character fetch failed", res.status);
-            return;
-          }
-          character = (await res.json()) as Character;
+        if (user) {
+          character = await loadFromSupabase(router);
         } else {
-          const res = await fetchWithSession("/api/characters");
-          if (!res.ok) {
-            console.error("characters list fetch failed", res.status);
-            return;
-          }
-          const all = (await res.json()) as Character[];
-          if (all.length === 0) {
+          character = await loadFromLocalOrLegacySupabase();
+          if (!character) {
             router.push("/create");
             return;
           }
-          character = all[0];
-          setActiveCharacterId(character.id);
         }
+        if (!character) return; // signed-in path may have redirected
 
-        // Overlay any unsynced localStorage cache (e.g. tab closed mid-grind
-        // before the level-up sync fired). Cache is only present while there
-        // are unsynced changes; cleared after every successful Supabase sync.
-        const cache = readPlayerStateCache(character.id);
-        if (cache) {
-          character = {
-            ...character,
-            current_hp: cache.current_hp,
-            xp: cache.xp,
-            level: cache.level,
-            max_hp: cache.max_hp,
-            proficiency_bonus: cache.proficiency_bonus,
-            ability_scores: cache.ability_scores,
-            weapons: cache.weapons,
-            inventory: cache.inventory,
-            known_spells: cache.known_spells ?? character.known_spells ?? [],
-            equipped_spells:
-              cache.equipped_spells ?? character.equipped_spells ?? [],
-            spell_slots: cache.spell_slots ?? character.spell_slots ?? {},
-            consumables: cache.consumables ?? character.consumables ?? [],
-          };
-        }
-
-        // Legacy migration: pre-inventory characters have weapons missing
-        // id/baseId/bonus and an empty inventory. Normalize once and persist.
-        const inventoryEmpty =
-          !Array.isArray(character.inventory) || character.inventory.length === 0;
-        const hasLegacyWeapons =
-          Array.isArray(character.weapons) &&
-          character.weapons.length > 0 &&
-          character.weapons.some((w) => !isFullyShapedWeapon(w));
-        if (inventoryEmpty && hasLegacyWeapons) {
-          const normalized = character.weapons.map((w) =>
-            isFullyShapedWeapon(w) ? (w as Weapon) : legacyWeaponToWeapon(w),
-          );
-          character = {
-            ...character,
-            weapons: normalized,
-            inventory: normalized,
-          };
-          try {
-            await fetchWithSession(`/api/character/${character.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                weapons: normalized,
-                inventory: normalized,
-              } satisfies CharacterUpdate),
-            });
-          } catch (err) {
-            console.error("legacy weapon migration patch failed", err);
-          }
-        }
-
-        // damageType backfill: pre-DRVI weapons lack the field. Patch once.
-        if (
-          needsDamageTypeBackfill(character.weapons) ||
-          needsDamageTypeBackfill(character.inventory)
-        ) {
-          const weapons = character.weapons.map(ensureDamageType);
-          const inventory = character.inventory.map(ensureDamageType);
-          character = { ...character, weapons, inventory };
-          try {
-            await fetchWithSession(`/api/character/${character.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                weapons,
-                inventory,
-              } satisfies CharacterUpdate),
-            });
-          } catch (err) {
-            console.error("damageType backfill patch failed", err);
-          }
-        }
-
-        // XP floor migration: characters whose XP fell below their current
-        // level's threshold (from the old LOSE clamp-to-0 behavior) get
-        // bumped up to the floor so the XP bar stops looking stuck at 0.
-        const levelFloor = xpThresholdForLevel(character.level);
-        if (character.xp < levelFloor) {
-          character = { ...character, xp: levelFloor };
-          try {
-            await fetchWithSession(`/api/character/${character.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                xp: levelFloor,
-              } satisfies CharacterUpdate),
-            });
-            clearPlayerStateCache(character.id);
-          } catch (err) {
-            console.error("xp floor migration patch failed", err);
-          }
-        }
+        const normalized = await applyMigrations(character, !!user);
+        character = normalized;
 
         const player = characterToPlayer(character);
 
@@ -179,17 +84,19 @@ export function useArenaBootstrap({
         }
         const indices = (await monstersRes.json()) as MonsterIndex[];
 
-        // Count of session's characters drives whether the Switch button
-        // shows up. Fetch alongside bootstrap so it's ready in the lobby.
+        // Switch-character UI shows when count > 1. Anonymous always = 1
+        // (single-character constraint); signed-in derives from list.
         let count = 1;
-        try {
-          const listRes = await fetchWithSession("/api/characters");
-          if (listRes.ok) {
-            const all = (await listRes.json()) as Character[];
-            count = all.length;
+        if (user) {
+          try {
+            const listRes = await fetchWithSession("/api/characters");
+            if (listRes.ok) {
+              const all = (await listRes.json()) as Character[];
+              count = all.length;
+            }
+          } catch (err) {
+            console.error("character count fetch failed", err);
           }
-        } catch (err) {
-          console.error("character count fetch failed", err);
         }
 
         if (cancelled) return;
@@ -204,5 +111,149 @@ export function useArenaBootstrap({
     return () => {
       cancelled = true;
     };
-  }, [dispatch, indexLevelRef, lastSyncedRef, router]);
+  }, [dispatch, indexLevelRef, lastSyncedRef, router, user]);
+}
+
+// Anonymous path. Prefers localStorage; falls back once to any legacy
+// session-id Supabase characters and migrates the most recent down so
+// future bootstraps don't keep refetching.
+async function loadFromLocalOrLegacySupabase(): Promise<Character | null> {
+  const local = getLocalCharacter();
+  if (local) return local;
+
+  try {
+    const res = await fetchWithSession("/api/characters");
+    if (!res.ok) return null;
+    const all = (await res.json()) as Character[];
+    if (all.length === 0) return null;
+    const migrated = all[0];
+    setLocalCharacter(migrated);
+    return migrated;
+  } catch (err) {
+    console.error("legacy session-id fallback failed", err);
+    return null;
+  }
+}
+
+// Signed-in path. Uses the existing active-character / character-list
+// flow keyed by session_id. Phase 5 will switch this to user_id.
+async function loadFromSupabase(
+  router: ReturnType<typeof useRouter>,
+): Promise<Character | null> {
+  const activeId = getActiveCharacterId();
+  if (activeId) {
+    const res = await fetchWithSession(`/api/character/${activeId}`);
+    if (res.status === 404) {
+      clearActiveCharacterId();
+      router.push("/create");
+      return null;
+    }
+    if (!res.ok) {
+      console.error("character fetch failed", res.status);
+      return null;
+    }
+    return (await res.json()) as Character;
+  }
+
+  const res = await fetchWithSession("/api/characters");
+  if (!res.ok) {
+    console.error("characters list fetch failed", res.status);
+    return null;
+  }
+  const all = (await res.json()) as Character[];
+  if (all.length === 0) {
+    router.push("/create");
+    return null;
+  }
+  const character = all[0];
+  setActiveCharacterId(character.id);
+  return character;
+}
+
+// Run all the on-load migrations: cache overlay (signed-in only), legacy
+// weapon shape, damageType backfill, XP floor. Persists changes back to
+// the right storage (Supabase for signed-in, localStorage otherwise).
+async function applyMigrations(
+  character: Character,
+  signedIn: boolean,
+): Promise<Character> {
+  let result = character;
+
+  if (signedIn) {
+    const cache = readPlayerStateCache(result.id);
+    if (cache) {
+      result = {
+        ...result,
+        current_hp: cache.current_hp,
+        xp: cache.xp,
+        level: cache.level,
+        max_hp: cache.max_hp,
+        proficiency_bonus: cache.proficiency_bonus,
+        ability_scores: cache.ability_scores,
+        weapons: cache.weapons,
+        inventory: cache.inventory,
+        known_spells: cache.known_spells ?? result.known_spells ?? [],
+        equipped_spells:
+          cache.equipped_spells ?? result.equipped_spells ?? [],
+        spell_slots: cache.spell_slots ?? result.spell_slots ?? {},
+        consumables: cache.consumables ?? result.consumables ?? [],
+      };
+    }
+  }
+
+  const inventoryEmpty =
+    !Array.isArray(result.inventory) || result.inventory.length === 0;
+  const hasLegacyWeapons =
+    Array.isArray(result.weapons) &&
+    result.weapons.length > 0 &&
+    result.weapons.some((w) => !isFullyShapedWeapon(w));
+  if (inventoryEmpty && hasLegacyWeapons) {
+    const normalized = result.weapons.map((w) =>
+      isFullyShapedWeapon(w) ? (w as Weapon) : legacyWeaponToWeapon(w),
+    );
+    result = { ...result, weapons: normalized, inventory: normalized };
+    await persistMigration(result, signedIn, {
+      weapons: normalized,
+      inventory: normalized,
+    });
+  }
+
+  if (
+    needsDamageTypeBackfill(result.weapons) ||
+    needsDamageTypeBackfill(result.inventory)
+  ) {
+    const weapons = result.weapons.map(ensureDamageType);
+    const inventory = result.inventory.map(ensureDamageType);
+    result = { ...result, weapons, inventory };
+    await persistMigration(result, signedIn, { weapons, inventory });
+  }
+
+  const levelFloor = xpThresholdForLevel(result.level);
+  if (result.xp < levelFloor) {
+    result = { ...result, xp: levelFloor };
+    await persistMigration(result, signedIn, { xp: levelFloor });
+    if (signedIn) clearPlayerStateCache(result.id);
+  }
+
+  return result;
+}
+
+async function persistMigration(
+  character: Character,
+  signedIn: boolean,
+  updates: CharacterUpdate,
+): Promise<void> {
+  if (signedIn) {
+    try {
+      await fetchWithSession(`/api/character/${character.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates satisfies CharacterUpdate),
+      });
+    } catch (err) {
+      console.error("migration patch failed", err);
+    }
+  } else {
+    setLocalCharacter(character);
+  }
 }

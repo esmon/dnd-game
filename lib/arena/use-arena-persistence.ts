@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, type MutableRefObject } from "react";
 
+import type { User } from "@supabase/supabase-js";
+
 import type { CharacterUpdate } from "@/lib/db/schema";
 import type { GameState } from "@/lib/game/reducer";
 import type { Player } from "@/lib/game/types";
@@ -10,33 +12,55 @@ import {
   clearPlayerStateCache,
   fetchWithSession,
 } from "@/lib/session";
+import { updateLocalCharacterMutable } from "@/lib/storage/local-character";
 
-// Two-part persistence for the arena:
+// Persistence branches on auth state:
 //
-// 1. After ASI / victory dismissal, when we're idle in the lobby, snapshot
-//    the latest player state. Always cache to localStorage; only PATCH
-//    Supabase when the level changed (or `forceSyncRef` was raised, e.g.
-//    after a loot Keep/Discard) — keeps Supabase writes proportional to
-//    meaningful changes.
+//   • Anonymous: a single localStorage character is the source of truth.
+//     Every persist tick merges the current player into the stored
+//     Character. No Supabase calls; localStorage is synchronous, so the
+//     beforeunload flush is a no-op.
 //
-// 2. On tab close / visibility change to hidden, fire a keepalive PATCH so
-//    in-flight progress doesn't die with the tab.
+//   • Signed-in: existing two-tier model. Always cache mutable fields to
+//     `dnd-cache-{id}` in localStorage; PATCH Supabase only when the level
+//     changed (or `forceSyncRef` was raised after loot Keep/Discard) so
+//     network writes stay proportional to meaningful state changes. The
+//     beforeunload flush sends a keepalive PATCH.
 //
-// Refs are passed in (not owned here) because handlers in the arena raise
-// `needsPersistRef` / `forceSyncRef` directly; the hook just consumes them.
+// Refs are owned by the arena component because handlers there raise
+// needsPersistRef / forceSyncRef directly; the hook just consumes them.
 export function useArenaPersistence({
   state,
   stateRef,
   needsPersistRef,
   lastSyncedRef,
   forceSyncRef,
+  user,
 }: {
   state: GameState;
   stateRef: MutableRefObject<GameState>;
   needsPersistRef: MutableRefObject<boolean>;
   lastSyncedRef: MutableRefObject<{ id: string; level: number } | null>;
   forceSyncRef: MutableRefObject<boolean>;
+  user: User | null | undefined;
 }) {
+  const playerToUpdate = useCallback((player: Player): CharacterUpdate => {
+    return {
+      current_hp: player.health,
+      xp: player.xp,
+      level: player.level,
+      max_hp: player.maxHealth,
+      proficiency_bonus: player.proficiencyBonus,
+      ability_scores: player.abilityScores,
+      weapons: player.weapons,
+      inventory: player.inventory,
+      known_spells: player.knownSpells,
+      equipped_spells: player.equippedSpells,
+      spell_slots: player.spellSlots,
+      consumables: player.consumables,
+    };
+  }, []);
+
   const cacheLocally = useCallback((player: Player) => {
     if (!player.id) return;
     cachePlayerState(player.id, {
@@ -58,20 +82,7 @@ export function useArenaPersistence({
   const syncToSupabase = useCallback(
     async (player: Player, opts?: { keepalive?: boolean }) => {
       if (!player.id) return;
-      const update: CharacterUpdate = {
-        current_hp: player.health,
-        xp: player.xp,
-        level: player.level,
-        max_hp: player.maxHealth,
-        proficiency_bonus: player.proficiencyBonus,
-        ability_scores: player.abilityScores,
-        weapons: player.weapons,
-        inventory: player.inventory,
-        known_spells: player.knownSpells,
-        equipped_spells: player.equippedSpells,
-        spell_slots: player.spellSlots,
-        consumables: player.consumables,
-      };
+      const update = playerToUpdate(player);
       try {
         const res = await fetchWithSession(`/api/character/${player.id}`, {
           method: "PATCH",
@@ -89,11 +100,13 @@ export function useArenaPersistence({
         console.error("character patch failed", err);
       }
     },
-    [lastSyncedRef],
+    [playerToUpdate, lastSyncedRef],
   );
 
-  // Fire deferred persist once the victory + ASI dialogs are dismissed and
-  // we're in the lobby.
+  // Deferred persist once dialogs are dismissed and we're idle in the
+  // lobby. Anonymous: write the merged Character to localStorage.
+  // Signed-in: cache fields, then PATCH Supabase if level changed or a
+  // force-sync was requested.
   useEffect(() => {
     if (!needsPersistRef.current) return;
     if (state.victory) return;
@@ -103,6 +116,12 @@ export function useArenaPersistence({
     needsPersistRef.current = false;
 
     const player = state.player;
+
+    if (!user) {
+      updateLocalCharacterMutable(playerToUpdate(player));
+      return;
+    }
+
     cacheLocally(player);
 
     const last = lastSyncedRef.current;
@@ -121,14 +140,17 @@ export function useArenaPersistence({
     state.player,
     cacheLocally,
     syncToSupabase,
+    playerToUpdate,
     needsPersistRef,
     lastSyncedRef,
     forceSyncRef,
+    user,
   ]);
 
-  // Flush in-memory state to Supabase when the tab is closing or hidden.
-  // keepalive lets the request survive the unload.
+  // Tab-close keepalive flush. Anonymous already lives in localStorage —
+  // nothing to send. Signed-in fires a keepalive PATCH.
   useEffect(() => {
+    if (!user) return;
     const flush = () => {
       const p = stateRef.current.player;
       if (p?.id) void syncToSupabase(p, { keepalive: true });
@@ -142,5 +164,5 @@ export function useArenaPersistence({
       window.removeEventListener("beforeunload", flush);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [stateRef, syncToSupabase]);
+  }, [stateRef, syncToSupabase, user]);
 }

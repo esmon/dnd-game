@@ -1,6 +1,7 @@
 "use client";
 
 import { useReducer, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,16 @@ import {
   initialCreateState,
   type AbilityAssignments,
 } from "@/lib/create/reducer";
-import { fetchWithSession, setActiveCharacterId } from "@/lib/session";
+import {
+  clearActiveCharacterId,
+  fetchWithSession,
+  setActiveCharacterId,
+} from "@/lib/session";
+import { useUser } from "@/lib/auth/use-user";
+import {
+  clearLocalCharacter,
+  setLocalCharacter,
+} from "@/lib/storage/local-character";
 import type { AbilityScores, Character, NewCharacter } from "@/lib/db/schema";
 
 const STEP_LABELS = ["Race", "Class", "Background", "Abilities", "Review"];
@@ -62,7 +72,9 @@ function toAbilityScores(a: AbilityAssignments): AbilityScores {
 
 export default function CreatePage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useUser();
   const [state, dispatch] = useReducer(createReducer, initialCreateState);
+  const showAnonymousNotice = !authLoading && !user;
 
   const race = useMemo(
     () => RACES.find((r) => r.id === state.raceId) ?? null,
@@ -173,6 +185,29 @@ export default function CreatePage() {
       consumables: [],
       avatar_url: null,
     };
+
+    // Anonymous users get a single local-only character. Creating a new
+    // one overrides the previous (per product decision). Signed-in users
+    // POST to Supabase via the existing flow.
+    if (!user) {
+      const now = new Date().toISOString();
+      const localCharacter: Character = {
+        ...payload,
+        id: crypto.randomUUID(),
+        user_id: null,
+        created_at: now,
+        updated_at: now,
+      };
+      // Replace any prior local character; clear the legacy active-id
+      // pointer too since multi-character is signed-in only.
+      clearLocalCharacter();
+      clearActiveCharacterId();
+      setLocalCharacter(localCharacter);
+      dispatch({ type: "SUBMIT_DONE" });
+      router.push("/");
+      return;
+    }
+
     try {
       const res = await fetchWithSession("/api/characters", {
         method: "POST",
@@ -208,6 +243,22 @@ export default function CreatePage() {
         <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest">
           DND 5e — Character Creation
         </h1>
+        {showAnonymousNotice ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
+            <span className="font-bold uppercase tracking-widest">
+              Heads up:
+            </span>{" "}
+            without an account, only one character is saved — creating a new
+            one will replace your current character.{" "}
+            <Link
+              href="/auth/sign-in"
+              className="font-bold underline underline-offset-2"
+            >
+              Sign in
+            </Link>{" "}
+            to keep multiple characters and access them from any device.
+          </div>
+        ) : null}
         <Card className="w-full overflow-visible">
           <CardHeader>
             <CardTitle>
