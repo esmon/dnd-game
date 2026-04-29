@@ -1229,9 +1229,17 @@ export function Arena() {
 
       {status === "fighting" ? (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <PlayerPanel player={player} />
+          <PlayerPanel
+            player={player}
+            attackNonce={state.monsterAttackNonce}
+            attackDamage={state.lastMonsterDamage}
+          />
           {monster ? (
-            <MonsterCard monster={monster} />
+            <MonsterCard
+              monster={monster}
+              attackNonce={state.playerAttackNonce}
+              attackDamage={state.lastPlayerDamage}
+            />
           ) : (
             <div className="flex min-h-[200px] items-center justify-center rounded-xl border bg-card p-6">
               <p className="text-sm text-muted-foreground">
@@ -1351,7 +1359,11 @@ export function Arena() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-3">
-          <PlayerPanel player={player} />
+          <PlayerPanel
+            player={player}
+            attackNonce={state.monsterAttackNonce}
+            attackDamage={state.lastMonsterDamage}
+          />
           {state.victory ? (
             <VictoryPanel
               victory={state.victory}

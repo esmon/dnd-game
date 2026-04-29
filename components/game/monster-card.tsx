@@ -3,6 +3,7 @@ import Image from "next/image";
 import { HealthBar } from "@/components/game/health-bar";
 import { StatRow } from "@/components/game/stat-row";
 import { formatDrvi } from "@/lib/dnd/combat";
+import { shakeIntensity, useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import type { Monster } from "@/lib/game/types";
 
 function formatCr(cr: number): string {
@@ -12,14 +13,32 @@ function formatCr(cr: number): string {
   return String(cr);
 }
 
-export function MonsterCard({ monster }: { monster: Monster }) {
+export function MonsterCard({
+  monster,
+  attackNonce = 0,
+  attackDamage = 0,
+}: {
+  monster: Monster;
+  attackNonce?: number;
+  attackDamage?: number;
+}) {
+  // Shake when the player swings/casts (incoming hit feedback).
+  // Intensity scales with damage / max HP — chip damage = subtle shake.
+  const shakeRef = useShakeOnNonce(
+    attackNonce,
+    shakeIntensity(attackDamage, monster.maxHealth),
+  );
+
   const drviParts = formatDrvi(
     monster.damageResistances,
     monster.damageVulnerabilities,
     monster.damageImmunities,
   );
   return (
-    <div className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono">
+    <div
+      ref={shakeRef}
+      className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono"
+    >
       <p className="mb-2 truncate text-center text-sm font-bold uppercase tracking-widest">
         {monster.name}
       </p>

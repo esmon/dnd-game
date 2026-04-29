@@ -4,9 +4,24 @@ import { findClass } from "@/lib/dnd/classes";
 import { formatDrvi, playerAC } from "@/lib/dnd/combat";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
+import { shakeIntensity, useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import type { Player } from "@/lib/game/types";
 
-export function PlayerPanel({ player }: { player: Player }) {
+export function PlayerPanel({
+  player,
+  attackNonce = 0,
+  attackDamage = 0,
+}: {
+  player: Player;
+  attackNonce?: number;
+  attackDamage?: number;
+}) {
+  // Shake when the monster lands an attack (incoming hit feedback).
+  // Intensity scales with damage / max HP.
+  const shakeRef = useShakeOnNonce(
+    attackNonce,
+    shakeIntensity(attackDamage, player.maxHealth),
+  );
   const atMax = player.level >= MAX_LEVEL;
   const currentFloor = xpThresholdForLevel(player.level);
   const nextThreshold = atMax ? null : xpThresholdForLevel(player.level + 1);
@@ -30,7 +45,10 @@ export function PlayerPanel({ player }: { player: Player }) {
   );
 
   return (
-    <div className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono">
+    <div
+      ref={shakeRef}
+      className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono"
+    >
       <p className="truncate text-center text-sm font-bold uppercase tracking-widest">
         {player.name}
       </p>

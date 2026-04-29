@@ -49,6 +49,17 @@ export type GameState = {
   // so the player gets a clear post-defeat affordance instead of an empty
   // gap between PlayerPanel and CommandPanel.
   lastDefeatedBy: string | null;
+  // Monotonic counter incremented on every player offensive action. The
+  // monster panel watches this to fire a shake animation — independent of
+  // hit/miss so the player gets feedback even on a missed swing.
+  playerAttackNonce: number;
+  // Damage dealt by the most recent player offensive action (0 on miss).
+  // Drives the monster panel's shake intensity.
+  lastPlayerDamage: number;
+  // Same idea, opposite direction: the player panel shakes when the monster
+  // lands a swing. Bumped on MONSTER_ATTACK regardless of hit/miss.
+  monsterAttackNonce: number;
+  lastMonsterDamage: number;
 };
 
 export const initialState: GameState = {
@@ -69,6 +80,10 @@ export const initialState: GameState = {
   attacksExpanded: false,
   logExpanded: false,
   lastDefeatedBy: null,
+  playerAttackNonce: 0,
+  lastPlayerDamage: 0,
+  monsterAttackNonce: 0,
+  lastMonsterDamage: 0,
 };
 
 export type Action =
@@ -254,7 +269,12 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ? `CRIT — ${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp${note}`
           : `${state.player.name} attacks ${monster.name} with ${action.weaponName} for ${action.damage}hp${note}`;
       return pushTurn(
-        { ...state, monster },
+        {
+          ...state,
+          monster,
+          playerAttackNonce: state.playerAttackNonce + 1,
+          lastPlayerDamage: action.missed ? 0 : action.damage,
+        },
         true,
         text,
         action.crit ? "crit" : undefined,
@@ -275,7 +295,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ? `CRIT — ${state.monster.name} attacks ${player.name} for ${action.damage} hp${note}`
           : `${state.monster.name} attacks ${player.name} for ${action.damage} hp${note}`;
       return pushTurn(
-        { ...state, player, monsterPending: false },
+        {
+          ...state,
+          player,
+          monsterPending: false,
+          monsterAttackNonce: state.monsterAttackNonce + 1,
+          lastMonsterDamage: action.missed ? 0 : action.damage,
+        },
         false,
         text,
         action.crit ? "crit" : undefined,
@@ -572,7 +598,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ? `CRIT — ${player.name} casts ${spell.name} for ${action.damage} hp${note}`
           : `${player.name} casts ${spell.name} for ${action.damage} hp${note}`;
       return pushTurn(
-        { ...state, monster, player },
+        {
+          ...state,
+          monster,
+          player,
+          playerAttackNonce: state.playerAttackNonce + 1,
+          lastPlayerDamage: action.missed ? 0 : action.damage,
+        },
         true,
         text,
         action.crit ? "crit" : undefined,
@@ -602,7 +634,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ? `CRIT — ${player.name} smites ${monster.name} with ${action.weaponName} for ${total} hp (L${action.smiteSlotLevel} smite +${action.smiteDamage})${note}`
           : `${player.name} smites ${monster.name} with ${action.weaponName} for ${total} hp (L${action.smiteSlotLevel} smite +${action.smiteDamage})${note}`;
       return pushTurn(
-        { ...state, monster, player },
+        {
+          ...state,
+          monster,
+          player,
+          playerAttackNonce: state.playerAttackNonce + 1,
+          lastPlayerDamage: action.missed ? 0 : total,
+        },
         true,
         text,
         action.crit ? "crit" : undefined,
@@ -632,7 +670,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
           ? `CRIT — ${player.name} reads a scroll of ${scroll.spellName} for ${action.damage} hp${note}`
           : `${player.name} reads a scroll of ${scroll.spellName} for ${action.damage} hp${note}`;
       return pushTurn(
-        { ...state, monster, player },
+        {
+          ...state,
+          monster,
+          player,
+          playerAttackNonce: state.playerAttackNonce + 1,
+          lastPlayerDamage: action.missed ? 0 : action.damage,
+        },
         true,
         text,
         action.crit ? "crit" : undefined,
