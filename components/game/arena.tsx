@@ -10,7 +10,6 @@ import {
   FootprintsIcon,
   HeartIcon,
   MoonIcon,
-  RotateCcwIcon,
   ScrollTextIcon,
   SparklesIcon,
   SunIcon,
@@ -29,6 +28,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
+import { DefeatPanel } from "@/components/game/defeat-panel";
 import { CombatLog } from "@/components/game/combat-log";
 import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
@@ -37,7 +37,7 @@ import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
 import { MonsterCard } from "@/components/game/monster-card";
 import { StatsBar } from "@/components/game/stats-bar";
-import { VictoryDialog } from "@/components/game/victory-dialog";
+import { VictoryPanel } from "@/components/game/victory-panel";
 import { rollDice, randomInt } from "@/lib/game/dice";
 import {
   classFeatureLabel,
@@ -493,6 +493,14 @@ export function Arena() {
   }, []);
 
   const startFight = useCallback(() => {
+    // Panel is non-blocking, so the user can press FIGHT with unresolved
+    // loot showing. Match the old dialog's onOpenChange behavior and default
+    // to keep.
+    const snap = stateRef.current;
+    if (snap.victory) {
+      if (snap.victory.loot) forceSyncRef.current = true;
+      dispatch({ type: "DISMISS_VICTORY", keepLoot: true });
+    }
     dispatch({ type: "START_FIGHT" });
     void fetchAndSetMonster();
   }, [fetchAndSetMonster]);
@@ -927,11 +935,6 @@ export function Arena() {
     needsPersistRef.current = true;
   }, []);
 
-  const handlePlayAgain = useCallback(() => {
-    dispatch({ type: "FULL_HEAL" });
-    needsPersistRef.current = true;
-  }, []);
-
   const handleRunAway = useCallback(() => {
     const snap = stateRef.current;
     if (snap.status !== "fighting" || snap.monsterPending) return;
@@ -1346,9 +1349,25 @@ export function Arena() {
             ]}
           />
         </div>
-      ) : playerAlive ? (
+      ) : (
         <div className="grid gap-4 md:grid-cols-3">
           <PlayerPanel player={player} />
+          {state.victory ? (
+            <VictoryPanel
+              victory={state.victory}
+              playerName={player.name}
+              onKeep={() => {
+                if (state.victory?.loot) forceSyncRef.current = true;
+                dispatch({ type: "DISMISS_VICTORY", keepLoot: true });
+              }}
+              onDiscard={() => {
+                if (state.victory?.loot) forceSyncRef.current = true;
+                dispatch({ type: "DISMISS_VICTORY", keepLoot: false });
+              }}
+            />
+          ) : state.lastDefeatedBy ? (
+            <DefeatPanel defeatedBy={state.lastDefeatedBy} />
+          ) : null}
           <MobileCombatLog
             turns={turns}
             expanded={state.logExpanded}
@@ -1400,41 +1419,6 @@ export function Arena() {
                     } satisfies CommandItem,
                   ]
                 : []),
-              ...(process.env.NODE_ENV === "development"
-                ? [
-                    {
-                      key: "dev-next-level",
-                      kind: "dev",
-                      icon: ChevronsUpIcon,
-                      label: "[DEV] +1 Level",
-                      onClick: () => {
-                        dispatch({ type: "DEV_NEXT_LEVEL" });
-                        needsPersistRef.current = true;
-                      },
-                      disabled:
-                        player.level >= MAX_LEVEL || asiPending.length > 0,
-                      disabledReason:
-                        player.level >= MAX_LEVEL
-                          ? "Already at max level"
-                          : lobbyActionReason,
-                    } satisfies CommandItem,
-                  ]
-                : []),
-            ]}
-          />
-        </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          <CommandPanel
-            className="md:col-start-2"
-            commands={[
-              {
-                key: "play-again",
-                kind: "primary",
-                icon: RotateCcwIcon,
-                label: "Play Again",
-                onClick: handlePlayAgain,
-              },
               {
                 key: "create-new",
                 kind: "neutral",
@@ -1442,21 +1426,6 @@ export function Arena() {
                 label: "Create New Character",
                 onClick: () => router.push("/create"),
               },
-              ...(state.characterCount > 1
-                ? [
-                    {
-                      key: "switch-character",
-                      kind: "neutral",
-                      icon: UsersIcon,
-                      label: "Switch Character",
-                      onClick: () =>
-                        dispatch({
-                          type: "SET_CHARACTER_PICKER_OPEN",
-                          open: true,
-                        }),
-                    } satisfies CommandItem,
-                  ]
-                : []),
               ...(process.env.NODE_ENV === "development"
                 ? [
                     {
@@ -1488,20 +1457,6 @@ export function Arena() {
         <CombatLog turns={turns} />
       </div>
 
-      {state.victory ? (
-        <VictoryDialog
-          victory={state.victory}
-          playerName={player.name}
-          onKeep={() => {
-            if (state.victory?.loot) forceSyncRef.current = true;
-            dispatch({ type: "DISMISS_VICTORY", keepLoot: true });
-          }}
-          onDiscard={() => {
-            if (state.victory?.loot) forceSyncRef.current = true;
-            dispatch({ type: "DISMISS_VICTORY", keepLoot: false });
-          }}
-        />
-      ) : null}
 
       {!state.victory && pendingAsiLevel !== undefined ? (
         <LevelUpDialog

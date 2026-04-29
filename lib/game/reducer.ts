@@ -45,6 +45,10 @@ export type GameState = {
   characterPickerOpen: boolean;
   attacksExpanded: boolean;
   logExpanded: boolean;
+  // Set on LOSE, cleared on START_FIGHT. Drives the "You Lose!" lobby panel
+  // so the player gets a clear post-defeat affordance instead of an empty
+  // gap between PlayerPanel and CommandPanel.
+  lastDefeatedBy: string | null;
 };
 
 export const initialState: GameState = {
@@ -64,6 +68,7 @@ export const initialState: GameState = {
   characterPickerOpen: false,
   attacksExpanded: false,
   logExpanded: false,
+  lastDefeatedBy: null,
 };
 
 export type Action =
@@ -227,6 +232,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         monster: null,
         monsterPending: false,
         attacksExpanded: false,
+        lastDefeatedBy: null,
       };
 
     case "RETURN_TO_LOBBY":
@@ -431,17 +437,27 @@ export function gameReducer(state: GameState, action: Action): GameState {
     case "LOSE": {
       if (!state.player || !state.monster) return state;
       const text = `${state.monster.name} wins!`;
+      // Auto-restore HP and slots on defeat so the lobby is immediately
+      // playable again — the "You Lose" panel and lastDefeatedBy carry the
+      // narrative; the player doesn't need a separate Play Again click.
+      const player: Player = {
+        ...state.player,
+        health: state.player.maxHealth,
+        spellSlots: slotsForLevel(state.player.level),
+      };
       return pushTurn(
         {
           ...state,
           status: "lobby",
           monster: null,
           monsterPending: false,
+          player,
           stats: {
             ...state.stats,
             losses: state.stats.losses + 1,
             wins: 0,
           },
+          lastDefeatedBy: state.monster.name,
         },
         false,
         text,
