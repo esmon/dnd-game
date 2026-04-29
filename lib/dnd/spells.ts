@@ -102,3 +102,17 @@ export function slotsForLevel(level: number): Record<string, number> {
   const clamped = Math.max(1, Math.min(20, level));
   return { ...SLOT_TABLE[clamped] };
 }
+
+// Lowest spell-slot level with at least one slot remaining. Used by Ranger
+// HEAL (consume cheapest slot for Cure Wounds) and Paladin smite (default to
+// lowest available slot).
+export function findLowestSlot(
+  spellSlots: Record<string, number>,
+): { level: number; remaining: number } | undefined {
+  const lowest = Object.entries(spellSlots)
+    .map(([k, v]) => [Number(k), v] as const)
+    .filter(([k, v]) => k > 0 && v > 0)
+    .sort((a, b) => a[0] - b[0])[0];
+  if (!lowest) return undefined;
+  return { level: lowest[0], remaining: lowest[1] };
+}

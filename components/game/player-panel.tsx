@@ -1,6 +1,7 @@
 import { HealthBar } from "@/components/game/health-bar";
-import { CLASSES } from "@/lib/dnd/classes";
-import { playerAC } from "@/lib/dnd/combat";
+import { StatRow } from "@/components/game/stat-row";
+import { findClass } from "@/lib/dnd/classes";
+import { formatDrvi, playerAC } from "@/lib/dnd/combat";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
 import type { Player } from "@/lib/game/types";
@@ -20,18 +21,13 @@ export function PlayerPanel({ player }: { player: Player }) {
         )
       : 100;
   const race = RACES.find((r) => r.id === player.raceId);
-  const klass = CLASSES.find((c) => c.id === player.classId);
+  const klass = findClass(player.classId);
   const ac = playerAC(klass ?? null, player.abilityScores);
-  const drviParts: string[] = [];
-  if (race?.damageResistances?.length) {
-    drviParts.push(`Resists: ${race.damageResistances.join(", ")}`);
-  }
-  if (race?.damageVulnerabilities?.length) {
-    drviParts.push(`Vuln: ${race.damageVulnerabilities.join(", ")}`);
-  }
-  if (race?.damageImmunities?.length) {
-    drviParts.push(`Imm: ${race.damageImmunities.join(", ")}`);
-  }
+  const drviParts = formatDrvi(
+    race?.damageResistances,
+    race?.damageVulnerabilities,
+    race?.damageImmunities,
+  );
 
   return (
     <div className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono">
@@ -76,11 +72,3 @@ export function PlayerPanel({ player }: { player: Player }) {
   );
 }
 
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-2 text-sm tabular-nums">
-      <span className="text-muted-foreground">{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}

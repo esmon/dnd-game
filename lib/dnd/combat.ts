@@ -119,3 +119,23 @@ export function applyDamageMultiplier(
 ): number {
   return Math.floor(raw * m.mult);
 }
+
+// Build the labeled DRVI parts shared by player and monster panels. Empty
+// categories are skipped so callers can `.join(" · ")` directly.
+export function formatDrvi(
+  resistances: readonly string[] | undefined,
+  vulnerabilities: readonly string[] | undefined,
+  immunities: readonly string[] | undefined,
+): string[] {
+  const parts: string[] = [];
+  if (resistances && resistances.length > 0) {
+    parts.push(`Resists: ${resistances.join(", ")}`);
+  }
+  if (vulnerabilities && vulnerabilities.length > 0) {
+    parts.push(`Vuln: ${vulnerabilities.join(", ")}`);
+  }
+  if (immunities && immunities.length > 0) {
+    parts.push(`Imm: ${immunities.join(", ")}`);
+  }
+  return parts;
+}

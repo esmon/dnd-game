@@ -26,7 +26,7 @@ import {
   classFeatureLabel,
   computeWeaponAttackDamage,
 } from "@/lib/dnd/class-features";
-import { CLASSES } from "@/lib/dnd/classes";
+import { findClass } from "@/lib/dnd/classes";
 import {
   applyDamageMultiplier,
   averageDamage,
@@ -43,7 +43,7 @@ import {
 import { abilityModifier } from "@/lib/dnd/derive";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
-import { slotsForLevel } from "@/lib/dnd/spells";
+import { findLowestSlot, slotsForLevel } from "@/lib/dnd/spells";
 import { WEAPONS, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
   EQUIP_CAP,
@@ -488,10 +488,7 @@ export function Arena() {
     setTimeout(() => {
       const snap = stateRef.current;
       if (!snap.monster || !snap.player) return;
-      const klass =
-        CLASSES.find(
-          (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
-        ) ?? null;
+      const klass = findClass(snap.player.classId) ?? null;
       const targetAC = playerAC(klass, snap.player.abilityScores);
       const attack = rollAttack(snap.monster.attackBonus, targetAC);
       if (!attack.hit) {
@@ -611,20 +608,15 @@ export function Arena() {
     if (snap.monsterPending) return;
     if (snap.player.health >= snap.player.maxHealth) return;
 
-    const klass = CLASSES.find(
-      (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
-    );
+    const klass = findClass(snap.player.classId);
     if (!klass?.canSelfHealInCombat) return;
     if (snap.player.level < (klass.healMinLevel ?? 1)) return;
 
     let slotLevel: number | undefined;
     if (klass.healCostsSlot) {
-      const lowest = Object.entries(snap.player.spellSlots)
-        .map(([k, v]) => [Number(k), v] as const)
-        .filter(([k, v]) => k > 0 && v > 0)
-        .sort((a, b) => a[0] - b[0])[0];
+      const lowest = findLowestSlot(snap.player.spellSlots);
       if (!lowest) return;
-      slotLevel = lowest[0];
+      slotLevel = lowest.level;
     }
 
     const amount = randomInt(1, 10);
@@ -672,9 +664,7 @@ export function Arena() {
       // Treat all damage spells as spell-attack-roll spells (deviation from
       // RAW: Fireball etc. should be DEX saves, but we collapse the two for
       // a single combat path).
-      const klass = CLASSES.find(
-        (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
-      );
+      const klass = findClass(snap.player.classId);
       const ability = klass?.spellcastingAbility ?? "int";
       const mod =
         snap.player.proficiencyBonus +
@@ -833,9 +823,7 @@ export function Arena() {
       ) {
         return;
       }
-      const klass = CLASSES.find(
-        (c) => c.id.toLowerCase() === snap.player!.classId.toLowerCase(),
-      );
+      const klass = findClass(snap.player.classId);
       // Non-casters reading a scroll fall back to INT, matching SRD ruling.
       const ability = klass?.spellcastingAbility ?? "int";
       const mod =
@@ -1015,17 +1003,12 @@ export function Arena() {
 
   const pendingAsiLevel = asiPending[0];
 
-  const playerClass = CLASSES.find(
-    (c) => c.id.toLowerCase() === player.classId.toLowerCase(),
-  );
+  const playerClass = findClass(player.classId);
   const canSelfHealInCombat = playerClass?.canSelfHealInCombat ?? false;
   const healMinLevel = playerClass?.healMinLevel ?? 1;
   const healCostsSlot = playerClass?.healCostsSlot ?? false;
   const healLowestSlot = healCostsSlot
-    ? Object.entries(player.spellSlots)
-        .map(([k, v]) => [Number(k), v] as const)
-        .filter(([k, v]) => k > 0 && v > 0)
-        .sort((a, b) => a[0] - b[0])[0]
+    ? findLowestSlot(player.spellSlots)
     : undefined;
   const healOutOfSlots = healCostsSlot && !healLowestSlot;
   const healUnderMinLevel = player.level < healMinLevel;
@@ -1046,14 +1029,11 @@ export function Arena() {
     player.classId.toLowerCase() === "paladin" &&
     player.level >= 2 &&
     player.weapons.length > 0;
-  const smiteSlotEntry = isSmiteEligible
-    ? Object.entries(player.spellSlots)
-        .map(([k, v]) => [Number(k), v] as const)
-        .filter(([k, v]) => k > 0 && v > 0)
-        .sort((a, b) => a[0] - b[0])[0]
+  const smiteSlot = isSmiteEligible
+    ? findLowestSlot(player.spellSlots)
     : undefined;
-  const smiteSlotLevel = smiteSlotEntry ? smiteSlotEntry[0] : 0;
-  const smiteOutOfSlots = isSmiteEligible && !smiteSlotEntry;
+  const smiteSlotLevel = smiteSlot ? smiteSlot.level : 0;
+  const smiteOutOfSlots = isSmiteEligible && !smiteSlot;
   const smiteWeapon = isSmiteEligible ? player.weapons[0] : null;
   const smiteReason =
     fightActionReason ??

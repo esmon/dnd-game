@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CLASSES } from "@/lib/dnd/classes";
+import { findClass } from "@/lib/dnd/classes";
 import { RACES } from "@/lib/dnd/races";
 import { fetchWithSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function CharacterPickerDialog({
             <div className="flex flex-col gap-2">
               {characters.map((c) => {
                 const isCurrent = c.id === currentCharacterId;
-                const klass = CLASSES.find((k) => k.id === c.class);
+                const klass = findClass(c.class);
                 const race = RACES.find((r) => r.id === c.race);
                 return (
                   <div

@@ -19,7 +19,7 @@ import { AbilitiesStep } from "@/components/create/abilities-step";
 import { ReviewStep } from "@/components/create/review-step";
 
 import { RACES } from "@/lib/dnd/races";
-import { CLASSES } from "@/lib/dnd/classes";
+import { findClass } from "@/lib/dnd/classes";
 import { BACKGROUNDS } from "@/lib/dnd/backgrounds";
 import { mintWeapon, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
@@ -69,7 +69,7 @@ export default function CreatePage() {
     [state.raceId],
   );
   const klass = useMemo(
-    () => CLASSES.find((c) => c.id === state.classId) ?? null,
+    () => (state.classId ? findClass(state.classId) ?? null : null),
     [state.classId],
   );
   const background = useMemo(

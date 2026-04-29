@@ -276,3 +276,7 @@ export const CLASSES: readonly DnDClass[] = [
     canSelfHealInCombat: false,
   },
 ];
+
+export function findClass(classId: string): DnDClass | undefined {
+  return CLASSES.find((c) => c.id.toLowerCase() === classId.toLowerCase());
+}
