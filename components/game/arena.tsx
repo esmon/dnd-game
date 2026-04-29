@@ -58,10 +58,9 @@ import {
   weaponAttackMultiplier,
 } from "@/lib/dnd/class-features";
 import { abilityModifier } from "@/lib/dnd/derive";
-import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
+import { MAX_LEVEL } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
 import { findLowestSlot, slotsForLevel } from "@/lib/dnd/spells";
-import { WEAPONS, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
   EQUIP_CAP,
   EQUIPPED_SPELL_CAP,
@@ -69,94 +68,13 @@ import {
   initialState,
   type GameState,
 } from "@/lib/game/reducer";
+import { useArenaBootstrap } from "@/lib/arena/use-arena-bootstrap";
+import { useArenaPersistence } from "@/lib/arena/use-arena-persistence";
+import { groupConsumables } from "@/lib/game/consumables";
+import { pickRandomMonsterIndex } from "@/lib/game/dnd5e";
 import type { AbilityScores } from "@/lib/db/schema";
-import type {
-  Consumable,
-  Monster,
-  MonsterIndex,
-  Player,
-  Weapon,
-} from "@/lib/game/types";
-import type { Character, CharacterUpdate } from "@/lib/db/schema";
-import { characterToPlayer } from "@/lib/db/schema";
-import {
-  fetchWithSession,
-  getActiveCharacterId,
-  setActiveCharacterId,
-  clearActiveCharacterId,
-  cachePlayerState,
-  readPlayerStateCache,
-  clearPlayerStateCache,
-} from "@/lib/session";
-
-// Migration helper: legacy weapons stored as { name, damage } only.
-// Map by case-insensitive name to a SRD baseId.
-function legacyWeaponToWeapon(w: { name: string; damage: string }): Weapon {
-  const match = WEAPONS.find(
-    (def) => def.name.toLowerCase() === w.name.toLowerCase(),
-  );
-  return {
-    id: crypto.randomUUID(),
-    baseId: match?.baseId ?? "",
-    name: w.name,
-    damage: w.damage,
-    bonus: 0,
-    damageType: match?.damageType ?? "slashing",
-  };
-}
-
-function isFullyShapedWeapon(w: unknown): boolean {
-  if (!w || typeof w !== "object") return false;
-  const o = w as Record<string, unknown>;
-  return (
-    typeof o.id === "string" &&
-    typeof o.baseId === "string" &&
-    typeof o.bonus === "number"
-  );
-}
-
-// Migration helper: pre-DRVI weapons exist on disk without a damageType field.
-// Backfill from the catalog (or default to slashing) so all in-memory Weapons
-// satisfy the type.
-function ensureDamageType(w: Weapon): Weapon {
-  if (typeof w.damageType === "string" && w.damageType.length > 0) return w;
-  const def = weaponsByBaseId[w.baseId];
-  return { ...w, damageType: def?.damageType ?? "slashing" };
-}
-
-function needsDamageTypeBackfill(weapons: Weapon[]): boolean {
-  return weapons.some(
-    (w) => typeof w.damageType !== "string" || w.damageType.length === 0,
-  );
-}
-
-function pickRandomMonsterIndex(indices: MonsterIndex[]): MonsterIndex | null {
-  if (indices.length === 0) return null;
-  return indices[Math.floor(Math.random() * indices.length)];
-}
-
-type ConsumableGroup = {
-  key: string;
-  ids: string[];
-  representative: Consumable;
-};
-
-function groupConsumables(consumables: Consumable[]): ConsumableGroup[] {
-  const groups = new Map<string, ConsumableGroup>();
-  for (const c of consumables) {
-    const key =
-      c.kind === "scroll"
-        ? `scroll:${c.spellName}:${c.spellLevel}`
-        : `potion:${c.baseId}`;
-    const existing = groups.get(key);
-    if (existing) {
-      existing.ids.push(c.id);
-    } else {
-      groups.set(key, { key, ids: [c.id], representative: c });
-    }
-  }
-  return Array.from(groups.values());
-}
+import type { Monster, MonsterIndex, Weapon } from "@/lib/game/types";
+import { setActiveCharacterId } from "@/lib/session";
 
 export function Arena() {
   const router = useRouter();
@@ -181,228 +99,14 @@ export function Arena() {
   // (used after loot keep/discard so inventory decisions never sit unsynced).
   const forceSyncRef = useRef(false);
 
-  // Bootstrap: load the active character from Supabase + monster index list.
-  // If no active id is set, fall back to the most recent character for this
-  // session (one-time migration so existing players don't lose their character).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        let character: Character | null = null;
-        const activeId = getActiveCharacterId();
-
-        if (activeId) {
-          const res = await fetchWithSession(`/api/character/${activeId}`);
-          if (res.status === 404) {
-            clearActiveCharacterId();
-            router.push("/create");
-            return;
-          }
-          if (!res.ok) {
-            console.error("character fetch failed", res.status);
-            return;
-          }
-          character = (await res.json()) as Character;
-        } else {
-          const res = await fetchWithSession("/api/characters");
-          if (!res.ok) {
-            console.error("characters list fetch failed", res.status);
-            return;
-          }
-          const all = (await res.json()) as Character[];
-          if (all.length === 0) {
-            router.push("/create");
-            return;
-          }
-          character = all[0];
-          setActiveCharacterId(character.id);
-        }
-
-        // Overlay any unsynced localStorage cache (e.g. tab closed mid-grind
-        // before the level-up sync fired). Cache is only present while there
-        // are unsynced changes; cleared after every successful Supabase sync.
-        const cache = readPlayerStateCache(character.id);
-        if (cache) {
-          character = {
-            ...character,
-            current_hp: cache.current_hp,
-            xp: cache.xp,
-            level: cache.level,
-            max_hp: cache.max_hp,
-            proficiency_bonus: cache.proficiency_bonus,
-            ability_scores: cache.ability_scores,
-            weapons: cache.weapons,
-            inventory: cache.inventory,
-            known_spells: cache.known_spells ?? character.known_spells ?? [],
-            equipped_spells:
-              cache.equipped_spells ?? character.equipped_spells ?? [],
-            spell_slots: cache.spell_slots ?? character.spell_slots ?? {},
-            consumables: cache.consumables ?? character.consumables ?? [],
-          };
-        }
-
-        // Legacy migration: pre-inventory characters have weapons missing
-        // id/baseId/bonus and an empty inventory. Normalize once and persist.
-        const inventoryEmpty =
-          !Array.isArray(character.inventory) || character.inventory.length === 0;
-        const hasLegacyWeapons =
-          Array.isArray(character.weapons) &&
-          character.weapons.length > 0 &&
-          character.weapons.some((w) => !isFullyShapedWeapon(w));
-        if (inventoryEmpty && hasLegacyWeapons) {
-          const normalized = character.weapons.map((w) =>
-            isFullyShapedWeapon(w) ? (w as Weapon) : legacyWeaponToWeapon(w),
-          );
-          character = {
-            ...character,
-            weapons: normalized,
-            inventory: normalized,
-          };
-          try {
-            await fetchWithSession(`/api/character/${character.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                weapons: normalized,
-                inventory: normalized,
-              } satisfies CharacterUpdate),
-            });
-          } catch (err) {
-            console.error("legacy weapon migration patch failed", err);
-          }
-        }
-
-        // damageType backfill: pre-DRVI weapons lack the field. Patch once.
-        if (
-          needsDamageTypeBackfill(character.weapons) ||
-          needsDamageTypeBackfill(character.inventory)
-        ) {
-          const weapons = character.weapons.map(ensureDamageType);
-          const inventory = character.inventory.map(ensureDamageType);
-          character = { ...character, weapons, inventory };
-          try {
-            await fetchWithSession(`/api/character/${character.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                weapons,
-                inventory,
-              } satisfies CharacterUpdate),
-            });
-          } catch (err) {
-            console.error("damageType backfill patch failed", err);
-          }
-        }
-
-        // XP floor migration: characters whose XP fell below their current
-        // level's threshold (from the old LOSE clamp-to-0 behavior) get
-        // bumped up to the floor so the XP bar stops looking stuck at 0.
-        const levelFloor = xpThresholdForLevel(character.level);
-        if (character.xp < levelFloor) {
-          character = { ...character, xp: levelFloor };
-          try {
-            await fetchWithSession(`/api/character/${character.id}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                xp: levelFloor,
-              } satisfies CharacterUpdate),
-            });
-            clearPlayerStateCache(character.id);
-          } catch (err) {
-            console.error("xp floor migration patch failed", err);
-          }
-        }
-
-        const player = characterToPlayer(character);
-
-        const monstersRes = await fetch(`/api/monsters?level=${player.level}`);
-        if (!monstersRes.ok) {
-          throw new Error(`monsters fetch ${monstersRes.status}`);
-        }
-        const indices = (await monstersRes.json()) as MonsterIndex[];
-
-        // Count of session's characters drives whether the Switch button
-        // shows up. Fetch alongside bootstrap so it's ready in the lobby.
-        let count = 1;
-        try {
-          const listRes = await fetchWithSession("/api/characters");
-          if (listRes.ok) {
-            const all = (await listRes.json()) as Character[];
-            count = all.length;
-          }
-        } catch (err) {
-          console.error("character count fetch failed", err);
-        }
-
-        if (cancelled) return;
-        indexLevelRef.current = player.level;
-        lastSyncedRef.current = { id: character.id, level: player.level };
-        dispatch({ type: "BOOTSTRAP_DONE", player, indices });
-        dispatch({ type: "SET_CHARACTER_COUNT", count });
-      } catch (err) {
-        console.error("bootstrap failed", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
-
-  const cacheLocally = useCallback((player: Player) => {
-    if (!player.id) return;
-    cachePlayerState(player.id, {
-      current_hp: player.health,
-      xp: player.xp,
-      level: player.level,
-      max_hp: player.maxHealth,
-      proficiency_bonus: player.proficiencyBonus,
-      ability_scores: player.abilityScores,
-      weapons: player.weapons,
-      inventory: player.inventory,
-      known_spells: player.knownSpells,
-      equipped_spells: player.equippedSpells,
-      spell_slots: player.spellSlots,
-      consumables: player.consumables,
-    });
-  }, []);
-
-  const syncToSupabase = useCallback(
-    async (player: Player, opts?: { keepalive?: boolean }) => {
-      if (!player.id) return;
-      const update: CharacterUpdate = {
-        current_hp: player.health,
-        xp: player.xp,
-        level: player.level,
-        max_hp: player.maxHealth,
-        proficiency_bonus: player.proficiencyBonus,
-        ability_scores: player.abilityScores,
-        weapons: player.weapons,
-        inventory: player.inventory,
-        known_spells: player.knownSpells,
-        equipped_spells: player.equippedSpells,
-        spell_slots: player.spellSlots,
-        consumables: player.consumables,
-      };
-      try {
-        const res = await fetchWithSession(`/api/character/${player.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(update),
-          keepalive: opts?.keepalive,
-        });
-        if (!res.ok) {
-          console.error("character patch failed", res.status);
-          return;
-        }
-        lastSyncedRef.current = { id: player.id, level: player.level };
-        clearPlayerStateCache(player.id);
-      } catch (err) {
-        console.error("character patch failed", err);
-      }
-    },
-    [],
-  );
+  useArenaBootstrap({ dispatch, indexLevelRef, lastSyncedRef });
+  useArenaPersistence({
+    state,
+    stateRef,
+    needsPersistRef,
+    lastSyncedRef,
+    forceSyncRef,
+  });
 
   // Refetch monster index list whenever the player's level crosses a CR pool
   // boundary. Fires after WIN-induced level-ups and after any state restore.
@@ -427,56 +131,6 @@ export function Arena() {
       cancelled = true;
     };
   }, [state.player?.level]);
-
-  // Fire deferred persist once the victory + ASI dialogs are dismissed and
-  // we're in the lobby. Always caches to localStorage; only PATCHes Supabase
-  // if the level changed (or this is the first sync for a new character).
-  useEffect(() => {
-    if (!needsPersistRef.current) return;
-    if (state.victory) return;
-    if (state.asiPending.length > 0) return;
-    if (state.status !== "lobby") return;
-    if (!state.player) return;
-    needsPersistRef.current = false;
-
-    const player = state.player;
-    cacheLocally(player);
-
-    const last = lastSyncedRef.current;
-    const playerId = player.id;
-    const levelChanged =
-      !!playerId &&
-      (!last || last.id !== playerId || last.level !== player.level);
-    if (levelChanged || forceSyncRef.current) {
-      forceSyncRef.current = false;
-      void syncToSupabase(player);
-    }
-  }, [
-    state.victory,
-    state.asiPending.length,
-    state.status,
-    state.player,
-    cacheLocally,
-    syncToSupabase,
-  ]);
-
-  // Flush whatever's in memory to Supabase when the tab is closing or going
-  // into the background. keepalive lets the request survive the unload.
-  useEffect(() => {
-    const flush = () => {
-      const p = stateRef.current.player;
-      if (p?.id) void syncToSupabase(p, { keepalive: true });
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-    window.addEventListener("beforeunload", flush);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("beforeunload", flush);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [syncToSupabase]);
 
   const fetchAndSetMonster = useCallback(async () => {
     const indices = stateRef.current.monsterIndices;

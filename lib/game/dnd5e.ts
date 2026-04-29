@@ -46,6 +46,13 @@ type RawMonster = {
   damage_vulnerabilities?: string[];
 };
 
+export function pickRandomMonsterIndex(
+  indices: MonsterIndex[],
+): MonsterIndex | null {
+  if (indices.length === 0) return null;
+  return indices[Math.floor(Math.random() * indices.length)];
+}
+
 export async function fetchMonsterIndexList(level: number): Promise<MonsterIndex[]> {
   const crs = crsForLevel(level);
   const query = crs
