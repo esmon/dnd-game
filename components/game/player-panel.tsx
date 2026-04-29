@@ -49,7 +49,6 @@ export function PlayerPanel({ player }: { player: Player }) {
           </span>
         </p>
       ) : null}
-      <StatRow label="LV" value={String(player.level)} />
       <StatRow label="HP" value={`${player.health}/${player.maxHealth}`} />
       <HealthBar
         current={player.health}
@@ -57,6 +56,7 @@ export function PlayerPanel({ player }: { player: Player }) {
         className="h-2"
       />
       <StatRow label="AC" value={String(ac)} />
+      <StatRow label="LV" value={String(player.level)} />
       <StatRow
         label="XP"
         value={atMax ? "MAX" : `${player.xp}/${nextThreshold}`}
