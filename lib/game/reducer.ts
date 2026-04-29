@@ -44,6 +44,7 @@ export type GameState = {
   characterCount: number;
   characterPickerOpen: boolean;
   attacksExpanded: boolean;
+  logExpanded: boolean;
 };
 
 export const initialState: GameState = {
@@ -62,6 +63,7 @@ export const initialState: GameState = {
   characterCount: 0,
   characterPickerOpen: false,
   attacksExpanded: false,
+  logExpanded: false,
 };
 
 export type Action =
@@ -94,6 +96,7 @@ export type Action =
   | { type: "SET_CHARACTER_COUNT"; count: number }
   | { type: "SET_CHARACTER_PICKER_OPEN"; open: boolean }
   | { type: "SET_ATTACKS_EXPANDED"; expanded: boolean }
+  | { type: "SET_LOG_EXPANDED"; expanded: boolean }
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
@@ -366,6 +369,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "SET_ATTACKS_EXPANDED":
       return { ...state, attacksExpanded: action.expanded };
+
+    case "SET_LOG_EXPANDED":
+      return { ...state, logExpanded: action.expanded };
 
     case "DISMISS_VICTORY": {
       const keepLoot = action.keepLoot ?? true;

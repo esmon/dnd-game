@@ -1,6 +1,5 @@
 import Image from "next/image";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HealthBar } from "@/components/game/health-bar";
 import type { Monster } from "@/lib/game/types";
 
@@ -27,51 +26,56 @@ export function MonsterCard({ monster }: { monster: Monster }) {
     drviParts.push(`Imm: ${formatList(monster.damageImmunities)}`);
   }
   return (
-    <Card className="w-full rounded-md border-2 border-zinc-900">
-      <CardHeader>
-        <CardTitle className="text-center font-mono text-base font-bold uppercase tracking-widest">
-          {monster.name}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col items-center gap-3">
-        <div
-          className="flex size-36 items-center justify-center overflow-hidden rounded-md"
-          style={{
-            background:
-              "radial-gradient(circle, rgba(213,233,233,1) 0%, rgba(88,218,223,1) 100%)",
-          }}
-        >
-          {monster.avatar ? (
-            <Image
-              src={monster.avatar}
-              alt={monster.name}
-              width={144}
-              height={144}
-              className="size-full object-contain"
-              unoptimized
-            />
-          ) : (
-            <span className="text-4xl">??</span>
-          )}
-        </div>
-        <p className="font-mono text-sm tabular-nums text-muted-foreground">
-          {monster.health} / {monster.maxHealth} HP
+    <div className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono">
+      <p className="mb-2 truncate text-center text-sm font-bold uppercase tracking-widest">
+        {monster.name}
+      </p>
+      <div
+        className="mx-auto mb-1 flex size-24 items-center justify-center overflow-hidden rounded-md"
+        style={{
+          background:
+            "radial-gradient(circle, rgba(213,233,233,1) 0%, rgba(88,218,223,1) 100%)",
+        }}
+      >
+        {monster.avatar ? (
+          <Image
+            src={monster.avatar}
+            alt={monster.name}
+            width={96}
+            height={96}
+            className="size-full object-contain"
+            unoptimized
+          />
+        ) : (
+          <span className="text-3xl">??</span>
+        )}
+      </div>
+      <StatRow label="HP" value={`${monster.health}/${monster.maxHealth}`} />
+      <HealthBar
+        current={monster.health}
+        max={monster.maxHealth}
+        className="h-2"
+      />
+      <StatRow label="CR" value={`${formatCr(monster.challengeRating)} · ${monster.xp} XP`} />
+      <StatRow label="AC" value={String(monster.ac)} />
+      <StatRow
+        label="DMG"
+        value={`${monster.damageDice} ${monster.damageType}`}
+      />
+      {drviParts.length > 0 ? (
+        <p className="mt-2 text-center text-[10px] tracking-wide text-muted-foreground">
+          {drviParts.join(" · ")}
         </p>
-        <HealthBar current={monster.health} max={monster.maxHealth} />
-        <div className="mt-1 flex w-full flex-col gap-0.5 text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground tabular-nums">
-            CR {formatCr(monster.challengeRating)} · {monster.xp} XP
-          </p>
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground tabular-nums">
-            AC {monster.ac} · {monster.damageDice} {monster.damageType}
-          </p>
-          {drviParts.length > 0 ? (
-            <p className="font-mono text-[10px] tracking-wide text-muted-foreground">
-              {drviParts.join(" · ")}
-            </p>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function StatRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-2 text-sm tabular-nums">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{value}</span>
+    </div>
   );
 }

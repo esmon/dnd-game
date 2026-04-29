@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/popover";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { CombatLog } from "@/components/game/combat-log";
+import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { CommandPanel } from "@/components/game/command-panel";
 import { DisabledTip } from "@/components/game/disabled-tip";
 import { PlayerPanel } from "@/components/game/player-panel";
@@ -1227,14 +1228,14 @@ export function Arena() {
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-6">
-      <h1 className="text-center text-3xl font-bold tracking-tight">
-        DND 5e Monster Smashy Smashy
+      <h1 className="text-center text-2xl font-bold tracking-tight md:text-3xl">
+        Monster Smashy Smashy
       </h1>
 
       <StatsBar stats={stats} />
 
       {status === "fighting" ? (
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
           <PlayerPanel player={player} />
           {monster ? (
             <MonsterCard monster={monster} />
@@ -1245,7 +1246,15 @@ export function Arena() {
               </p>
             </div>
           )}
-          <CommandPanel>
+          <MobileCombatLog
+            className="col-span-2"
+            turns={turns}
+            expanded={state.logExpanded}
+            onToggle={(expanded) =>
+              dispatch({ type: "SET_LOG_EXPANDED", expanded })
+            }
+          />
+          <CommandPanel className="col-span-2 md:col-span-1">
             {visibleAttackOptions.map((o) => o.node)}
             {hiddenAttackOptions.length > 0 ? (
               <Popover
@@ -1336,6 +1345,13 @@ export function Arena() {
       ) : playerAlive ? (
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
           <PlayerPanel player={player} />
+          <MobileCombatLog
+            turns={turns}
+            expanded={state.logExpanded}
+            onToggle={(expanded) =>
+              dispatch({ type: "SET_LOG_EXPANDED", expanded })
+            }
+          />
           <CommandPanel className="md:col-start-3">
             <DisabledTip reason={lobbyActionReason}>
               <Button
@@ -1444,9 +1460,11 @@ export function Arena() {
         </div>
       )}
 
-      <Separator />
+      <Separator className="hidden md:block" />
 
-      <CombatLog turns={turns} />
+      <div className="hidden md:block">
+        <CombatLog turns={turns} />
+      </div>
 
       {state.victory ? (
         <VictoryDialog
