@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getRequestIdentity, isOwnedBy } from "@/lib/auth/server-identity";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import type {
   AbilityScores,
@@ -112,13 +113,16 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 async function loadOwnedRow(
   id: string,
-  sessionId: string,
+  request: NextRequest,
 ): Promise<
   | { kind: "ok"; row: Character }
   | { kind: "not_found" }
   | { kind: "forbidden" }
   | { kind: "error"; message: string }
 > {
+  const identity = await getRequestIdentity(request);
+  if (!identity.userId && !identity.sessionId) return { kind: "forbidden" };
+
   const { data, error } = await supabase
     .from("characters")
     .select("*")
@@ -129,21 +133,13 @@ async function loadOwnedRow(
   if (!data) return { kind: "not_found" };
 
   const row = data as Character;
-  if (row.session_id !== sessionId) return { kind: "forbidden" };
+  if (!isOwnedBy(row, identity)) return { kind: "forbidden" };
   return { kind: "ok", row };
 }
 
 export async function GET(request: NextRequest, ctx: RouteContext) {
-  const sessionId = request.headers.get("x-session-id");
-  if (!sessionId) {
-    return NextResponse.json(
-      { error: "missing X-Session-Id" },
-      { status: 400 },
-    );
-  }
-
   const { id } = await ctx.params;
-  const owned = await loadOwnedRow(id, sessionId);
+  const owned = await loadOwnedRow(id, request);
   if (owned.kind === "error") {
     return NextResponse.json({ error: owned.message }, { status: 500 });
   }
@@ -157,18 +153,10 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 }
 
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
-  const sessionId = request.headers.get("x-session-id");
-  if (!sessionId) {
-    return NextResponse.json(
-      { error: "missing X-Session-Id" },
-      { status: 400 },
-    );
-  }
-
   const { id } = await ctx.params;
   const body = (await request.json()) as CharacterUpdate;
 
-  const owned = await loadOwnedRow(id, sessionId);
+  const owned = await loadOwnedRow(id, request);
   if (owned.kind === "error") {
     return NextResponse.json({ error: owned.message }, { status: 500 });
   }
@@ -279,17 +267,9 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, ctx: RouteContext) {
-  const sessionId = request.headers.get("x-session-id");
-  if (!sessionId) {
-    return NextResponse.json(
-      { error: "missing X-Session-Id" },
-      { status: 400 },
-    );
-  }
-
   const { id } = await ctx.params;
 
-  const owned = await loadOwnedRow(id, sessionId);
+  const owned = await loadOwnedRow(id, request);
   if (owned.kind === "error") {
     return NextResponse.json({ error: owned.message }, { status: 500 });
   }

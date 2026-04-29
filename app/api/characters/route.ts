@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getRequestIdentity } from "@/lib/auth/server-identity";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import type {
   AbilityScores,
@@ -109,19 +110,25 @@ function spellsAreSubsetById(equipped: Spell[], known: Spell[]): boolean {
 }
 
 export async function GET(request: NextRequest) {
-  const sessionId = request.headers.get("x-session-id");
-  if (!sessionId) {
+  const { userId, sessionId } = await getRequestIdentity(request);
+  if (!userId && !sessionId) {
     return NextResponse.json(
-      { error: "missing X-Session-Id" },
+      { error: "missing identity (auth or X-Session-Id)" },
       { status: 400 },
     );
   }
 
-  const { data, error } = await supabase
+  // Signed-in: filter by user_id. Anonymous: filter by session_id but
+  // exclude already-claimed rows so signed-out browsers don't see the
+  // chars they bound to an account.
+  const query = supabase
     .from("characters")
     .select("*")
-    .eq("session_id", sessionId)
     .order("created_at", { ascending: false });
+
+  const { data, error } = userId
+    ? await query.eq("user_id", userId)
+    : await query.eq("session_id", sessionId!).is("user_id", null);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -131,10 +138,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const sessionId = request.headers.get("x-session-id");
-  if (!sessionId) {
+  const { userId, sessionId } = await getRequestIdentity(request);
+  if (!userId && !sessionId) {
     return NextResponse.json(
-      { error: "missing X-Session-Id" },
+      { error: "missing identity (auth or X-Session-Id)" },
       { status: 400 },
     );
   }
@@ -207,7 +214,8 @@ export async function POST(request: NextRequest) {
   }
 
   const insert: NewCharacter = {
-    session_id: sessionId,
+    session_id: sessionId ?? "",
+    user_id: userId,
     name: body.name,
     race: body.race ?? "",
     subrace: body.subrace ?? null,
