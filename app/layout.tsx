@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 
 import { AuthButton } from "@/components/auth/auth-button";
+import { AuthClaimer } from "@/components/auth/auth-claimer";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
@@ -27,6 +28,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <TooltipProvider>
+          <AuthClaimer />
           <div className="fixed right-2 top-2 z-50 md:right-4 md:top-4">
             <AuthButton />
           </div>
