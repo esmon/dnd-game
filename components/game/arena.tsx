@@ -1462,7 +1462,11 @@ export function Arena() {
         <LevelUpDialog
           key={pendingAsiLevel}
           level={pendingAsiLevel}
+          classId={player.classId}
+          raceId={player.raceId}
           currentScores={player.abilityScores}
+          playerLevel={player.level}
+          currentMaxHp={player.maxHealth}
           onConfirm={handleAsiConfirm}
         />
       ) : null}

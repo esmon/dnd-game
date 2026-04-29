@@ -482,7 +482,23 @@ export function gameReducer(state: GameState, action: Action): GameState {
         wis: cur.wis + (d.wis ?? 0),
         cha: cur.cha + (d.cha ?? 0),
       };
-      const player: Player = { ...state.player, abilityScores };
+      // 5e RAW: a CON modifier increase retroactively bumps max HP by the
+      // delta times character level. Bring current HP up by the same delta
+      // so % stays consistent (clamped to maxHealth).
+      const conModDelta =
+        abilityModifier(abilityScores.con) - abilityModifier(cur.con);
+      const hpDelta = conModDelta * state.player.level;
+      const maxHealth = state.player.maxHealth + hpDelta;
+      const health = Math.min(
+        maxHealth,
+        state.player.health + Math.max(0, hpDelta),
+      );
+      const player: Player = {
+        ...state.player,
+        abilityScores,
+        maxHealth,
+        health,
+      };
       return {
         ...state,
         player,

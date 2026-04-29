@@ -1,5 +1,6 @@
 "use client";
 
+import { InfoIcon } from "lucide-react";
 import { useMemo, useReducer } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { ABILITY_KEYS, ABILITY_LABELS } from "@/lib/dnd/derive";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { findClass } from "@/lib/dnd/classes";
+import {
+  ABILITY_DESCRIPTIONS,
+  ABILITY_KEYS,
+  ABILITY_LABELS,
+  abilityModifier,
+} from "@/lib/dnd/derive";
+import { RACES } from "@/lib/dnd/races";
 import type { AbilityScores } from "@/lib/db/schema";
 
 type Mode = "plus2" | "plus1plus1";
@@ -27,7 +40,9 @@ type Action =
   | { type: "SET_MODE"; mode: Mode }
   | { type: "SET_ONE"; ability: keyof AbilityScores }
   | { type: "SET_TWO_A"; ability: keyof AbilityScores }
-  | { type: "SET_TWO_B"; ability: keyof AbilityScores };
+  | { type: "SET_TWO_B"; ability: keyof AbilityScores }
+  | { type: "CLEAR_TWO_A" }
+  | { type: "CLEAR_TWO_B" };
 
 const initialState: State = {
   mode: "plus2",
@@ -46,12 +61,24 @@ function asiReducer(state: State, action: Action): State {
       return { ...state, twoA: action.ability };
     case "SET_TWO_B":
       return { ...state, twoB: action.ability };
+    case "CLEAR_TWO_A":
+      // Clearing the first pick also resets the second so the user can
+      // pick again from scratch without keeping a stale second ability.
+      return { ...state, twoA: null, twoB: null };
+    case "CLEAR_TWO_B":
+      return { ...state, twoB: null };
   }
 }
 
 type Props = {
   level: number;
+  classId: string;
+  raceId: string;
   currentScores: AbilityScores;
+  // Player's current character level and max HP, used to preview the
+  // retroactive CON-mod-driven HP gain on the Constitution buttons.
+  playerLevel: number;
+  currentMaxHp: number;
   onConfirm: (deltas: Partial<AbilityScores>) => void;
 };
 
@@ -79,11 +106,183 @@ function resultingScore(
   return { ok: next <= ASI_CAP, next };
 }
 
-export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
+type AbilityHint = "primary" | "spellcasting" | "con" | null;
+
+function abilityHint(
+  key: keyof AbilityScores,
+  primaryAbility: keyof AbilityScores | undefined,
+  spellcastingAbility: keyof AbilityScores | undefined,
+): AbilityHint {
+  if (key === primaryAbility) return "primary";
+  if (key === spellcastingAbility && key !== primaryAbility) {
+    return "spellcasting";
+  }
+  if (key === "con") return "con";
+  return null;
+}
+
+function HintBadge({
+  hint,
+  className,
+}: {
+  hint: AbilityHint;
+  className?: string;
+}) {
+  if (!hint) return null;
+  const text =
+    hint === "primary"
+      ? "★ Primary"
+      : hint === "spellcasting"
+        ? "★ Spellcasting"
+        : "Affects HP";
+  const tone =
+    hint === "con"
+      ? "text-muted-foreground"
+      : "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100";
+  return (
+    <span
+      className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-widest ${tone} ${className ?? ""}`}
+    >
+      {text}
+    </span>
+  );
+}
+
+function AbilityInfoIcon({ ability }: { ability: keyof AbilityScores }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            aria-label={`About ${ABILITY_LABELS[ability]}`}
+            className="inline-flex cursor-help text-muted-foreground transition-colors hover:text-foreground"
+          />
+        }
+      >
+        <InfoIcon className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        {ABILITY_DESCRIPTIONS[ability]}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function PickedRow({
+  label,
+  ability,
+  current,
+  onChange,
+}: {
+  label: string;
+  ability: keyof AbilityScores;
+  current: number;
+  onChange: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+      <div className="flex flex-col">
+        <span className="text-xs uppercase tracking-widest text-muted-foreground">
+          {label}
+        </span>
+        <span className="text-sm font-bold tabular-nums">
+          {ABILITY_LABELS[ability]} {current} → {current + 1}
+        </span>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={onChange}
+      >
+        Change
+      </Button>
+    </div>
+  );
+}
+
+function AbilityChoice({
+  ability,
+  current,
+  delta,
+  selected,
+  disabled,
+  hint,
+  hpPreview,
+  onSelect,
+}: {
+  ability: keyof AbilityScores;
+  current: number;
+  delta: number;
+  selected: boolean;
+  disabled: boolean;
+  hint: AbilityHint;
+  hpPreview?: { from: number; to: number };
+  onSelect: () => void;
+}) {
+  const { next } = resultingScore(current, delta);
+  const showHp = hpPreview && hpPreview.from !== hpPreview.to;
+  return (
+    <Button
+      type="button"
+      variant={selected ? "default" : "outline"}
+      size="sm"
+      disabled={disabled}
+      onClick={onSelect}
+      className="h-auto justify-between gap-2 py-1.5 leading-tight"
+    >
+      <span className="flex flex-col items-start gap-1">
+        <span className="flex items-center gap-1.5">
+          <span>{ABILITY_LABELS[ability]}</span>
+          <AbilityInfoIcon ability={ability} />
+        </span>
+        <span className="text-xs tabular-nums opacity-80">
+          {current} → {next}
+        </span>
+      </span>
+      {hint || showHp ? (
+        <span className="flex flex-col items-end gap-1">
+          {hint ? <HintBadge hint={hint} /> : <span />}
+          {showHp ? (
+            <span className="text-xs tabular-nums opacity-80">
+              Max HP {hpPreview.from} → {hpPreview.to}
+            </span>
+          ) : null}
+        </span>
+      ) : null}
+    </Button>
+  );
+}
+
+// Compute the Max HP a player would end up with if they apply `delta` to
+// their CON score. Returns null if the modifier doesn't change.
+function conHpPreview(
+  currentCon: number,
+  delta: number,
+  playerLevel: number,
+  currentMaxHp: number,
+): { from: number; to: number } {
+  const modDelta =
+    abilityModifier(currentCon + delta) - abilityModifier(currentCon);
+  return { from: currentMaxHp, to: currentMaxHp + modDelta * playerLevel };
+}
+
+export function LevelUpDialog({
+  level,
+  classId,
+  raceId,
+  currentScores,
+  playerLevel,
+  currentMaxHp,
+  onConfirm,
+}: Props) {
   const [{ mode, one, twoA, twoB }, dispatch] = useReducer(
     asiReducer,
     initialState,
   );
+
+  const klass = findClass(classId);
+  const race = RACES.find((r) => r.id === raceId);
 
   const deltas = useMemo(
     () => buildDeltas(mode, one, [twoA, twoB]),
@@ -105,6 +304,24 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
     onConfirm(deltas);
   }
 
+  // Top recommended ability — drives the inline "Recommended:" hint at the
+  // top of the dialog. Class primary first, then spellcasting (if caster
+  // and different), then CON. Skips abilities already at cap.
+  const recommendation = useMemo(() => {
+    const candidates: Array<keyof AbilityScores> = [];
+    if (klass) {
+      candidates.push(klass.primaryAbility);
+      if (klass.isCaster && klass.spellcastingAbility) {
+        candidates.push(klass.spellcastingAbility);
+      }
+    }
+    candidates.push("con");
+    for (const k of candidates) {
+      if (currentScores[k] < ASI_CAP) return k;
+    }
+    return null;
+  }, [klass, currentScores]);
+
   return (
     <Dialog
       open
@@ -113,14 +330,39 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
       onOpenChange={() => {}}
       disablePointerDismissal
     >
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-md"
+      >
         <DialogHeader>
           <DialogTitle>
             Level {level} — Ability Score Improvement
           </DialogTitle>
+          {race || klass ? (
+            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              {race?.name ?? raceId} · {klass?.name ?? classId}
+            </p>
+          ) : null}
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 overflow-y-auto pr-1">
+          {recommendation ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100">
+              <span className="font-bold uppercase tracking-widest">
+                Recommended:
+              </span>{" "}
+              put your points into{" "}
+              <span className="font-bold">{ABILITY_LABELS[recommendation]}</span>
+              {recommendation === klass?.primaryAbility
+                ? ` — your ${klass.name} primary ability.`
+                : recommendation === klass?.spellcastingAbility
+                  ? ` — your ${klass?.name} spellcasting ability.`
+                  : recommendation === "con"
+                    ? " — boosts max HP every level."
+                    : "."}
+            </p>
+          ) : null}
+
           <div className="flex gap-2">
             <Button
               type="button"
@@ -141,90 +383,129 @@ export function LevelUpDialog({ level, currentScores, onConfirm }: Props) {
           </div>
 
           {mode === "plus2" ? (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-2">
               {ABILITY_KEYS.map((k) => {
                 const cur = currentScores[k];
-                const { ok, next } = resultingScore(cur, 2);
-                const selected = one === k;
-                const disabled = !ok;
+                const { ok } = resultingScore(cur, 2);
                 return (
-                  <Button
+                  <AbilityChoice
                     key={k}
-                    type="button"
-                    variant={selected ? "default" : "outline"}
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => dispatch({ type: "SET_ONE", ability: k })}
-                    className="justify-between"
-                  >
-                    <span>{ABILITY_LABELS[k]}</span>
-                    <span className="tabular-nums text-xs">
-                      {cur} → {next}
-                    </span>
-                  </Button>
+                    ability={k}
+                    current={cur}
+                    delta={2}
+                    selected={one === k}
+                    disabled={!ok}
+                    hint={abilityHint(
+                      k,
+                      klass?.primaryAbility,
+                      klass?.spellcastingAbility,
+                    )}
+                    hpPreview={
+                      k === "con"
+                        ? conHpPreview(cur, 2, playerLevel, currentMaxHp)
+                        : undefined
+                    }
+                    onSelect={() => dispatch({ type: "SET_ONE", ability: k })}
+                  />
                 );
               })}
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              <div>
-                <Label className="mb-1 block text-xs text-muted-foreground">
-                  First ability (+1)
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {ABILITY_KEYS.map((k) => {
-                    const cur = currentScores[k];
-                    const { ok, next } = resultingScore(cur, 1);
-                    const selected = twoA === k;
-                    const disabled = !ok || twoB === k;
-                    return (
-                      <Button
-                        key={k}
-                        type="button"
-                        variant={selected ? "default" : "outline"}
-                        size="sm"
-                        disabled={disabled}
-                        onClick={() => dispatch({ type: "SET_TWO_A", ability: k })}
-                        className="justify-between"
-                      >
-                        <span>{ABILITY_LABELS[k]}</span>
-                        <span className="tabular-nums text-xs">
-                          {cur} → {next}
-                        </span>
-                      </Button>
-                    );
-                  })}
+              {twoA ? (
+                <PickedRow
+                  label="First ability"
+                  ability={twoA}
+                  current={currentScores[twoA]}
+                  onChange={() => dispatch({ type: "CLEAR_TWO_A" })}
+                />
+              ) : (
+                <div>
+                  <Label className="mb-1 block text-xs text-muted-foreground">
+                    First ability (+1)
+                  </Label>
+                  <div className="flex flex-col gap-2">
+                    {ABILITY_KEYS.map((k) => {
+                      const cur = currentScores[k];
+                      const { ok } = resultingScore(cur, 1);
+                      return (
+                        <AbilityChoice
+                          key={k}
+                          ability={k}
+                          current={cur}
+                          delta={1}
+                          selected={false}
+                          disabled={!ok}
+                          hint={abilityHint(
+                            k,
+                            klass?.primaryAbility,
+                            klass?.spellcastingAbility,
+                          )}
+                          hpPreview={
+                            k === "con"
+                              ? conHpPreview(cur, 1, playerLevel, currentMaxHp)
+                              : undefined
+                          }
+                          onSelect={() =>
+                            dispatch({ type: "SET_TWO_A", ability: k })
+                          }
+                        />
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs text-muted-foreground">
-                  Second ability (+1)
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {ABILITY_KEYS.map((k) => {
-                    const cur = currentScores[k];
-                    const { ok, next } = resultingScore(cur, 1);
-                    const selected = twoB === k;
-                    const disabled = !ok || twoA === k;
-                    return (
-                      <Button
-                        key={k}
-                        type="button"
-                        variant={selected ? "default" : "outline"}
-                        size="sm"
-                        disabled={disabled}
-                        onClick={() => dispatch({ type: "SET_TWO_B", ability: k })}
-                        className="justify-between"
-                      >
-                        <span>{ABILITY_LABELS[k]}</span>
-                        <span className="tabular-nums text-xs">
-                          {cur} → {next}
-                        </span>
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
+              )}
+
+              {twoA ? (
+                twoB ? (
+                  <PickedRow
+                    label="Second ability"
+                    ability={twoB}
+                    current={currentScores[twoB]}
+                    onChange={() => dispatch({ type: "CLEAR_TWO_B" })}
+                  />
+                ) : (
+                  <div>
+                    <Label className="mb-1 block text-xs text-muted-foreground">
+                      Second ability (+1)
+                    </Label>
+                    <div className="flex flex-col gap-2">
+                      {ABILITY_KEYS.filter((k) => k !== twoA).map((k) => {
+                        const cur = currentScores[k];
+                        const { ok } = resultingScore(cur, 1);
+                        return (
+                          <AbilityChoice
+                            key={k}
+                            ability={k}
+                            current={cur}
+                            delta={1}
+                            selected={false}
+                            disabled={!ok}
+                            hint={abilityHint(
+                              k,
+                              klass?.primaryAbility,
+                              klass?.spellcastingAbility,
+                            )}
+                            hpPreview={
+                              k === "con"
+                                ? conHpPreview(
+                                    cur,
+                                    1,
+                                    playerLevel,
+                                    currentMaxHp,
+                                  )
+                                : undefined
+                            }
+                            onSelect={() =>
+                              dispatch({ type: "SET_TWO_B", ability: k })
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                )
+              ) : null}
             </div>
           )}
         </div>
