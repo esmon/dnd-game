@@ -1207,7 +1207,7 @@ export function Arena() {
   );
 
   return (
-    <div className="flex w-full max-w-5xl flex-col gap-6 p-6">
+    <div className="flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
       <h1 className="text-center text-2xl font-bold tracking-tight md:text-3xl">
         Monster Smashy Smashy
       </h1>
@@ -1323,7 +1323,7 @@ export function Arena() {
           </CommandPanel>
         </div>
       ) : playerAlive ? (
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid gap-4 md:grid-cols-3">
           <PlayerPanel player={player} />
           <MobileCombatLog
             turns={turns}
@@ -1390,8 +1390,8 @@ export function Arena() {
           </CommandPanel>
         </div>
       ) : (
-        <div className="mx-auto w-full max-w-xs">
-          <CommandPanel>
+        <div className="grid gap-4 md:grid-cols-3">
+          <CommandPanel className="md:col-start-2">
             <Button
               className="bg-emerald-500 text-white hover:bg-emerald-500/90"
               onClick={handlePlayAgain}
