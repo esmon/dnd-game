@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestIdentity } from "@/lib/auth/server-identity";
+import { authorizeCampaign } from "@/lib/coop/auth";
 import {
   fetchMonster,
   fetchMonsterIndexListByCrs,
   pickRandomMonsterIndex,
 } from "@/lib/game/dnd5e";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
 import {
   buildEncounterSpec,
   nearbyCrStrings,
@@ -22,56 +21,17 @@ const MIN_PLAYERS_TO_START = 2;
 // average level, and flips status from waiting → active. Once active,
 // no more players can join and the action loop (Phase M3) takes over.
 export async function POST(request: NextRequest, ctx: RouteContext) {
-  const { userId } = await getRequestIdentity(request);
-  if (!userId) {
-    return NextResponse.json(
-      { error: "must be signed in" },
-      { status: 401 },
-    );
-  }
-
   const { id: campaignId } = await ctx.params;
+  const auth = await authorizeCampaign(request, campaignId, "creator");
+  if (!auth.ok) return auth.response;
+  const { campaign, players } = auth.ctx;
 
-  const campaignRes = await supabaseAdmin
-    .from("campaigns")
-    .select("*")
-    .eq("id", campaignId)
-    .maybeSingle();
-  if (campaignRes.error) {
-    return NextResponse.json(
-      { error: campaignRes.error.message },
-      { status: 500 },
-    );
-  }
-  if (!campaignRes.data) {
-    return NextResponse.json({ error: "campaign not found" }, { status: 404 });
-  }
-  const campaign = campaignRes.data as Campaign;
-
-  if (campaign.created_by !== userId) {
-    return NextResponse.json(
-      { error: "only the creator can start the campaign" },
-      { status: 403 },
-    );
-  }
   if (campaign.status !== "waiting") {
     return NextResponse.json(
       { error: "campaign already started" },
       { status: 409 },
     );
   }
-
-  const playersRes = await supabaseAdmin
-    .from("campaign_players")
-    .select("*")
-    .eq("campaign_id", campaignId);
-  if (playersRes.error) {
-    return NextResponse.json(
-      { error: playersRes.error.message },
-      { status: 500 },
-    );
-  }
-  const players = (playersRes.data ?? []) as CampaignPlayer[];
 
   if (players.length < MIN_PLAYERS_TO_START) {
     return NextResponse.json(

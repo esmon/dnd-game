@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestIdentity } from "@/lib/auth/server-identity";
+import { authorizeCampaign } from "@/lib/coop/auth";
 import type { Character } from "@/lib/db/schema";
 import { findClass } from "@/lib/dnd/classes";
 import { playerAC, rollAttack } from "@/lib/dnd/combat";
 import { rollLoot } from "@/lib/dnd/loot";
 import { rollDice } from "@/lib/game/dice";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
+import type { CampaignPlayer } from "@/lib/coop/types";
 import {
   resolvePlayerAction,
   type ActionBody,
@@ -23,36 +23,16 @@ type RouteContext = { params: Promise<{ id: string }> };
 // lib/coop/server-actions so adding more action types doesn't bloat
 // this file.
 export async function POST(request: NextRequest, ctx: RouteContext) {
-  const { userId } = await getRequestIdentity(request);
-  if (!userId) {
-    return NextResponse.json({ error: "must be signed in" }, { status: 401 });
-  }
-
   const { id: campaignId } = await ctx.params;
+  const auth = await authorizeCampaign(request, campaignId);
+  if (!auth.ok) return auth.response;
+  const { userId, campaign, players } = auth.ctx;
+
   const body = (await request.json().catch(() => null)) as ActionBody | null;
   if (!body || typeof body.kind !== "string") {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
 
-  // Load campaign + players + last turn number. Optimistic concurrency
-  // rests on `(campaign_id, turn_number)` uniqueness in
-  // campaign_actions: two concurrent submissions race to insert turn
-  // N, the loser gets a unique violation and 409s.
-  const campaignRes = await supabaseAdmin
-    .from("campaigns")
-    .select("*")
-    .eq("id", campaignId)
-    .maybeSingle();
-  if (campaignRes.error) {
-    return NextResponse.json(
-      { error: campaignRes.error.message },
-      { status: 500 },
-    );
-  }
-  if (!campaignRes.data) {
-    return NextResponse.json({ error: "campaign not found" }, { status: 404 });
-  }
-  const campaign = campaignRes.data as Campaign;
   if (campaign.status !== "active") {
     return NextResponse.json(
       { error: "campaign is not active" },
@@ -60,19 +40,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  const playersRes = await supabaseAdmin
-    .from("campaign_players")
-    .select("*")
-    .eq("campaign_id", campaignId)
-    .order("position", { ascending: true });
-  if (playersRes.error) {
-    return NextResponse.json(
-      { error: playersRes.error.message },
-      { status: 500 },
-    );
-  }
-  const players = (playersRes.data ?? []) as CampaignPlayer[];
-
+  // Optimistic concurrency rests on `(campaign_id, turn_number)`
+  // uniqueness in campaign_actions: two concurrent submissions race to
+  // insert turn N, the loser gets a unique violation and 409s.
   const lastActionRes = await supabaseAdmin
     .from("campaign_actions")
     .select("turn_number")

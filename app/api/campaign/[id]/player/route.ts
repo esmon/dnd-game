@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestIdentity } from "@/lib/auth/server-identity";
+import { authorizeCampaign } from "@/lib/coop/auth";
 import type { Character } from "@/lib/db/schema";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Campaign } from "@/lib/coop/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -22,15 +21,11 @@ type RouteContext = { params: Promise<{ id: string }> };
 //     same poll cycle.
 //   - ready: boolean — toggle the ready flag.
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
-  const { userId } = await getRequestIdentity(request);
-  if (!userId) {
-    return NextResponse.json(
-      { error: "must be signed in" },
-      { status: 401 },
-    );
-  }
-
   const { id: campaignId } = await ctx.params;
+  const auth = await authorizeCampaign(request, campaignId);
+  if (!auth.ok) return auth.response;
+  const { userId, campaign, myPlayer } = auth.ctx;
+
   const body = (await request.json().catch(() => ({}))) as {
     characterId?: string;
     ready?: boolean;
@@ -44,26 +39,17 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Campaign must exist and still be in lobby state.
-  const campaignRes = await supabaseAdmin
-    .from("campaigns")
-    .select("*")
-    .eq("id", campaignId)
-    .maybeSingle();
-  if (campaignRes.error) {
-    return NextResponse.json(
-      { error: campaignRes.error.message },
-      { status: 500 },
-    );
-  }
-  if (!campaignRes.data) {
-    return NextResponse.json({ error: "campaign not found" }, { status: 404 });
-  }
-  const campaign = campaignRes.data as Campaign;
   if (campaign.status !== "waiting") {
     return NextResponse.json(
       { error: "campaign already started" },
       { status: 409 },
+    );
+  }
+
+  if (!myPlayer) {
+    return NextResponse.json(
+      { error: "not a member of this campaign" },
+      { status: 403 },
     );
   }
 
