@@ -881,7 +881,7 @@ function MonsterButton({
       disabled={dead}
       onClick={() => onSelect(index)}
       className={cn(
-        "flex flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
+        "relative flex flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
         acting
           ? "border-2 border-zinc-900"
           : selected && !dead
@@ -892,6 +892,11 @@ function MonsterButton({
           : "cursor-pointer hover:bg-muted",
       )}
     >
+      {selected && !dead ? (
+        <span className="absolute -top-3 left-3 bg-card px-1.5 font-mono text-xs font-bold uppercase tracking-widest text-rose-500">
+          Target
+        </span>
+      ) : null}
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-sm font-bold uppercase tracking-widest">
           {monster.name}
