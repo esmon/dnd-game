@@ -60,6 +60,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Lazy GC: opportunistically prune waiting lobbies older than an
+  // hour every time someone creates a new one. Keeps the table from
+  // accumulating dead invite links without needing a cron job.
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  await supabaseAdmin
+    .from("campaigns")
+    .delete()
+    .eq("status", "waiting")
+    .lt("created_at", oneHourAgo);
+
   // Insert the campaign row first so we can reference its id when
   // adding the creator as player 0.
   const campaignInsert = await supabaseAdmin

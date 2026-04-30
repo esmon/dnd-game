@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import {
+  FlagIcon,
   FlaskConicalIcon,
   FootprintsIcon,
   HeartIcon,
@@ -100,6 +101,33 @@ export function CampaignBattle({
     }
   }
 
+  async function forfeit() {
+    if (
+      !window.confirm(
+        "End this campaign with a defeat? Loot and XP earned this fight will be lost.",
+      )
+    ) {
+      return;
+    }
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/campaign/${campaign.id}/forfeit`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        setActionError(`Forfeit failed (${res.status}): ${text}`);
+        return;
+      }
+      onActionComplete();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   // Map server-side campaign_actions → the existing TurnLine shape so we
   // can reuse the solo log styling (color by kind, crit highlight).
   const turns: Turn[] = actions.map((a) => actionToTurn(a, players));
@@ -152,6 +180,15 @@ export function CampaignBattle({
         {actionError ? (
           <p className="text-center text-sm text-rose-600">{actionError}</p>
         ) : null}
+        <button
+          type="button"
+          onClick={forfeit}
+          disabled={submitting}
+          className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest text-muted-foreground transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 dark:border-zinc-700"
+        >
+          <FlagIcon className="size-3.5 shrink-0" />
+          Forfeit Campaign
+        </button>
       </div>
     </main>
   );
