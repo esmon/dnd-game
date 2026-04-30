@@ -38,7 +38,7 @@ const KIND_STYLE: Record<
     className: "bg-rose-300 text-rose-950 hover:bg-rose-300/80",
   },
   primary: {
-    className: "bg-emerald-500 text-white hover:bg-emerald-500/90",
+    className: "bg-emerald-500 hover:bg-emerald-500/90",
   },
   neutral: { className: "" },
   dev: { variant: "outline", size: "sm", className: "text-xs opacity-60" },
