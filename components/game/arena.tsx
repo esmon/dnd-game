@@ -1120,6 +1120,14 @@ export function Arena() {
                 onClick: () =>
                   dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
               },
+              {
+                // Visual divider between in-fight commands (FIGHT / REST /
+                // INVENTORY) and navigation commands (Switch Character /
+                // Create New / Start Campaign / dev). Same hairline as the
+                // Card divider so it reads as a category break.
+                key: "nav-separator",
+                render: <div className="my-1 h-px bg-border" />,
+              },
               ...(state.characterCount > 1
                 ? [
                     {
