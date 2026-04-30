@@ -483,12 +483,8 @@ function JoinPrompt({
       <p className="font-bold uppercase tracking-widest">
         Join this campaign?
       </p>
-      <p className="text-sm text-muted-foreground">
-        You'll join with your active character. To use a different one,
-        switch character on the home page first.
-      </p>
       <Button onClick={handleJoin} disabled={joining}>
-        {joining ? "Joining…" : "Join with active character"}
+        {joining ? "Joining…" : "Join Campaign"}
       </Button>
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
     </CenteredCard>
