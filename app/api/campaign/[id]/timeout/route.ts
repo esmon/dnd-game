@@ -54,17 +54,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       { status: 409 },
     );
   }
-  if (current.slot.kind !== "player") {
-    // Server thinks it's a monster's turn but the deadline expired —
-    // shouldn't happen because we only arm the deadline on player
-    // slots, but guard anyway.
-    return NextResponse.json(
-      { error: "current turn is not a player" },
-      { status: 409 },
-    );
-  }
   pointer = current.pointer;
-  const idlePlayer = players[current.slot.index];
 
   let nextTurnNumber: number;
   try {
@@ -76,38 +66,45 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Insert a skip action for the idle player, stamped on the current
-  // encounter so the battle UI shows it in the log.
-  const skipResolution = resolveSkip(idlePlayer);
-  if (!skipResolution.ok) {
-    return NextResponse.json(
-      { error: skipResolution.error },
-      { status: skipResolution.status },
-    );
+  // Normal case: deadline expired, current slot is a player. Insert a
+  // skip on their behalf and advance one slot before walking the
+  // monster chain. If we somehow land on a monster slot here (e.g.
+  // a previous chain returned the wrong pointer because of stale
+  // in-memory aliveness — fixed in walkMonsterChain but old campaigns
+  // can be in this state), skip the skip-insert step and just walk
+  // the chain forward to unstick the campaign.
+  const slotCount = slotsForCampaign(campaign, players, monsters).length;
+  if (current.slot.kind === "player") {
+    const idlePlayer = players[current.slot.index];
+    const skipResolution = resolveSkip(idlePlayer);
+    if (!skipResolution.ok) {
+      return NextResponse.json(
+        { error: skipResolution.error },
+        { status: skipResolution.status },
+      );
+    }
+    const skipInsert = await supabaseAdmin.from("campaign_actions").insert({
+      campaign_id: campaignId,
+      turn_number: nextTurnNumber,
+      encounter_number: campaign.encounter_number,
+      ...skipResolution.action,
+      payload: {
+        ...skipResolution.action.payload,
+        // Mark the skip as a timeout so the log line reads "X timed
+        // out and skipped" rather than "X skips their turn".
+        timeout: true,
+      },
+    });
+    if (skipInsert.error) {
+      return NextResponse.json(
+        { error: `failed to log skip: ${skipInsert.error.message}` },
+        { status: 500 },
+      );
+    }
+    nextTurnNumber++;
   }
-  const skipInsert = await supabaseAdmin.from("campaign_actions").insert({
-    campaign_id: campaignId,
-    turn_number: nextTurnNumber,
-    encounter_number: campaign.encounter_number,
-    ...skipResolution.action,
-    payload: {
-      ...skipResolution.action.payload,
-      // Mark the skip as a timeout so the log line can read "X timed
-      // out and skipped" rather than "X skips their turn", making it
-      // legible to teammates that this wasn't a deliberate skip.
-      timeout: true,
-    },
-  });
-  if (skipInsert.error) {
-    return NextResponse.json(
-      { error: `failed to log skip: ${skipInsert.error.message}` },
-      { status: 500 },
-    );
-  }
-  nextTurnNumber++;
 
   // Walk forward through any monster turns up to the next player.
-  const slotCount = slotsForCampaign(campaign, players, monsters).length;
   pointer = (pointer + 1) % slotCount;
 
   const playerHp: Record<string, number> = Object.fromEntries(

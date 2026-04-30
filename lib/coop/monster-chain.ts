@@ -110,6 +110,17 @@ export async function walkMonsterChain(args: {
     const newHp = Math.max(0, playerHp[targetPlayer.id] - damage);
     playerHp[targetPlayer.id] = newHp;
 
+    // Keep the in-memory players row in sync too — nextAliveSlot
+    // (called on the next loop iteration) reads aliveness via
+    // players[i].current_hp, so without this mutation the pointer
+    // would land on a player we just downed and the next request's
+    // timeout/action endpoint would resolve to a monster slot
+    // (since reloading from DB shows them dead) and refuse to act.
+    const targetIndex = players.findIndex((p) => p.id === targetPlayer.id);
+    if (targetIndex >= 0) {
+      players[targetIndex] = { ...players[targetIndex], current_hp: newHp };
+    }
+
     const hpUpdate = await supabaseAdmin
       .from("campaign_players")
       .update({ current_hp: newHp })
