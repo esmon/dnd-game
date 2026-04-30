@@ -86,12 +86,17 @@ export async function walkMonsterChain(args: {
     const newHp = Math.max(0, playerHp[targetPlayer.id] - damage);
     playerHp[targetPlayer.id] = newHp;
 
-    await supabaseAdmin
+    const hpUpdate = await supabaseAdmin
       .from("campaign_players")
       .update({ current_hp: newHp })
       .eq("id", targetPlayer.id);
+    if (hpUpdate.error) {
+      throw new Error(
+        `monster-chain: failed to update player HP: ${hpUpdate.error.message}`,
+      );
+    }
 
-    await supabaseAdmin.from("campaign_actions").insert({
+    const insert = await supabaseAdmin.from("campaign_actions").insert({
       campaign_id: campaignId,
       turn_number: nextTurnNumber,
       encounter_number: campaign.encounter_number,
@@ -111,6 +116,15 @@ export async function walkMonsterChain(args: {
         missed: !attack.hit,
       },
     });
+    // Without this guard the chain would silently swallow a failed
+    // insert (e.g. unique-constraint collision on turn_number) and the
+    // pointer would still advance — turn order ends up out of sync
+    // with the log. Better to fail the whole POST.
+    if (insert.error) {
+      throw new Error(
+        `monster-chain: failed to insert action row: ${insert.error.message}`,
+      );
+    }
     nextTurnNumber++;
 
     if (Object.values(playerHp).every((hp) => hp <= 0)) {

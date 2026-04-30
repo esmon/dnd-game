@@ -195,33 +195,48 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       .eq("id", id);
   }
 
-  await supabaseAdmin.from("campaign_actions").insert({
-    campaign_id: campaignId,
-    turn_number: nextTurnNumber,
-    encounter_number: campaign.encounter_number,
-    ...resolution.action,
-    payload: {
-      ...resolution.action.payload,
-      ...(killLogs.length > 0
-        ? {
-            // Keep the single-kill fields populated for backwards
-            // compatibility (recap panels reading killed_monster_name
-            // / xp_awarded / loot still work for solo target hits);
-            // AoE-aware code reads `kills` for the full list.
-            killed_monster_index: killLogs[0].index,
-            killed_monster_name: killLogs[0].name,
-            xp_awarded: xpPerPlayerTotal,
-            loot: killLogs[0].loot,
-            kills: killLogs.map((k) => ({
-              monster_index: k.index,
-              monster_name: k.name,
-              xp_awarded: k.xpPerPlayer,
-              loot: k.loot,
-            })),
-          }
-        : {}),
-    },
-  });
+  const playerActionInsert = await supabaseAdmin
+    .from("campaign_actions")
+    .insert({
+      campaign_id: campaignId,
+      turn_number: nextTurnNumber,
+      encounter_number: campaign.encounter_number,
+      ...resolution.action,
+      payload: {
+        ...resolution.action.payload,
+        ...(killLogs.length > 0
+          ? {
+              // Keep the single-kill fields populated for backwards
+              // compatibility (recap panels reading killed_monster_name
+              // / xp_awarded / loot still work for solo target hits);
+              // AoE-aware code reads `kills` for the full list.
+              killed_monster_index: killLogs[0].index,
+              killed_monster_name: killLogs[0].name,
+              xp_awarded: xpPerPlayerTotal,
+              loot: killLogs[0].loot,
+              kills: killLogs.map((k) => ({
+                monster_index: k.index,
+                monster_name: k.name,
+                xp_awarded: k.xpPerPlayer,
+                loot: k.loot,
+              })),
+            }
+          : {}),
+      },
+    });
+  // Without this check a silent insert failure (RLS, unique-constraint
+  // collision on turn_number, anything supabase-js doesn't throw on)
+  // would leave the player's action invisible while the rest of the
+  // route still advances the turn pointer — the player appears to be
+  // skipped entirely, which is exactly what we hit before adding this.
+  if (playerActionInsert.error) {
+    return NextResponse.json(
+      {
+        error: `failed to log player action: ${playerActionInsert.error.message}`,
+      },
+      { status: 500 },
+    );
+  }
   nextTurnNumber++;
 
   // Win check before rotating. In multi-encounter mode the campaign
@@ -231,7 +246,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // (POST /end-campaign). Per-encounter rewards are committed now via
   // persistVictoryRewards so a later TPK doesn't wipe the prior wins.
   if (monsters.length > 0 && monsters.every((m) => m.health <= 0)) {
-    await supabaseAdmin
+    const winUpdate = await supabaseAdmin
       .from("campaigns")
       .update({
         monsters,
@@ -239,6 +254,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         turn_pointer: pointer,
       })
       .eq("id", campaignId);
+    if (winUpdate.error) {
+      return NextResponse.json(
+        { error: `failed to flip to between_encounters: ${winUpdate.error.message}` },
+        { status: 500 },
+      );
+    }
     await persistVictoryRewards(players);
     return NextResponse.json({
       ok: true,
@@ -267,7 +288,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   nextTurnNumber = chain.nextTurnNumber;
 
   if (chain.defeat) {
-    await supabaseAdmin
+    const lossUpdate = await supabaseAdmin
       .from("campaigns")
       .update({
         monsters,
@@ -276,14 +297,26 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         turn_pointer: pointer,
       })
       .eq("id", campaignId);
+    if (lossUpdate.error) {
+      return NextResponse.json(
+        { error: `failed to flip to lost: ${lossUpdate.error.message}` },
+        { status: 500 },
+      );
+    }
     await persistDefeatRecovery(players);
     return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
   }
 
-  await supabaseAdmin
+  const turnUpdate = await supabaseAdmin
     .from("campaigns")
     .update({ monsters, turn_pointer: pointer })
     .eq("id", campaignId);
+  if (turnUpdate.error) {
+    return NextResponse.json(
+      { error: `failed to advance turn pointer: ${turnUpdate.error.message}` },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }
