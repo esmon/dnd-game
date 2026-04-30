@@ -96,7 +96,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // Apply the resolver's patches.
   const monstersBefore = monsters;
   monsters =
-    body.kind === "attack" || body.kind === "spell" || body.kind === "scroll"
+    body.kind === "attack" ||
+    body.kind === "spell" ||
+    body.kind === "scroll" ||
+    body.kind === "smite"
       ? resolution.monsters
       : monsters;
 

@@ -54,13 +54,21 @@ export type PotionBody = { kind: "potion"; potionId: string };
 
 export type SkipBody = { kind: "skip" };
 
+export type SmiteBody = {
+  kind: "smite";
+  weaponId: string;
+  slotLevel: number;
+  targetMonsterIndex: number;
+};
+
 export type ActionBody =
   | AttackBody
   | SpellBody
   | ScrollBody
   | HealBody
   | PotionBody
-  | SkipBody;
+  | SkipBody
+  | SmiteBody;
 
 // Result of a player-side resolver. The route applies these mutations
 // before walking the monster chain.
@@ -625,6 +633,165 @@ export function resolveSkip(player: CampaignPlayer): Resolution {
   };
 }
 
+// Paladin Divine Smite. Weapon attack roll as normal; on hit, add
+// (slotLevel + 1)d8 radiant damage. Slot is consumed only on hit
+// because in 5e RAW smite is declared after the swing connects, so
+// a missed swing doesn't burn the resource.
+export function resolveSmite(
+  body: SmiteBody,
+  player: CampaignPlayer,
+  monsters: Monster[],
+): Resolution {
+  const snap = player.character_snapshot;
+  const klass = findClass(snap.class);
+  if (klass?.id !== "paladin" || snap.level < 2) {
+    return { ok: false, status: 409, error: "smite not available" };
+  }
+  const weapon = findWeapon(snap, body.weaponId);
+  if (!weapon) {
+    return { ok: false, status: 400, error: "weapon not found" };
+  }
+  if (
+    body.targetMonsterIndex < 0 ||
+    body.targetMonsterIndex >= monsters.length
+  ) {
+    return { ok: false, status: 400, error: "target out of range" };
+  }
+  const target = monsters[body.targetMonsterIndex];
+  if (target.health <= 0) {
+    return { ok: false, status: 409, error: "target already dead" };
+  }
+
+  const slotLevel = body.slotLevel;
+  if (slotLevel < 1) {
+    return { ok: false, status: 400, error: "smite needs L1+ slot" };
+  }
+  const remaining = snap.spell_slots[String(slotLevel)] ?? 0;
+  if (remaining <= 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: `out of L${slotLevel} spell slots`,
+    };
+  }
+
+  const ability = weaponAttackAbility(weapon, snap.ability_scores);
+  const attackMod =
+    abilityModifier(snap.ability_scores[ability]) + snap.proficiency_bonus;
+  const attack = rollAttack(attackMod, target.ac);
+
+  if (!attack.hit) {
+    // Miss — slot is NOT consumed (5e RAW: smite declared after the
+    // hit lands). Action row still logs the smite attempt so the log
+    // reads "Bruh smites Goblin — MISS" rather than a generic swing.
+    return {
+      ok: true,
+      action: {
+        actor_kind: "player",
+        actor_player_id: player.id,
+        target_kind: "monster",
+        target_player_id: null,
+        target_monster_index: body.targetMonsterIndex,
+        kind: "smite",
+        payload: {
+          actor_name: snap.name,
+          target_name: target.name,
+          weapon_name: weapon.name,
+          slot_level: slotLevel,
+          damage_type: weapon.damageType,
+          damage: 0,
+          weapon_damage: 0,
+          smite_damage: 0,
+          d20: attack.d20,
+          hit: false,
+          crit: false,
+          missed: true,
+          consumed_slot: false,
+          note: "",
+        },
+      },
+      monsters,
+    };
+  }
+
+  const rawWeapon = computeWeaponAttackDamage(
+    snap.class,
+    snap.level,
+    weapon.damage,
+    attack.crit,
+  );
+  const weaponMult = damageMultiplier(
+    weapon.damageType,
+    target.damageResistances,
+    target.damageImmunities,
+    target.damageVulnerabilities,
+  );
+  const weaponDamage = applyDamageMultiplier(rawWeapon, weaponMult);
+
+  const smiteDice = `${slotLevel + 1}d8`;
+  const rawSmite =
+    rollDice(smiteDice) + (attack.crit ? rollDice(smiteDice) : 0);
+  const radiantMult = damageMultiplier(
+    "radiant",
+    target.damageResistances,
+    target.damageImmunities,
+    target.damageVulnerabilities,
+  );
+  const smiteDamage = applyDamageMultiplier(rawSmite, radiantMult);
+
+  const total = weaponDamage + smiteDamage;
+  const newMonsters = monsters.map((mon, i) =>
+    i === body.targetMonsterIndex
+      ? { ...mon, health: Math.max(0, mon.health - total) }
+      : mon,
+  );
+
+  const snapshot: Character = {
+    ...snap,
+    spell_slots: {
+      ...snap.spell_slots,
+      [String(slotLevel)]: remaining - 1,
+    },
+  };
+
+  const noteParts = [
+    weaponMult.label
+      ? `${weapon.damageType} ${weaponMult.label}`
+      : weapon.damageType,
+    radiantMult.label ? `radiant ${radiantMult.label}` : "radiant",
+  ];
+
+  return {
+    ok: true,
+    action: {
+      actor_kind: "player",
+      actor_player_id: player.id,
+      target_kind: "monster",
+      target_player_id: null,
+      target_monster_index: body.targetMonsterIndex,
+      kind: "smite",
+      payload: {
+        actor_name: snap.name,
+        target_name: target.name,
+        weapon_name: weapon.name,
+        slot_level: slotLevel,
+        damage_type: "radiant",
+        damage: total,
+        weapon_damage: weaponDamage,
+        smite_damage: smiteDamage,
+        d20: attack.d20,
+        hit: true,
+        crit: attack.crit,
+        missed: false,
+        consumed_slot: true,
+        note: noteParts.join(" + "),
+      },
+    },
+    monsters: newMonsters,
+    snapshotPatch: snapshot,
+  };
+}
+
 // Top-level dispatcher. The route hands us the parsed body + player +
 // current monster pool; we return whichever sub-resolver matches.
 export function resolvePlayerAction(
@@ -645,5 +812,7 @@ export function resolvePlayerAction(
       return resolvePotion(body, player);
     case "skip":
       return resolveSkip(player);
+    case "smite":
+      return resolveSmite(body, player, monsters);
   }
 }

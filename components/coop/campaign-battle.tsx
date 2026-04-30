@@ -9,6 +9,7 @@ import {
   HeartIcon,
   ScrollTextIcon,
   SparklesIcon,
+  SunIcon,
   SwordIcon,
 } from "lucide-react";
 
@@ -606,6 +607,40 @@ function buildCommands({
     });
   }
 
+  // Paladin Divine Smite: weapon attack + (slotLevel + 1)d8 radiant.
+  // Slot is consumed only on hit (5e RAW: smite declared after the
+  // hit lands). Available from level 2; we always default to the
+  // lowest available slot, matching the solo arena.
+  const smiteEligible =
+    klass?.id === "paladin" && snap.level >= 2 && snap.weapons.length > 0;
+  if (smiteEligible) {
+    const lowestSlot = findLowestSlot(snap.spell_slots);
+    const smiteWeapon = snap.weapons[0];
+    const outOfSlots = !lowestSlot;
+    const smiteReason = outOfSlots
+      ? "Out of spell slots"
+      : null;
+    const slotLevel = lowestSlot?.level ?? 1;
+    commands.push({
+      key: "smite",
+      kind: "smite",
+      icon: SunIcon,
+      label: outOfSlots ? "Smite" : `Smite (L${slotLevel})`,
+      subtitle: outOfSlots
+        ? "+?d8 radiant"
+        : `+${slotLevel + 1}d8 radiant`,
+      onClick: () =>
+        submit({
+          kind: "smite",
+          weaponId: smiteWeapon.id,
+          slotLevel,
+          targetMonsterIndex: selectedMonsterIndex,
+        }),
+      disabled: baseDisabled || outOfSlots || !!targetReason,
+      disabledReason: turnReason ?? smiteReason ?? targetReason,
+    });
+  }
+
   // Equipped spells. Cantrips (level 0) are free; higher levels need
   // an available slot. AoE spells skip the per-target gating — they
   // hit every alive monster in one cast, so they only need *any*
@@ -1112,6 +1147,20 @@ function actionToTurn(
     case "potion":
       text = `${actorName} drinks ${potionName} for ${amount}hp`;
       break;
+    case "smite": {
+      const weaponName = (payload.weapon_name as string) ?? "their weapon";
+      const slotLevel = (payload.slot_level as number) ?? 1;
+      const smiteDamage = (payload.smite_damage as number) ?? 0;
+      if (missed) {
+        text = `${actorName} smites ${targetName} with ${weaponName} — MISS (d20 ${payload.d20})`;
+      } else {
+        const smiteSuffix = ` (L${slotLevel} smite +${smiteDamage} radiant)`;
+        text = crit
+          ? `CRIT — ${actorName} smites ${targetName} with ${weaponName} for ${damage}hp${smiteSuffix}`
+          : `${actorName} smites ${targetName} with ${weaponName} for ${damage}hp${smiteSuffix}`;
+      }
+      break;
+    }
     default:
       text = `${actorName} does ${action.kind}`;
   }

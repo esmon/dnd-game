@@ -64,6 +64,7 @@ export type CampaignActionKind =
   | "scroll"
   | "heal"
   | "potion"
+  | "smite"
   | "run-away"
   | "skip";
 
