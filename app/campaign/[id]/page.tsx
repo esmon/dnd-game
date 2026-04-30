@@ -459,7 +459,7 @@ function Lobby({
             <Button
               onClick={handleStart}
               disabled={!canStart || starting}
-              className="bg-emerald-500 hover:bg-emerald-500/90"
+              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
             >
               {starting ? "Starting…" : "Start Campaign"}
             </Button>
@@ -485,7 +485,7 @@ function Lobby({
               disabled={togglingReady || !myPlayer || myPlayer.is_ready}
               className={
                 myPlayer?.is_ready
-                  ? "bg-emerald-500 hover:bg-emerald-500/90"
+                  ? "bg-emerald-500 text-foreground hover:bg-emerald-500/90"
                   : ""
               }
             >
