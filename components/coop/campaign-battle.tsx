@@ -18,7 +18,7 @@ import { PanelLabel } from "@/components/game/panel-label";
 import { TurnLine } from "@/components/game/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { findClass } from "@/lib/dnd/classes";
-import { findLowestSlot } from "@/lib/dnd/spells";
+import { findLowestSlot, isAoeSpell } from "@/lib/dnd/spells";
 import { useShakeOnNonce, shakeIntensity } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
 import type {
@@ -608,12 +608,13 @@ function buildCommands({
     const slotInfo =
       spell.level === 0 ? "cantrip" : `L${spell.level} · ${slotsLeft}`;
     const outOfSlots = spell.level > 0 && slotsLeft <= 0;
-    const aoeReason = spell.aoe
+    const aoe = isAoeSpell(spell);
+    const aoeReason = aoe
       ? hasAnyLivingMonster
         ? null
         : "No living targets"
       : targetReason;
-    const labelSuffix = spell.aoe ? " (AoE)" : "";
+    const labelSuffix = aoe ? " (AoE)" : "";
     commands.push({
       key: `spell:${spell.id}`,
       kind: "spell",
@@ -978,6 +979,11 @@ function InitiativeStrip({
                 )}
               />
               <span className="truncate max-w-[10ch]">{name}</span>
+              {typeof slot.roll === "number" ? (
+                <span className="font-mono tabular-nums text-[10px] text-muted-foreground">
+                  {slot.roll}
+                </span>
+              ) : null}
               {isMe ? (
                 <span className="text-[10px] text-muted-foreground">
                   (You)

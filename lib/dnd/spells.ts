@@ -110,6 +110,14 @@ export function slotsForLevel(level: number): Record<string, number> {
   return { ...SLOT_TABLE[clamped] };
 }
 
+// Spell instances minted before the AoE flag was added carry
+// `aoe: undefined`. Look up the canonical SRD def to recover the
+// flag, falling back to whatever's on the instance.
+export function isAoeSpell(spell: Spell): boolean {
+  if (typeof spell.aoe === "boolean") return spell.aoe;
+  return spellsByBaseId[spell.baseId]?.aoe === true;
+}
+
 // Lowest spell-slot level with at least one slot remaining. Used by Ranger
 // HEAL (consume cheapest slot for Cure Wounds) and Paladin smite (default to
 // lowest available slot).

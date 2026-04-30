@@ -16,10 +16,13 @@ export type CampaignOutcome = "won" | "lost";
 
 // Persisted turn order — set by the start route from rolled
 // initiative. Older active campaigns predating M9b have null here and
-// fall back to position-order round-robin in nextAliveSlot.
+// fall back to position-order round-robin in nextAliveSlot. The
+// optional `roll` carries the d20 + DEX result for display in the
+// initiative strip; older slots (or round-robin fallbacks) leave it
+// undefined.
 export type TurnSlot =
-  | { kind: "player"; index: number }
-  | { kind: "monster"; index: number };
+  | { kind: "player"; index: number; roll?: number }
+  | { kind: "monster"; index: number; roll?: number };
 
 export interface Campaign {
   id: string;

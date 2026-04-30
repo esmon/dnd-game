@@ -17,7 +17,7 @@ import {
 import { computeWeaponAttackDamage } from "@/lib/dnd/class-features";
 import { findClass } from "@/lib/dnd/classes";
 import { abilityModifier } from "@/lib/dnd/derive";
-import { findLowestSlot } from "@/lib/dnd/spells";
+import { findLowestSlot, spellsByBaseId } from "@/lib/dnd/spells";
 import { rollDice } from "@/lib/game/dice";
 import type { Character } from "@/lib/db/schema";
 import type {
@@ -98,7 +98,20 @@ function findWeapon(snapshot: Character, weaponId: string): Weapon | null {
 }
 
 function findSpell(snapshot: Character, spellId: string): Spell | null {
-  return snapshot.equipped_spells.find((s) => s.id === spellId) ?? null;
+  const spell = snapshot.equipped_spells.find((s) => s.id === spellId);
+  if (!spell) return null;
+  // Backfill the `aoe` flag from the canonical SRD definition for
+  // spells minted before we added the field to SpellDef. The instance
+  // stored on character_snapshot might have aoe=undefined, which the
+  // resolver would treat as single-target; the SpellDef table is the
+  // source of truth so we override from there.
+  if (spell.aoe === undefined) {
+    const def = spellsByBaseId[spell.baseId];
+    if (def?.aoe) {
+      return { ...spell, aoe: true };
+    }
+  }
+  return spell;
 }
 
 function findScroll(snapshot: Character, scrollId: string): Scroll | null {

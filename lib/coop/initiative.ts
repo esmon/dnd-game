@@ -29,18 +29,20 @@ export function rollInitiative(
   for (let i = 0; i < players.length; i++) {
     const dex = players[i].character_snapshot.ability_scores.dex;
     const d20 = Math.floor(Math.random() * 20) + 1;
+    const roll = d20 + dexMod(dex);
     rolled.push({
-      slot: { kind: "player", index: i },
-      roll: d20 + dexMod(dex),
+      slot: { kind: "player", index: i, roll },
+      roll,
       jitter: Math.random(),
     });
   }
   for (let i = 0; i < monsters.length; i++) {
     const dex = monsters[i].dexterity ?? 10;
     const d20 = Math.floor(Math.random() * 20) + 1;
+    const roll = d20 + dexMod(dex);
     rolled.push({
-      slot: { kind: "monster", index: i },
-      roll: d20 + dexMod(dex),
+      slot: { kind: "monster", index: i, roll },
+      roll,
       jitter: Math.random(),
     });
   }
