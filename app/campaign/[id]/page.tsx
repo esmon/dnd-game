@@ -393,7 +393,7 @@ function Lobby({
                 className="flex-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm"
                 onFocus={(e) => e.currentTarget.select()}
               />
-              <Button size="sm" onClick={copyInvite}>
+              <Button onClick={copyInvite}>
                 {copied ? "Copied" : "Copy"}
               </Button>
             </div>
@@ -433,10 +433,7 @@ function Lobby({
                     </span>
                   </div>
                   {isMe ? (
-                    <Button
-                      size="sm"
-                      onClick={() => setPickerOpen(true)}
-                    >
+                    <Button onClick={() => setPickerOpen(true)}>
                       Change
                     </Button>
                   ) : null}
