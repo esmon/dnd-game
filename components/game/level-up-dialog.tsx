@@ -423,7 +423,7 @@ export function LevelUpDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-md"
+        className="border-2 border-zinc-900 max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-md"
       >
         <DialogHeader>
           <DialogTitle>
