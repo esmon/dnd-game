@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
   BackpackIcon,
   ChevronsUpIcon,
+  CompassIcon,
   FlaskConicalIcon,
   FootprintsIcon,
   HeartIcon,
@@ -104,6 +105,10 @@ export function Arena() {
   // persistence stays inert. Once resolved, it's User | null.
   const { user, loading: authLoading } = useUser();
   const authedUser = authLoading ? undefined : user;
+
+  // Tracks the create-campaign request in flight so the lobby button
+  // can show "Starting…" and disable while waiting on the API + route.
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
 
   useArenaBootstrap({
     dispatch,
@@ -320,6 +325,34 @@ export function Arena() {
   }, [triggerMonsterAttack]);
 
   // REST in lobby: full heal + refill spell slots, both persisted.
+  const handleStartCampaign = useCallback(async () => {
+    // Creator path: spin up a waiting campaign seeded with the active
+    // character, then route to the lobby. Errors surface in the
+    // console for now — UX-level error surfacing lives on the lobby
+    // page itself for retries.
+    const snap = stateRef.current;
+    if (!snap.player?.id) return;
+    if (creatingCampaign) return;
+    setCreatingCampaign(true);
+    try {
+      const res = await fetch("/api/campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ characterId: snap.player.id }),
+      });
+      if (!res.ok) {
+        console.error("create campaign failed", res.status);
+        return;
+      }
+      const { campaignId } = (await res.json()) as { campaignId: string };
+      router.push(`/campaign/${campaignId}`);
+    } catch (err) {
+      console.error("create campaign threw", err);
+    } finally {
+      setCreatingCampaign(false);
+    }
+  }, [creatingCampaign, router]);
+
   const handleRest = useCallback(() => {
     const snap = stateRef.current;
     if (!snap.player) return;
@@ -1109,6 +1142,20 @@ export function Arena() {
                 label: "Create New Character",
                 onClick: () => router.push("/create"),
               },
+              ...(user
+                ? [
+                    {
+                      key: "start-campaign",
+                      kind: "neutral" as const,
+                      icon: CompassIcon,
+                      label: creatingCampaign
+                        ? "Starting Campaign…"
+                        : "Start Campaign",
+                      onClick: handleStartCampaign,
+                      disabled: creatingCampaign,
+                    } satisfies CommandItem,
+                  ]
+                : []),
               ...(process.env.NODE_ENV === "development"
                 ? [
                     {
