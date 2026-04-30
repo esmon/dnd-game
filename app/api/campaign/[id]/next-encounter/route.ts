@@ -7,6 +7,7 @@ import {
 } from "@/lib/coop/encounter-builder";
 import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import { slotsForLevel } from "@/lib/dnd/spells";
 import {
   fetchMonster,
   fetchMonsterIndexListByCrs,
@@ -77,15 +78,34 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const initiativeOrder = rollInitiative(players, monsters);
   const nextEncounterNumber = campaign.encounter_number + 1;
 
-  // Revive every player to full HP. Spell slots and consumables stay
-  // at whatever the prior encounter left them — the rest is short, not
-  // long. We may want a Hit-Dice-based partial heal later, but full
-  // restore keeps the MVP loop tight.
+  // Long-rest reset between encounters: full HP, full spell slots.
+  // Consumables (potions, scrolls) stay because those are physical
+  // items the party doesn't magically restock. Mutate the local
+  // `players` array too so walkMonsterChain runs against the
+  // restored state if initiative kicks off with a monster.
   for (const player of players) {
-    await supabaseAdmin
+    const refreshedSnapshot = {
+      ...player.character_snapshot,
+      spell_slots: slotsForLevel(player.character_snapshot.level),
+    };
+    const restoredHp = player.character_snapshot.max_hp;
+    const update = await supabaseAdmin
       .from("campaign_players")
-      .update({ current_hp: player.character_snapshot.max_hp })
+      .update({
+        current_hp: restoredHp,
+        character_snapshot: refreshedSnapshot,
+      })
       .eq("id", player.id);
+    if (update.error) {
+      return NextResponse.json(
+        {
+          error: `failed to restore player state: ${update.error.message}`,
+        },
+        { status: 500 },
+      );
+    }
+    player.character_snapshot = refreshedSnapshot;
+    player.current_hp = restoredHp;
   }
 
   // Flip into the new encounter atomically with the bookkeeping —
