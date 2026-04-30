@@ -376,6 +376,12 @@ function Lobby({
   return (
     <main className="flex min-h-screen items-start justify-center p-6">
       <div className="flex w-full max-w-xl flex-col gap-6">
+        <Link
+          href="/"
+          className="self-start font-mono text-xs uppercase tracking-widest text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        >
+          ← Back to home
+        </Link>
         <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl">
           Campaign Lobby
         </h1>
