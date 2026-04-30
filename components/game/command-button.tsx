@@ -40,7 +40,7 @@ const KIND_STYLE: Record<
   primary: {
     className: "bg-emerald-500 text-white hover:bg-emerald-500/90",
   },
-  neutral: { variant: "outline", className: "" },
+  neutral: { className: "" },
   dev: { variant: "outline", size: "sm", className: "text-xs opacity-60" },
 };
 
