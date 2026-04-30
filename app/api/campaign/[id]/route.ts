@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestIdentity } from "@/lib/auth/server-identity";
 import { supabaseAdmin } from "@/lib/supabase";
-import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
+import type {
+  Campaign,
+  CampaignAction,
+  CampaignPlayer,
+} from "@/lib/coop/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -66,5 +70,21 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  return NextResponse.json({ campaign, players });
+  // Pull the action log so the combat view can render it without a
+  // second round trip. Cheap while turn counts are small; we'll
+  // paginate or trim if a long campaign ever runs hot.
+  const actionsRes = await supabaseAdmin
+    .from("campaign_actions")
+    .select("*")
+    .eq("campaign_id", campaignId)
+    .order("turn_number", { ascending: true });
+  if (actionsRes.error) {
+    return NextResponse.json(
+      { error: actionsRes.error.message },
+      { status: 500 },
+    );
+  }
+  const actions = (actionsRes.data ?? []) as CampaignAction[];
+
+  return NextResponse.json({ campaign, players, actions });
 }

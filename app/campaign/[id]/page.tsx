@@ -5,14 +5,23 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
-import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
+import type {
+  Campaign,
+  CampaignAction,
+  CampaignPlayer,
+} from "@/lib/coop/types";
 import { getActiveCharacterId } from "@/lib/session";
 
 const MAX_PLAYERS = 2;
 
-type Snapshot = { campaign: Campaign; players: CampaignPlayer[] };
+type Snapshot = {
+  campaign: Campaign;
+  players: CampaignPlayer[];
+  actions: CampaignAction[];
+};
 type LoadState =
   | { kind: "loading" }
   | { kind: "needs-join" }
@@ -82,14 +91,19 @@ export default function CampaignLobbyPage({
     void fetchSnapshot();
   }, [fetchSnapshot, refreshTick]);
 
-  // Poll while the campaign is `waiting` so the lobby reflects new
-  // joins. Switches to Realtime in M3 once we're sending action
-  // updates anyway.
+  // Poll while the campaign is in motion: 3s in the lobby (joins are
+  // infrequent), 1.5s during combat so opponents see your moves
+  // promptly. Realtime would be lower-latency but RLS-on-Realtime is
+  // currently brittle in this project — polling is the M3 default.
   useEffect(() => {
-    if (state.kind !== "ready" || state.data.campaign.status !== "waiting") {
-      return;
-    }
-    const interval = setInterval(() => setRefreshTick((t) => t + 1), 3000);
+    if (state.kind !== "ready") return;
+    const status = state.data.campaign.status;
+    if (status !== "waiting" && status !== "active") return;
+    const intervalMs = status === "active" ? 1500 : 3000;
+    const interval = setInterval(
+      () => setRefreshTick((t) => t + 1),
+      intervalMs,
+    );
     return () => clearInterval(interval);
   }, [state]);
 
@@ -133,7 +147,7 @@ export default function CampaignLobbyPage({
     );
   }
 
-  const { campaign, players } = state.data;
+  const { campaign, players, actions } = state.data;
   const isCreator = campaign.created_by === user.id;
 
   if (campaign.status === "waiting") {
@@ -152,13 +166,13 @@ export default function CampaignLobbyPage({
 
   if (campaign.status === "active") {
     return (
-      <CenteredCard>
-        <p className="font-bold">Campaign in progress!</p>
-        <p className="text-sm text-muted-foreground">
-          The combat view ships in the next phase. Players: {players.length}.
-          Monsters: {campaign.monsters.length}.
-        </p>
-      </CenteredCard>
+      <CampaignBattle
+        campaign={campaign}
+        players={players}
+        actions={actions}
+        userId={user.id}
+        onActionComplete={() => setRefreshTick((t) => t + 1)}
+      />
     );
   }
 
