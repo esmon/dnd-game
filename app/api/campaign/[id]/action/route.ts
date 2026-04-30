@@ -12,7 +12,8 @@ import {
   resolvePlayerAction,
   type ActionBody,
 } from "@/lib/coop/server-actions";
-import { nextAliveSlot } from "@/lib/coop/turn-order";
+import { nextAliveSlot, slotsForCampaign } from "@/lib/coop/turn-order";
+import { pickMonsterTarget } from "@/lib/coop/monster-ai";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   let monsters = [...campaign.monsters];
   let pointer = campaign.turn_pointer;
 
-  const current = nextAliveSlot(pointer, players, monsters);
+  const current = nextAliveSlot(pointer, campaign, players, monsters);
   if (!current) {
     return NextResponse.json(
       { error: "no live actor — campaign already over" },
@@ -213,21 +214,31 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   // Walk forward — possibly executing several monster actions — until
-  // the pointer lands on an alive player or the campaign ends.
-  pointer = (pointer + 1) % (players.length + monsters.length);
+  // the pointer lands on an alive player or the campaign ends. Slot
+  // count varies by campaign (initiative may include all players +
+  // multiple monsters in any order), so wrap on the resolved slot
+  // list rather than a hard-coded total.
+  const slotCount = slotsForCampaign(campaign, players, monsters).length;
+  pointer = (pointer + 1) % slotCount;
 
   while (true) {
-    const next = nextAliveSlot(pointer, players, monsters);
+    const next = nextAliveSlot(pointer, campaign, players, monsters);
     if (!next) break;
     pointer = next.pointer;
     if (next.slot.kind === "player") break;
 
     const monster = monsters[next.slot.index];
 
-    const aliveTargets = players.filter((p) => playerHp[p.id] > 0);
+    // Build live-HP snapshots so the AI sees the *current* state of
+    // the chain (a teammate downed earlier this round shouldn't still
+    // look full-HP). Casting is just a re-typed projection of
+    // CampaignPlayer; the AI only reads current_hp + max_hp.
+    const aliveTargets = players
+      .filter((p) => playerHp[p.id] > 0)
+      .map((p) => ({ ...p, current_hp: playerHp[p.id] }));
     if (aliveTargets.length === 0) break;
-    const targetPlayer =
-      aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+    const targetPlayer = pickMonsterTarget(aliveTargets);
+    if (!targetPlayer) break;
 
     const klass = findClass(targetPlayer.character_snapshot.class) ?? null;
     const targetAC = playerAC(
@@ -285,7 +296,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
     }
 
-    pointer = (pointer + 1) % (players.length + monsters.length);
+    pointer = (pointer + 1) % slotCount;
   }
 
   await supabaseAdmin

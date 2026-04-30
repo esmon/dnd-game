@@ -10,6 +10,13 @@ import type { Monster } from "@/lib/game/types";
 export type CampaignStatus = "waiting" | "active" | "finished";
 export type CampaignOutcome = "won" | "lost";
 
+// Persisted turn order — set by the start route from rolled
+// initiative. Older active campaigns predating M9b have null here and
+// fall back to position-order round-robin in nextAliveSlot.
+export type TurnSlot =
+  | { kind: "player"; index: number }
+  | { kind: "monster"; index: number };
+
 export interface Campaign {
   id: string;
   status: CampaignStatus;
@@ -18,6 +25,7 @@ export interface Campaign {
   turn_pointer: number;
   turn_deadline: string | null;
   outcome: CampaignOutcome | null;
+  initiative_order: TurnSlot[] | null;
   created_at: string;
   updated_at: string;
 }

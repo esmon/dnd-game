@@ -5,7 +5,11 @@ import type { Character } from "@/lib/db/schema";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
 
-const MAX_PLAYERS = 2;
+// Standard 5e party size cap. Encounter builder already scales the
+// adjusted XP budget across N players via DMG p.83's small/large-party
+// multiplier bumps, so any party between the start route's MIN and
+// here is fair game.
+const MAX_PLAYERS = 6;
 
 type RouteContext = { params: Promise<{ id: string }> };
 

@@ -11,6 +11,7 @@ import {
   buildEncounterSpec,
   nearbyCrStrings,
 } from "@/lib/coop/encounter-builder";
+import { rollInitiative } from "@/lib/coop/initiative";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -92,12 +93,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  // Roll initiative for the whole party + monster pool; persist the
+  // resulting slot order so action route + UI agree on whose turn is
+  // next regardless of position.
+  const initiativeOrder = rollInitiative(players, monsters);
+
   const update = await supabaseAdmin
     .from("campaigns")
     .update({
       status: "active",
       monsters,
       turn_pointer: 0,
+      initiative_order: initiativeOrder,
     })
     .eq("id", campaignId);
 
@@ -108,5 +115,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  return NextResponse.json({ campaignId, monsters, encounter: spec });
+  return NextResponse.json({
+    campaignId,
+    monsters,
+    encounter: spec,
+    initiative: initiativeOrder,
+  });
 }

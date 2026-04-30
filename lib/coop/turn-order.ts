@@ -1,17 +1,14 @@
 import type { Monster } from "@/lib/game/types";
-import type { CampaignPlayer } from "@/lib/coop/types";
+import type { Campaign, CampaignPlayer, TurnSlot } from "@/lib/coop/types";
 
-// Turn order is players-by-position followed by monsters-by-index, then
-// repeat. `turn_pointer` is a monotonically incrementing counter; we
-// modulo into the combined slot count and then skip dead actors.
-//
-// All MVP campaigns are 2 players + 1 monster, so the slot list is at
-// most 4 long. Plenty of headroom to swap to a smarter initiative
-// system later (rolled DEX initiative, etc.) without changing callers.
+// Turn order. Pre-M9b every campaign was strict round-robin —
+// players-by-position then monsters-by-index — but now the start
+// route rolls d20 + DEX initiative for every actor and persists the
+// resulting slot list to `campaign.initiative_order`. Older active
+// campaigns predating M9b have null there and fall back to the
+// original round-robin so they don't break mid-fight.
 
-export type TurnSlot =
-  | { kind: "player"; index: number }
-  | { kind: "monster"; index: number };
+export type { TurnSlot } from "@/lib/coop/types";
 
 export function buildSlots(
   playerCount: number,
@@ -25,6 +22,20 @@ export function buildSlots(
     slots.push({ kind: "monster", index: i });
   }
   return slots;
+}
+
+// Resolve the active turn-order list for this campaign. Defers to
+// stored initiative when present; falls back to round-robin so
+// pre-M9b active rows still resolve.
+export function slotsForCampaign(
+  campaign: Campaign,
+  players: CampaignPlayer[],
+  monsters: Monster[],
+): TurnSlot[] {
+  if (campaign.initiative_order && campaign.initiative_order.length > 0) {
+    return campaign.initiative_order;
+  }
+  return buildSlots(players.length, monsters.length);
 }
 
 export function isSlotAlive(
@@ -42,10 +53,11 @@ export function isSlotAlive(
 // slot — or return null when nobody is alive (campaign should end).
 export function nextAliveSlot(
   pointer: number,
+  campaign: Campaign,
   players: CampaignPlayer[],
   monsters: Monster[],
 ): { pointer: number; slot: TurnSlot } | null {
-  const slots = buildSlots(players.length, monsters.length);
+  const slots = slotsForCampaign(campaign, players, monsters);
   if (slots.length === 0) return null;
   for (let step = 0; step < slots.length; step++) {
     const i = (pointer + step) % slots.length;

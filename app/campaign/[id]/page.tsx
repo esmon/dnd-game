@@ -16,7 +16,7 @@ import type {
 } from "@/lib/coop/types";
 import { getActiveCharacterId } from "@/lib/session";
 
-const MAX_PLAYERS = 2;
+const MAX_PLAYERS = 6;
 
 type Snapshot = {
   campaign: Campaign;

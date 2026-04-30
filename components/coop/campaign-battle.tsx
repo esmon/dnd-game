@@ -248,6 +248,7 @@ export function CampaignBattle({
 
   const currentSlot = nextAliveSlot(
     campaign.turn_pointer,
+    campaign,
     players,
     campaign.monsters,
   );

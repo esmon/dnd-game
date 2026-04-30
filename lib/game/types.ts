@@ -85,6 +85,10 @@ export type Monster = {
   damageResistances: string[];
   damageVulnerabilities: string[];
   damageImmunities: string[];
+  // Raw DEX score from dnd5eapi (10 = +0 mod). Used for initiative
+  // rolls in coop. Older monster snapshots may be missing this; the
+  // initiative roller treats undefined as DEX 10.
+  dexterity?: number;
 };
 
 export type Turn = {
