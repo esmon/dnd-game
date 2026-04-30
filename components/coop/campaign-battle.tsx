@@ -107,6 +107,16 @@ const ACTION_REVEAL_MS = 700;
 // again. Deriving from actions sidesteps the race entirely: the bar
 // only reflects what's been displayed, regardless of server-side
 // inconsistency between action log and HP rows.
+// 5e CR is stored as a number on the Monster row but displayed in
+// fractional form for the < 1 tier. Converts back to "1/8" / "1/4" /
+// "1/2" / integer.
+function formatCr(cr: number): string {
+  if (cr === 0.125) return "1/8";
+  if (cr === 0.25) return "1/4";
+  if (cr === 0.5) return "1/2";
+  return String(cr);
+}
+
 // Walk the action log for damage events landing on a specific
 // monster index. Handles both single-target hits (target_monster_index
 // column) and AoE hits (payload.targets array). Returned in
@@ -759,6 +769,7 @@ function PartyMember({
     hits.length,
     shakeIntensity(lastDamage, player.character_snapshot.max_hp),
   );
+  const snap = player.character_snapshot;
   return (
     <div
       ref={ref}
@@ -770,20 +781,23 @@ function PartyMember({
     >
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-sm font-bold uppercase tracking-widest">
-          {player.character_snapshot.name}
+          {snap.name}
           {isMe ? (
             <span className="ml-2 text-xs text-muted-foreground">(You)</span>
           ) : null}
         </span>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {player.current_hp}/{player.character_snapshot.max_hp}
+          {player.current_hp}/{snap.max_hp}
         </span>
       </div>
       <HealthBar
         current={player.current_hp}
-        max={player.character_snapshot.max_hp}
+        max={snap.max_hp}
         className="h-2"
       />
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+        {snap.race} · {snap.class} · Lv {snap.level}
+      </p>
     </div>
   );
 }
@@ -880,6 +894,26 @@ function MonsterButton({
         max={monster.maxHealth}
         className="h-2"
       />
+      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+        <span>CR {formatCr(monster.challengeRating)}</span>
+        <span>· {monster.damageType}</span>
+        <span>· AC {monster.ac}</span>
+        {monster.damageVulnerabilities.length > 0 ? (
+          <span className="text-amber-600">
+            · VUL {monster.damageVulnerabilities.join(", ")}
+          </span>
+        ) : null}
+        {monster.damageResistances.length > 0 ? (
+          <span className="text-sky-600">
+            · RES {monster.damageResistances.join(", ")}
+          </span>
+        ) : null}
+        {monster.damageImmunities.length > 0 ? (
+          <span className="text-violet-600">
+            · IMM {monster.damageImmunities.join(", ")}
+          </span>
+        ) : null}
+      </p>
     </button>
   );
 }
