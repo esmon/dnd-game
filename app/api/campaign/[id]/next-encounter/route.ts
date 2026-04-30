@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCampaign } from "@/lib/coop/auth";
-import {
-  buildEncounterSpec,
-  nearbyCrStrings,
-} from "@/lib/coop/encounter-builder";
+import { buildEncounterSpec } from "@/lib/coop/encounter-builder";
+import { fetchMonsterPoolForSpec } from "@/lib/coop/encounter-pool";
 import { rollInitiative } from "@/lib/coop/initiative";
-import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import {
+  nextTurnNumberFor,
+  walkMonsterChain,
+} from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 import { slotsForLevel } from "@/lib/dnd/spells";
-import {
-  fetchMonster,
-  fetchMonsterIndexListByCrs,
-  pickRandomMonsterIndex,
-} from "@/lib/game/dnd5e";
 import { supabaseAdmin } from "@/lib/supabase";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -47,35 +43,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const playerLevels = players.map((p) => p.character_snapshot.level);
   const spec = buildEncounterSpec(playerLevels);
 
-  let monsters;
-  try {
-    let indices = await fetchMonsterIndexListByCrs([spec.perMonsterCr]);
-    if (indices.length === 0) {
-      indices = await fetchMonsterIndexListByCrs(
-        nearbyCrStrings(spec.perMonsterCr, 2),
-      );
-    }
-    const picks: string[] = [];
-    for (let i = 0; i < spec.monsterCount; i++) {
-      const pick = pickRandomMonsterIndex(indices);
-      if (!pick) break;
-      picks.push(pick.index);
-    }
-    if (picks.length === 0) {
-      return NextResponse.json(
-        { error: "no monsters available for this party level" },
-        { status: 500 },
-      );
-    }
-    monsters = await Promise.all(picks.map((index) => fetchMonster(index)));
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: `monster pool fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-      },
-      { status: 502 },
-    );
+  const pool = await fetchMonsterPoolForSpec(spec);
+  if (!pool.ok) {
+    return NextResponse.json({ error: pool.error }, { status: pool.status });
   }
+  const monsters = pool.monsters;
 
   const initiativeOrder = rollInitiative(players, monsters);
   const nextEncounterNumber = campaign.encounter_number + 1;
@@ -148,21 +120,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     players.map((p) => [p.id, p.character_snapshot.max_hp]),
   );
 
-  // Determine the next turn_number for this campaign — actions are
-  // monotonically numbered across the entire campaign (not reset per
-  // encounter), so the chain-walker keeps inserting from wherever
-  // the prior encounter left off.
-  const lastActionRes = await supabaseAdmin
-    .from("campaign_actions")
-    .select("turn_number")
-    .eq("campaign_id", campaignId)
-    .order("turn_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const nextTurnNumber =
-    typeof lastActionRes.data?.turn_number === "number"
-      ? lastActionRes.data.turn_number + 1
-      : 0;
+  let nextTurnNumber: number;
+  try {
+    nextTurnNumber = await nextTurnNumberFor(campaignId);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
 
   const chain = await walkMonsterChain({
     campaignId,

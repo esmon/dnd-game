@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCampaign } from "@/lib/coop/auth";
-import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import {
+  nextTurnNumberFor,
+  walkMonsterChain,
+} from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { resolveSkip } from "@/lib/coop/server-actions";
 import {
@@ -63,19 +66,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   pointer = current.pointer;
   const idlePlayer = players[current.slot.index];
 
-  // Determine the next turn_number — actions are monotonically
-  // numbered across the entire campaign.
-  const lastActionRes = await supabaseAdmin
-    .from("campaign_actions")
-    .select("turn_number")
-    .eq("campaign_id", campaignId)
-    .order("turn_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  let nextTurnNumber =
-    typeof lastActionRes.data?.turn_number === "number"
-      ? lastActionRes.data.turn_number + 1
-      : 0;
+  let nextTurnNumber: number;
+  try {
+    nextTurnNumber = await nextTurnNumberFor(campaignId);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
 
   // Insert a skip action for the idle player, stamped on the current
   // encounter so the battle UI shows it in the log.

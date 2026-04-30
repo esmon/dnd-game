@@ -7,6 +7,30 @@ import { pickMonsterTarget } from "./monster-ai";
 import { nextAliveSlot, slotsForCampaign } from "./turn-order";
 import type { Campaign, CampaignPlayer } from "./types";
 
+// Look up the next available turn_number for this campaign. Action
+// rows are monotonically numbered across the whole campaign (not
+// reset per encounter) and the (campaign_id, turn_number) unique
+// constraint is what gives us optimistic concurrency on simultaneous
+// posts. Used by every route that inserts an action row from a
+// non-zero starting point.
+export async function nextTurnNumberFor(campaignId: string): Promise<number> {
+  const lastActionRes = await supabaseAdmin
+    .from("campaign_actions")
+    .select("turn_number")
+    .eq("campaign_id", campaignId)
+    .order("turn_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastActionRes.error) {
+    throw new Error(
+      `failed to read last turn_number: ${lastActionRes.error.message}`,
+    );
+  }
+  return typeof lastActionRes.data?.turn_number === "number"
+    ? lastActionRes.data.turn_number + 1
+    : 0;
+}
+
 // Walk forward through the initiative slots, resolving each monster's
 // turn until we either land on a player slot (they get to act next)
 // or every player is downed (campaign loss). Used by:

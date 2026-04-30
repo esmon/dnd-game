@@ -122,6 +122,39 @@ function findSpell(snapshot: Character, spellId: string): Spell | null {
   return spell;
 }
 
+// Decrement one spell slot at the given level on the snapshot. Caller
+// should have already checked availability via findLowestSlot or a
+// direct count; this helper just produces the updated snapshot. Used
+// by every resolver that burns a slot (spell, scroll, smite, heal).
+function consumeSlot(snapshot: Character, level: number): Character {
+  const key = String(level);
+  const remaining = snapshot.spell_slots[key] ?? 0;
+  return {
+    ...snapshot,
+    spell_slots: {
+      ...snapshot.spell_slots,
+      [key]: Math.max(0, remaining - 1),
+    },
+  };
+}
+
+// Validate a target monster index is in range and the monster is
+// alive. Returns an error Resolution to short-circuit, or null if
+// the target is fine. Used by every targeted resolver (attack,
+// spell single-target, scroll, smite).
+function validateMonsterTarget(
+  index: number,
+  monsters: Monster[],
+): Extract<Resolution, { ok: false }> | null {
+  if (index < 0 || index >= monsters.length) {
+    return { ok: false, status: 400, error: "target out of range" };
+  }
+  if (monsters[index].health <= 0) {
+    return { ok: false, status: 409, error: "target already dead" };
+  }
+  return null;
+}
+
 function findScroll(snapshot: Character, scrollId: string): Scroll | null {
   return (
     snapshot.consumables.find(
@@ -164,16 +197,9 @@ export function resolveAttack(
   if (!weapon) {
     return { ok: false, status: 400, error: "weapon not found" };
   }
-  if (
-    body.targetMonsterIndex < 0 ||
-    body.targetMonsterIndex >= monsters.length
-  ) {
-    return { ok: false, status: 400, error: "target out of range" };
-  }
+  const targetErr = validateMonsterTarget(body.targetMonsterIndex, monsters);
+  if (targetErr) return targetErr;
   const target = monsters[body.targetMonsterIndex];
-  if (target.health <= 0) {
-    return { ok: false, status: 409, error: "target already dead" };
-  }
 
   const ability = weaponAttackAbility(
     weapon,
@@ -270,13 +296,7 @@ export function resolveSpell(
           error: `out of L${spell.level} spell slots`,
         };
       }
-      snapshot = {
-        ...snapshot,
-        spell_slots: {
-          ...snapshot.spell_slots,
-          [String(spell.level)]: remaining - 1,
-        },
-      };
+      snapshot = consumeSlot(snapshot, spell.level);
     }
 
     // Roll once; every monster takes the same raw damage modulated
@@ -333,16 +353,9 @@ export function resolveSpell(
     };
   }
 
-  if (
-    body.targetMonsterIndex < 0 ||
-    body.targetMonsterIndex >= monsters.length
-  ) {
-    return { ok: false, status: 400, error: "target out of range" };
-  }
+  const targetErr = validateMonsterTarget(body.targetMonsterIndex, monsters);
+  if (targetErr) return targetErr;
   const target = monsters[body.targetMonsterIndex];
-  if (target.health <= 0) {
-    return { ok: false, status: 409, error: "target already dead" };
-  }
 
   // Slot accounting (skip for cantrips at level 0).
   let snapshot = player.character_snapshot;
@@ -355,13 +368,7 @@ export function resolveSpell(
         error: `out of L${spell.level} spell slots`,
       };
     }
-    snapshot = {
-      ...snapshot,
-      spell_slots: {
-        ...snapshot.spell_slots,
-        [String(spell.level)]: remaining - 1,
-      },
-    };
+    snapshot = consumeSlot(snapshot, spell.level);
   }
 
   const klass = findClass(snapshot.class);
@@ -432,16 +439,9 @@ export function resolveScroll(
   if (!scroll) {
     return { ok: false, status: 400, error: "scroll not found" };
   }
-  if (
-    body.targetMonsterIndex < 0 ||
-    body.targetMonsterIndex >= monsters.length
-  ) {
-    return { ok: false, status: 400, error: "target out of range" };
-  }
+  const targetErr = validateMonsterTarget(body.targetMonsterIndex, monsters);
+  if (targetErr) return targetErr;
   const target = monsters[body.targetMonsterIndex];
-  if (target.health <= 0) {
-    return { ok: false, status: 409, error: "target already dead" };
-  }
 
   const klass = findClass(player.character_snapshot.class);
   // Non-casters fall back to INT for scroll attacks (matches solo).
@@ -534,13 +534,7 @@ export function resolveHeal(player: CampaignPlayer): Resolution {
       return { ok: false, status: 409, error: "out of spell slots" };
     }
     slotLevel = lowest.level;
-    snapshot = {
-      ...snapshot,
-      spell_slots: {
-        ...snapshot.spell_slots,
-        [String(lowest.level)]: lowest.remaining - 1,
-      },
-    };
+    snapshot = consumeSlot(snapshot, lowest.level);
   }
 
   const amount = rollDice("1d10");
@@ -651,16 +645,9 @@ export function resolveSmite(
   if (!weapon) {
     return { ok: false, status: 400, error: "weapon not found" };
   }
-  if (
-    body.targetMonsterIndex < 0 ||
-    body.targetMonsterIndex >= monsters.length
-  ) {
-    return { ok: false, status: 400, error: "target out of range" };
-  }
+  const targetErr = validateMonsterTarget(body.targetMonsterIndex, monsters);
+  if (targetErr) return targetErr;
   const target = monsters[body.targetMonsterIndex];
-  if (target.health <= 0) {
-    return { ok: false, status: 409, error: "target already dead" };
-  }
 
   const slotLevel = body.slotLevel;
   if (slotLevel < 1) {
@@ -746,13 +733,7 @@ export function resolveSmite(
       : mon,
   );
 
-  const snapshot: Character = {
-    ...snap,
-    spell_slots: {
-      ...snap.spell_slots,
-      [String(slotLevel)]: remaining - 1,
-    },
-  };
+  const snapshot = consumeSlot(snap, slotLevel);
 
   const noteParts = [
     weaponMult.label

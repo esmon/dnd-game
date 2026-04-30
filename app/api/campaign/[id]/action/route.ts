@@ -10,7 +10,7 @@ import {
   type ActionBody,
 } from "@/lib/coop/server-actions";
 import { nextAliveSlot, slotsForCampaign } from "@/lib/coop/turn-order";
-import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import { nextTurnNumberFor, walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 
@@ -43,23 +43,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // Optimistic concurrency rests on `(campaign_id, turn_number)`
   // uniqueness in campaign_actions: two concurrent submissions race to
   // insert turn N, the loser gets a unique violation and 409s.
-  const lastActionRes = await supabaseAdmin
-    .from("campaign_actions")
-    .select("turn_number")
-    .eq("campaign_id", campaignId)
-    .order("turn_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (lastActionRes.error) {
+  let nextTurnNumber: number;
+  try {
+    nextTurnNumber = await nextTurnNumberFor(campaignId);
+  } catch (err) {
     return NextResponse.json(
-      { error: lastActionRes.error.message },
+      { error: err instanceof Error ? err.message : String(err) },
       { status: 500 },
     );
   }
-  let nextTurnNumber =
-    (lastActionRes.data?.turn_number as number | undefined) === undefined
-      ? 0
-      : (lastActionRes.data!.turn_number as number) + 1;
 
   let monsters = [...campaign.monsters];
   let pointer = campaign.turn_pointer;
