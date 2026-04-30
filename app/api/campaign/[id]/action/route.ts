@@ -117,12 +117,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       .eq("id", actingPlayer.id);
   }
 
-  // Detect a freshly-killed monster from the resolver's mutation. At
-  // most one kill per player turn (one attack per action), so we don't
-  // need to walk every index for awards.
-  const killedIndex = monsters.findIndex(
-    (m, i) => monstersBefore[i] && monstersBefore[i].health > 0 && m.health <= 0,
-  );
+  // Detect every freshly-killed monster from the resolver's mutation.
+  // Single-target hits will return a 1-element list; AoE spells can
+  // wipe several at once, all of which get loot/XP processed.
+  const killedIndices: number[] = [];
+  for (let i = 0; i < monsters.length; i++) {
+    if (monstersBefore[i] && monstersBefore[i].health > 0 && monsters[i].health <= 0) {
+      killedIndices.push(i);
+    }
+  }
   const modifiedSnapshots = new Set<string>();
   if (resolution.snapshotPatch) modifiedSnapshots.add(actingPlayer.id);
 
@@ -130,10 +133,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // policy). XP follows 5e RAW: the monster's full XP is divided evenly
   // across the whole party, regardless of whether a member is currently
   // down — they "participated in the encounter."
-  let lootForLog: { name: string; kind: string } | null = null;
-  let xpPerPlayer = 0;
-  if (killedIndex >= 0) {
+  const killLogs: Array<{
+    index: number;
+    name: string;
+    xpPerPlayer: number;
+    loot: { name: string; kind: string } | null;
+  }> = [];
+  let xpPerPlayerTotal = 0;
+
+  for (const killedIndex of killedIndices) {
     const killed = monsters[killedIndex];
+    let lootForLog: { name: string; kind: string } | null = null;
     const loot = rollLoot(killed);
     if (loot) {
       const isWeapon = !("kind" in loot);
@@ -155,7 +165,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       }
       modifiedSnapshots.add(actingPlayer.id);
     }
-    xpPerPlayer = Math.floor(killed.xp / Math.max(1, players.length));
+
+    const xpPerPlayer = Math.floor(killed.xp / Math.max(1, players.length));
+    xpPerPlayerTotal += xpPerPlayer;
     for (const p of players) {
       p.character_snapshot = {
         ...p.character_snapshot,
@@ -163,6 +175,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       };
       modifiedSnapshots.add(p.id);
     }
+    killLogs.push({
+      index: killedIndex,
+      name: killed.name,
+      xpPerPlayer,
+      loot: lootForLog,
+    });
   }
 
   // Persist any snapshot mutations (slot/consumable consumption from
@@ -184,12 +202,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     ...resolution.action,
     payload: {
       ...resolution.action.payload,
-      ...(killedIndex >= 0
+      ...(killLogs.length > 0
         ? {
-            killed_monster_index: killedIndex,
-            killed_monster_name: monstersBefore[killedIndex].name,
-            xp_awarded: xpPerPlayer,
-            loot: lootForLog,
+            // Keep the single-kill fields populated for backwards
+            // compatibility (recap panels reading killed_monster_name
+            // / xp_awarded / loot still work for solo target hits);
+            // AoE-aware code reads `kills` for the full list.
+            killed_monster_index: killLogs[0].index,
+            killed_monster_name: killLogs[0].name,
+            xp_awarded: xpPerPlayerTotal,
+            loot: killLogs[0].loot,
+            kills: killLogs.map((k) => ({
+              monster_index: k.index,
+              monster_name: k.name,
+              xp_awarded: k.xpPerPlayer,
+              loot: k.loot,
+            })),
           }
         : {}),
     },

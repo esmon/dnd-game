@@ -28,6 +28,12 @@ export type Spell = {
   damage: string;
   damageType: string;
   school: string;
+  // True for area-of-effect spells (Fireball, Burning Hands, etc.).
+  // The coop resolver applies the rolled damage to every alive
+  // monster (with per-monster resistance multipliers) instead of
+  // requiring a target selection. Older snapshots may be missing
+  // this field; treat undefined as false.
+  aoe?: boolean;
 };
 
 export type Scroll = {

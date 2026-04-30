@@ -7,6 +7,11 @@ export type SpellDef = {
   damage: string;
   damageType: string;
   school: string;
+  // Area-of-effect spells fan damage out across all alive monsters
+  // when cast in coop, no target pick required. We don't model 5e
+  // saving throws yet — full damage applies, modulated by each
+  // monster's per-type resistance multiplier.
+  aoe?: boolean;
 };
 
 // SRD damage spells. We flatten multi-roll spells (Magic Missile, Scorching
@@ -22,34 +27,35 @@ export const SPELLS: readonly SpellDef[] = [
   { baseId: "toll-the-dead", name: "Toll the Dead", level: 0, damage: "1d8", damageType: "necrotic", school: "necromancy" },
 
   { baseId: "magic-missile", name: "Magic Missile", level: 1, damage: "3d4+3", damageType: "force", school: "evocation" },
-  { baseId: "burning-hands", name: "Burning Hands", level: 1, damage: "3d6", damageType: "fire", school: "evocation" },
+  { baseId: "burning-hands", name: "Burning Hands", level: 1, damage: "3d6", damageType: "fire", school: "evocation", aoe: true },
   { baseId: "guiding-bolt", name: "Guiding Bolt", level: 1, damage: "4d6", damageType: "radiant", school: "evocation" },
   { baseId: "inflict-wounds", name: "Inflict Wounds", level: 1, damage: "3d10", damageType: "necrotic", school: "necromancy" },
   { baseId: "witch-bolt", name: "Witch Bolt", level: 1, damage: "1d12", damageType: "lightning", school: "evocation" },
+  { baseId: "thunderwave", name: "Thunderwave", level: 1, damage: "2d8", damageType: "thunder", school: "evocation", aoe: true },
 
   { baseId: "scorching-ray", name: "Scorching Ray", level: 2, damage: "6d6", damageType: "fire", school: "evocation" },
-  { baseId: "shatter", name: "Shatter", level: 2, damage: "3d8", damageType: "thunder", school: "evocation" },
+  { baseId: "shatter", name: "Shatter", level: 2, damage: "3d8", damageType: "thunder", school: "evocation", aoe: true },
   { baseId: "flaming-sphere", name: "Flaming Sphere", level: 2, damage: "2d6", damageType: "fire", school: "conjuration" },
 
-  { baseId: "fireball", name: "Fireball", level: 3, damage: "8d6", damageType: "fire", school: "evocation" },
-  { baseId: "lightning-bolt", name: "Lightning Bolt", level: 3, damage: "8d6", damageType: "lightning", school: "evocation" },
+  { baseId: "fireball", name: "Fireball", level: 3, damage: "8d6", damageType: "fire", school: "evocation", aoe: true },
+  { baseId: "lightning-bolt", name: "Lightning Bolt", level: 3, damage: "8d6", damageType: "lightning", school: "evocation", aoe: true },
 
-  { baseId: "ice-storm", name: "Ice Storm", level: 4, damage: "4d6", damageType: "cold", school: "evocation" },
+  { baseId: "ice-storm", name: "Ice Storm", level: 4, damage: "4d6", damageType: "cold", school: "evocation", aoe: true },
 
-  { baseId: "cone-of-cold", name: "Cone of Cold", level: 5, damage: "8d8", damageType: "cold", school: "evocation" },
-  { baseId: "flame-strike", name: "Flame Strike", level: 5, damage: "4d6", damageType: "fire", school: "evocation" },
+  { baseId: "cone-of-cold", name: "Cone of Cold", level: 5, damage: "8d8", damageType: "cold", school: "evocation", aoe: true },
+  { baseId: "flame-strike", name: "Flame Strike", level: 5, damage: "4d6", damageType: "fire", school: "evocation", aoe: true },
 
   { baseId: "disintegrate", name: "Disintegrate", level: 6, damage: "10d6+40", damageType: "force", school: "transmutation" },
-  { baseId: "chain-lightning", name: "Chain Lightning", level: 6, damage: "10d8", damageType: "lightning", school: "evocation" },
+  { baseId: "chain-lightning", name: "Chain Lightning", level: 6, damage: "10d8", damageType: "lightning", school: "evocation", aoe: true },
 
   { baseId: "finger-of-death", name: "Finger of Death", level: 7, damage: "7d8+30", damageType: "necrotic", school: "necromancy" },
-  { baseId: "delayed-blast-fireball", name: "Delayed Blast Fireball", level: 7, damage: "12d6", damageType: "fire", school: "evocation" },
+  { baseId: "delayed-blast-fireball", name: "Delayed Blast Fireball", level: 7, damage: "12d6", damageType: "fire", school: "evocation", aoe: true },
 
-  { baseId: "sunburst", name: "Sunburst", level: 8, damage: "12d6", damageType: "radiant", school: "evocation" },
-  { baseId: "incendiary-cloud", name: "Incendiary Cloud", level: 8, damage: "10d8", damageType: "fire", school: "conjuration" },
+  { baseId: "sunburst", name: "Sunburst", level: 8, damage: "12d6", damageType: "radiant", school: "evocation", aoe: true },
+  { baseId: "incendiary-cloud", name: "Incendiary Cloud", level: 8, damage: "10d8", damageType: "fire", school: "conjuration", aoe: true },
 
-  { baseId: "meteor-swarm", name: "Meteor Swarm", level: 9, damage: "40d6", damageType: "fire", school: "evocation" },
-  { baseId: "psychic-scream", name: "Psychic Scream", level: 9, damage: "14d6", damageType: "psychic", school: "enchantment" },
+  { baseId: "meteor-swarm", name: "Meteor Swarm", level: 9, damage: "40d6", damageType: "fire", school: "evocation", aoe: true },
+  { baseId: "psychic-scream", name: "Psychic Scream", level: 9, damage: "14d6", damageType: "psychic", school: "enchantment", aoe: true },
 ];
 
 export const spellsByBaseId: Record<string, SpellDef> = SPELLS.reduce(
@@ -69,6 +75,7 @@ export function mintSpell(def: SpellDef): Spell {
     damage: def.damage,
     damageType: def.damageType,
     school: def.school,
+    aoe: def.aoe,
   };
 }
 

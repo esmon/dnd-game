@@ -226,6 +226,92 @@ export function resolveSpell(
   if (!spell) {
     return { ok: false, status: 400, error: "spell not found / not equipped" };
   }
+
+  // AoE spells: skip the target index check, hit every alive monster
+  // with one damage roll, then apply each monster's per-type
+  // resistance multiplier so a fire-immune monster takes 0 from
+  // Fireball even when the rest of the room melts.
+  if (spell.aoe) {
+    const aliveIndices = monsters
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => m.health > 0);
+    if (aliveIndices.length === 0) {
+      return { ok: false, status: 409, error: "no living targets" };
+    }
+
+    let snapshot = player.character_snapshot;
+    if (spell.level > 0) {
+      const remaining = snapshot.spell_slots[String(spell.level)] ?? 0;
+      if (remaining <= 0) {
+        return {
+          ok: false,
+          status: 409,
+          error: `out of L${spell.level} spell slots`,
+        };
+      }
+      snapshot = {
+        ...snapshot,
+        spell_slots: {
+          ...snapshot.spell_slots,
+          [String(spell.level)]: remaining - 1,
+        },
+      };
+    }
+
+    // Roll once; every monster takes the same raw damage modulated
+    // by their resistance (per 5e RAW each target rolls a save, but
+    // we're skipping saves for now — full damage as the simple MVP).
+    const raw = rollDice(spell.damage);
+    const targets = aliveIndices.map(({ m, i }) => {
+      const mult = damageMultiplier(
+        spell.damageType,
+        m.damageResistances,
+        m.damageImmunities,
+        m.damageVulnerabilities,
+      );
+      const dmg = applyDamageMultiplier(raw, mult);
+      return {
+        monster_index: i,
+        name: m.name,
+        damage: dmg,
+        note: mult.label,
+      };
+    });
+
+    const damageByIndex = new Map<number, number>();
+    for (const t of targets) damageByIndex.set(t.monster_index, t.damage);
+    const newMonsters = monsters.map((mon, i) => {
+      const dmg = damageByIndex.get(i);
+      if (dmg === undefined) return mon;
+      return { ...mon, health: Math.max(0, mon.health - dmg) };
+    });
+
+    return {
+      ok: true,
+      action: {
+        actor_kind: "player",
+        actor_player_id: player.id,
+        // Stamp the first hit on the column so existing single-target
+        // consumers still see *something* sensible; AoE-aware code
+        // walks payload.targets for the full picture.
+        target_kind: "monster",
+        target_player_id: null,
+        target_monster_index: targets[0].monster_index,
+        kind: "spell",
+        payload: {
+          actor_name: snapshot.name,
+          spell_name: spell.name,
+          spell_level: spell.level,
+          damage_type: spell.damageType,
+          aoe: true,
+          targets,
+        },
+      },
+      monsters: newMonsters,
+      snapshotPatch: snapshot,
+    };
+  }
+
   if (
     body.targetMonsterIndex < 0 ||
     body.targetMonsterIndex >= monsters.length

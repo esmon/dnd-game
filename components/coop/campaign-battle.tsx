@@ -107,16 +107,55 @@ const ACTION_REVEAL_MS = 700;
 // again. Deriving from actions sidesteps the race entirely: the bar
 // only reflects what's been displayed, regardless of server-side
 // inconsistency between action log and HP rows.
+// Walk the action log for damage events landing on a specific
+// monster index. Handles both single-target hits (target_monster_index
+// column) and AoE hits (payload.targets array). Returned in
+// chronological order so callers can read "latest hit" off the end.
+function collectMonsterHits(
+  actions: CampaignAction[],
+  index: number,
+): Array<{ action: CampaignAction; damage: number }> {
+  const hits: Array<{ action: CampaignAction; damage: number }> = [];
+  for (const a of actions) {
+    const payload = a.payload as Record<string, unknown>;
+    const targets = payload.targets;
+    if (Array.isArray(targets)) {
+      for (const t of targets as Array<Record<string, unknown>>) {
+        if (Number(t.monster_index) === index) {
+          hits.push({ action: a, damage: Number(t.damage ?? 0) });
+        }
+      }
+      continue;
+    }
+    if (a.target_kind === "monster" && a.target_monster_index === index) {
+      hits.push({ action: a, damage: Number(payload.damage ?? 0) });
+    }
+  }
+  return hits;
+}
+
 function deriveDisplayedMonsters(
   monsters: Monster[],
   displayedActions: CampaignAction[],
 ): Monster[] {
   const damageByIndex = new Map<number, number>();
   for (const a of displayedActions) {
+    const payload = a.payload as Record<string, unknown>;
+    // AoE actions land damage on multiple monsters via payload.targets;
+    // single-target actions use the column + payload.damage.
+    const targets = payload.targets;
+    if (Array.isArray(targets)) {
+      for (const t of targets as Array<Record<string, unknown>>) {
+        const idx = Number(t.monster_index);
+        const damage = Number(t.damage ?? 0);
+        if (Number.isFinite(idx) && damage > 0) {
+          damageByIndex.set(idx, (damageByIndex.get(idx) ?? 0) + damage);
+        }
+      }
+      continue;
+    }
     if (a.target_kind !== "monster" || a.target_monster_index == null) continue;
-    const damage = Number(
-      (a.payload as Record<string, unknown>).damage ?? 0,
-    );
+    const damage = Number(payload.damage ?? 0);
     if (damage <= 0) continue;
     damageByIndex.set(
       a.target_monster_index,
@@ -451,6 +490,9 @@ export function CampaignBattle({
               submitting,
               selectedMonster: displayedMonsters[selectedMonsterIndex] ?? null,
               selectedMonsterIndex,
+              hasAnyLivingMonster: displayedMonsters.some(
+                (m) => m.health > 0,
+              ),
               submit,
             })}
           />
@@ -485,6 +527,7 @@ function buildCommands({
   submitting,
   selectedMonster,
   selectedMonsterIndex,
+  hasAnyLivingMonster,
   submit,
 }: {
   viewerPlayer: CampaignPlayer | null;
@@ -492,6 +535,7 @@ function buildCommands({
   submitting: boolean;
   selectedMonster: Monster | null;
   selectedMonsterIndex: number;
+  hasAnyLivingMonster: boolean;
   submit: (body: object) => void;
 }): CommandItem[] {
   // Spectator (not a member of this campaign) — shouldn't normally
@@ -543,7 +587,9 @@ function buildCommands({
   }
 
   // Equipped spells. Cantrips (level 0) are free; higher levels need
-  // an available slot.
+  // an available slot. AoE spells skip the per-target gating — they
+  // hit every alive monster in one cast, so they only need *any*
+  // living target on the board.
   for (const spell of snap.equipped_spells) {
     const slotsLeft =
       spell.level === 0
@@ -552,11 +598,17 @@ function buildCommands({
     const slotInfo =
       spell.level === 0 ? "cantrip" : `L${spell.level} · ${slotsLeft}`;
     const outOfSlots = spell.level > 0 && slotsLeft <= 0;
+    const aoeReason = spell.aoe
+      ? hasAnyLivingMonster
+        ? null
+        : "No living targets"
+      : targetReason;
+    const labelSuffix = spell.aoe ? " (AoE)" : "";
     commands.push({
       key: `spell:${spell.id}`,
       kind: "spell",
       icon: SparklesIcon,
-      label: spell.name,
+      label: spell.name + labelSuffix,
       subtitle: `${spell.damage} · ${slotInfo}`,
       onClick: () =>
         submit({
@@ -564,10 +616,10 @@ function buildCommands({
           spellId: spell.id,
           targetMonsterIndex: selectedMonsterIndex,
         }),
-      disabled: baseDisabled || outOfSlots || !!targetReason,
+      disabled: baseDisabled || outOfSlots || !!aoeReason,
       disabledReason:
         turnReason ??
-        (outOfSlots ? `Out of L${spell.level} spell slots` : targetReason),
+        (outOfSlots ? `Out of L${spell.level} spell slots` : aoeReason),
     });
   }
 
@@ -788,14 +840,11 @@ function MonsterButton({
   onSelect: (index: number) => void;
 }) {
   const dead = monster.health <= 0;
-  const hits = actions.filter(
-    (a) => a.target_kind === "monster" && a.target_monster_index === index,
-  );
-  const lastDamage = hits.length
-    ? Number(
-        (hits[hits.length - 1].payload as Record<string, unknown>).damage ?? 0,
-      )
-    : 0;
+  // Include both single-target hits (column-targeted) and AoE hits
+  // (payload.targets array). AoE shakes need to fire for every monster
+  // a Fireball lands on, not just the first one stamped on the row.
+  const hits = collectMonsterHits(actions, index);
+  const lastDamage = hits.length ? hits[hits.length - 1].damage : 0;
   const ref = useShakeOnNonce<HTMLButtonElement>(
     hits.length,
     shakeIntensity(lastDamage, monster.maxHealth),
@@ -968,8 +1017,15 @@ function actionToTurn(
           : `${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
       }
       break;
-    case "spell":
-      if (missed) {
+    case "spell": {
+      const targets = payload.targets;
+      if (Array.isArray(targets) && targets.length > 0) {
+        // AoE — summarize all hits in one log line.
+        const summary = (targets as Array<Record<string, unknown>>)
+          .map((t) => `${t.name} (${t.damage}hp)`)
+          .join(", ");
+        text = `${actorName} casts ${spellName}${typeSuffix} — ${summary}`;
+      } else if (missed) {
         text = `${actorName} casts ${spellName} at ${targetName} — MISS (d20 ${payload.d20})`;
       } else {
         text = crit
@@ -977,6 +1033,7 @@ function actionToTurn(
           : `${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
       }
       break;
+    }
     case "scroll":
       if (missed) {
         text = `${actorName} reads Scroll of ${spellName} at ${targetName} — MISS (d20 ${payload.d20})`;
