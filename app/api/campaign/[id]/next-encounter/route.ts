@@ -101,6 +101,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       turn_pointer: 0,
       initiative_order: initiativeOrder,
       encounter_number: nextEncounterNumber,
+      current_difficulty: spec.difficulty,
     })
     .eq("id", campaignId);
 

@@ -373,12 +373,37 @@ export function CampaignBattle({
     actionToTurn(a, displayedPlayers),
   );
 
+  // "Encounter 2 · Hard" header so the table knows which fight it's
+  // in and what kind of trouble was rolled. Color-codes by difficulty
+  // so a quick glance signals the threat level.
+  const difficultyColor =
+    campaign.current_difficulty === "deadly"
+      ? "text-rose-600"
+      : campaign.current_difficulty === "hard"
+        ? "text-amber-600"
+        : campaign.current_difficulty === "medium"
+          ? "text-foreground"
+          : "text-muted-foreground";
+
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-6">
       <div className="flex w-full max-w-5xl flex-col gap-6">
-        <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl">
-          {turnDescription}
-        </h1>
+        <div className="flex flex-col items-center gap-1">
+          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            Encounter {campaign.encounter_number}
+            {campaign.current_difficulty ? (
+              <>
+                {" · "}
+                <span className={cn("font-bold", difficultyColor)}>
+                  {campaign.current_difficulty}
+                </span>
+              </>
+            ) : null}
+          </p>
+          <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl">
+            {turnDescription}
+          </h1>
+        </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <PartyRow

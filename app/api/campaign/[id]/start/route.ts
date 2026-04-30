@@ -110,6 +110,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       monsters,
       turn_pointer: 0,
       initiative_order: initiativeOrder,
+      current_difficulty: spec.difficulty,
     })
     .eq("id", campaignId);
 

@@ -34,6 +34,10 @@ export interface Campaign {
   // finished, when status === "between_encounters"). Increments
   // when /next-encounter is called.
   encounter_number: number;
+  // Rolled difficulty tier for the current/last encounter, surfaced
+  // in the battle UI. Null on pre-M10 active rows (the column was
+  // added later) — UI just hides the badge in that case.
+  current_difficulty: "easy" | "medium" | "hard" | "deadly" | null;
   created_at: string;
   updated_at: string;
 }
