@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import { HealthBar } from "@/components/game/health-bar";
+import { PanelLabel } from "@/components/game/panel-label";
 import { StatRow } from "@/components/game/stat-row";
 import { formatDrvi } from "@/lib/dnd/combat";
 import { shakeIntensity, useShakeOnNonce } from "@/lib/use-shake-on-nonce";
@@ -37,8 +38,9 @@ export function MonsterCard({
   return (
     <div
       ref={shakeRef}
-      className="flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono"
+      className="relative flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono"
     >
+      <PanelLabel>Monster</PanelLabel>
       <p className="mb-2 truncate text-center text-sm font-bold uppercase tracking-widest">
         {monster.name}
       </p>

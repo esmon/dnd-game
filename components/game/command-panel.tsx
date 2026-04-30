@@ -4,6 +4,7 @@ import {
   CommandButton,
   type CommandButtonProps,
 } from "@/components/game/command-button";
+import { PanelLabel } from "@/components/game/panel-label";
 import { cn } from "@/lib/utils";
 
 // A CommandPanel item is either a CommandButton descriptor or a pre-built
@@ -23,13 +24,11 @@ export function CommandPanel({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3",
+        "relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3",
         className,
       )}
     >
-      <p className="text-center font-mono text-sm font-bold uppercase tracking-widest">
-        Command
-      </p>
+      <PanelLabel>Command</PanelLabel>
       {commands.map((item) => {
         if ("render" in item) {
           return <Fragment key={item.key}>{item.render}</Fragment>;

@@ -1,5 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { PanelLabel } from "@/components/game/panel-label";
 import { TurnLine } from "@/components/game/turn-line";
 import { cn } from "@/lib/utils";
 import type { Turn } from "@/lib/game/types";
@@ -23,10 +24,11 @@ export function MobileCombatLog({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 md:hidden",
+        "relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 md:hidden",
         className,
       )}
     >
+      <PanelLabel>Logs</PanelLabel>
       {turns.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
           The arena is silent... for now.

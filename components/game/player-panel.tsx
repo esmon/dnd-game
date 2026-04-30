@@ -1,4 +1,5 @@
 import { HealthBar } from "@/components/game/health-bar";
+import { PanelLabel } from "@/components/game/panel-label";
 import { StatRow } from "@/components/game/stat-row";
 import { findClass } from "@/lib/dnd/classes";
 import { formatDrvi, playerAC } from "@/lib/dnd/combat";
@@ -51,10 +52,11 @@ export function PlayerPanel({
     <div
       ref={shakeRef}
       className={cn(
-        "flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono",
+        "relative flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono",
         className,
       )}
     >
+      <PanelLabel>Player</PanelLabel>
       <p className="truncate text-center text-sm font-bold uppercase tracking-widest">
         {player.name}
       </p>
