@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer } from "react";
+import { useEffect, useReducer } from "react";
 
 import {
   FlagIcon,
@@ -36,25 +36,36 @@ import type {
 
 // Local UI state for the battle screen. Everything authoritative lives
 // on the server; the reducer just tracks the bits that don't round-trip
-// (the user's clicked monster, in-flight submit state, last error).
+// (the user's clicked monster, in-flight submit state, last error,
+// and a paced cursor over the action log so monster counter-attacks
+// don't all flash in at once when polling sees them together).
 interface BattleState {
   selectedMonsterIndex: number;
   submitting: boolean;
   actionError: string | null;
+  displayedActionCount: number;
 }
 
 type BattleAction =
   | { type: "SELECT_MONSTER"; index: number }
   | { type: "SUBMIT_START" }
   | { type: "SUBMIT_DONE" }
-  | { type: "SUBMIT_ERROR"; message: string };
+  | { type: "SUBMIT_ERROR"; message: string }
+  | { type: "REVEAL_NEXT_ACTION" };
 
-function initBattleState(campaign: Campaign): BattleState {
+function initBattleState(
+  campaign: Campaign,
+  initialActionCount: number,
+): BattleState {
   const firstAlive = campaign.monsters.findIndex((m) => m.health > 0);
   return {
     selectedMonsterIndex: firstAlive >= 0 ? firstAlive : 0,
     submitting: false,
     actionError: null,
+    // Mid-fight reload shouldn't replay every past turn — only NEW
+    // actions (those that arrive while this component is mounted) get
+    // paced.
+    displayedActionCount: initialActionCount,
   };
 }
 
@@ -68,7 +79,90 @@ function battleReducer(state: BattleState, action: BattleAction): BattleState {
       return { ...state, submitting: false };
     case "SUBMIT_ERROR":
       return { ...state, submitting: false, actionError: action.message };
+    case "REVEAL_NEXT_ACTION":
+      return {
+        ...state,
+        displayedActionCount: state.displayedActionCount + 1,
+      };
   }
+}
+
+// Solo paces monster swings with a setTimeout in the reducer; coop
+// can't do that without splitting the action route, so the same beat
+// happens on the client by holding back un-displayed actions. ~700ms
+// per reveal feels close to solo's 1s monster suspense without making
+// long monster chains drag.
+const ACTION_REVEAL_MS = 700;
+
+// "Rewind" the server's authoritative monster HP back to the state
+// before each pending (un-displayed) attack landed. Order doesn't
+// matter — adding back damage is commutative — so we just sum the
+// per-monster damage from pending actions and cap at maxHealth.
+function rewindMonsters(
+  monsters: Monster[],
+  pendingActions: CampaignAction[],
+): Monster[] {
+  const damageByIndex = new Map<number, number>();
+  for (const a of pendingActions) {
+    if (a.target_kind !== "monster" || a.target_monster_index == null) continue;
+    const damage = Number(
+      (a.payload as Record<string, unknown>).damage ?? 0,
+    );
+    if (damage <= 0) continue;
+    damageByIndex.set(
+      a.target_monster_index,
+      (damageByIndex.get(a.target_monster_index) ?? 0) + damage,
+    );
+  }
+  if (damageByIndex.size === 0) return monsters;
+  return monsters.map((m, i) => {
+    const back = damageByIndex.get(i) ?? 0;
+    if (back === 0) return m;
+    return { ...m, health: Math.min(m.maxHealth, m.health + back) };
+  });
+}
+
+// Same idea for player HP — reverse damage from incoming attacks and
+// reverse heals/potions, so each player's bar drops in step with the
+// log line that explains it.
+function rewindPlayers(
+  players: CampaignPlayer[],
+  pendingActions: CampaignAction[],
+): CampaignPlayer[] {
+  const deltaByPlayer = new Map<string, number>();
+  for (const a of pendingActions) {
+    if (a.target_kind !== "player" || a.target_player_id == null) continue;
+    const payload = a.payload as Record<string, unknown>;
+    if (a.kind === "attack") {
+      const damage = Number(payload.damage ?? 0);
+      if (damage > 0) {
+        deltaByPlayer.set(
+          a.target_player_id,
+          (deltaByPlayer.get(a.target_player_id) ?? 0) + damage,
+        );
+      }
+    } else if (a.kind === "heal" || a.kind === "potion") {
+      const amount = Number(payload.amount ?? 0);
+      if (amount > 0) {
+        deltaByPlayer.set(
+          a.target_player_id,
+          (deltaByPlayer.get(a.target_player_id) ?? 0) - amount,
+        );
+      }
+    }
+  }
+  if (deltaByPlayer.size === 0) return players;
+  return players.map((p) => {
+    const delta = deltaByPlayer.get(p.id) ?? 0;
+    if (delta === 0) return p;
+    return {
+      ...p,
+      current_hp: Math.max(
+        0,
+        Math.min(p.character_snapshot.max_hp, p.current_hp + delta),
+      ),
+    };
+  });
 }
 
 // If the user's last-clicked monster has died, fall through to the
@@ -104,9 +198,31 @@ export function CampaignBattle({
   onActionComplete: () => void;
 }) {
   const [state, dispatch] = useReducer(battleReducer, undefined, () =>
-    initBattleState(campaign),
+    initBattleState(campaign, actions.length),
   );
   const { submitting, actionError } = state;
+
+  // Pace incoming actions: when polling brings new rows, reveal them
+  // one at a time on a timer so the action log, shake animations, and
+  // HP bars all step forward together — same beat solo gets from its
+  // setTimeout-driven monster swing.
+  const displayedCount = Math.min(state.displayedActionCount, actions.length);
+  useEffect(() => {
+    if (displayedCount >= actions.length) return;
+    const timer = setTimeout(() => {
+      dispatch({ type: "REVEAL_NEXT_ACTION" });
+    }, ACTION_REVEAL_MS);
+    return () => clearTimeout(timer);
+  }, [displayedCount, actions.length]);
+
+  // Slice the action log at the displayed cursor, then rewind the
+  // server's authoritative monsters/players state to the moment before
+  // the un-displayed actions landed. UI children consume only the
+  // displayed slice, so bars + shakes + log lines all advance in sync.
+  const displayedActions = actions.slice(0, displayedCount);
+  const pendingActions = actions.slice(displayedCount);
+  const displayedMonsters = rewindMonsters(campaign.monsters, pendingActions);
+  const displayedPlayers = rewindPlayers(players, pendingActions);
 
   // Effective target: the user's last-clicked monster if it's still
   // alive, otherwise auto-fall-through to the first living monster.
@@ -114,7 +230,7 @@ export function CampaignBattle({
   // setState-during-render footgun, and click intent is preserved.
   const selectedMonsterIndex = effectiveSelectedIndex(
     state.selectedMonsterIndex,
-    campaign.monsters,
+    displayedMonsters,
   );
 
   const currentSlot = nextAliveSlot(
@@ -126,7 +242,21 @@ export function CampaignBattle({
     currentSlot?.slot.kind === "player" &&
     players[currentSlot.slot.index]?.user_id === userId;
 
+  // While there are still un-displayed actions in flight, the action
+  // log narrates whose move the audience is currently watching — feels
+  // weirder to flash "Your turn" before the monster's swing has even
+  // animated in.
   const turnDescription = (() => {
+    if (pendingActions.length > 0) {
+      const next = pendingActions[0];
+      const actorName =
+        (next.payload as Record<string, unknown>).actor_name as string ?? "";
+      if (next.actor_kind === "monster") return `${actorName}'s turn`;
+      return next.actor_player_id ===
+        players.find((p) => p.user_id === userId)?.id
+        ? "Your turn"
+        : `${actorName}'s turn`;
+    }
     if (!currentSlot) return "Turn over.";
     if (currentSlot.slot.kind === "monster") {
       const m = campaign.monsters[currentSlot.slot.index];
@@ -197,7 +327,11 @@ export function CampaignBattle({
 
   // Map server-side campaign_actions → the existing TurnLine shape so we
   // can reuse the solo log styling (color by kind, crit highlight).
-  const turns: Turn[] = actions.map((a) => actionToTurn(a, players));
+  // Only the displayed slice — pending actions appear as their reveal
+  // timer fires.
+  const turns: Turn[] = displayedActions.map((a) =>
+    actionToTurn(a, displayedPlayers),
+  );
 
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-6">
@@ -208,8 +342,8 @@ export function CampaignBattle({
 
         <div className="grid gap-4 md:grid-cols-2">
           <PartyRow
-            players={players}
-            actions={actions}
+            players={displayedPlayers}
+            actions={displayedActions}
             currentTurnUserId={
               currentSlot?.slot.kind === "player"
                 ? players[currentSlot.slot.index]?.user_id
@@ -218,8 +352,8 @@ export function CampaignBattle({
             myUserId={userId}
           />
           <MonsterRow
-            monsters={campaign.monsters}
-            actions={actions}
+            monsters={displayedMonsters}
+            actions={displayedActions}
             selectedIndex={selectedMonsterIndex}
             onSelect={(index) => dispatch({ type: "SELECT_MONSTER", index })}
             currentTurnMonsterIndex={
@@ -234,10 +368,11 @@ export function CampaignBattle({
           <CombatLogPanel turns={turns} />
           <CommandPanel
             commands={buildCommands({
-              viewerPlayer: players.find((p) => p.user_id === userId) ?? null,
-              isMyTurn,
+              viewerPlayer:
+                displayedPlayers.find((p) => p.user_id === userId) ?? null,
+              isMyTurn: isMyTurn && pendingActions.length === 0,
               submitting,
-              selectedMonster: campaign.monsters[selectedMonsterIndex] ?? null,
+              selectedMonster: displayedMonsters[selectedMonsterIndex] ?? null,
               selectedMonsterIndex,
               submit,
             })}
