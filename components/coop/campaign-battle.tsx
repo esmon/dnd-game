@@ -168,10 +168,7 @@ export function CampaignBattle({
           <CombatLogPanel turns={turns} />
           <CommandPanel
             commands={buildCommands({
-              actingPlayer:
-                currentSlot?.slot.kind === "player"
-                  ? players[currentSlot.slot.index]
-                  : null,
+              viewerPlayer: players.find((p) => p.user_id === userId) ?? null,
               isMyTurn,
               submitting,
               selectedMonster: campaign.monsters[selectedMonsterIndex] ?? null,
@@ -197,29 +194,32 @@ export function CampaignBattle({
   );
 }
 
-// Build the per-turn command list for the acting player. Mirrors the
-// solo Command panel in spirit: weapons → smite (TODO) → spells →
-// scrolls → heal → potions → skip. Disabled state surfaces a reason
-// (not your turn / out of slots / out of consumables / etc.) for the
-// existing DisabledTip plumbing.
+// Build the command list for the *viewer* — i.e. the signed-in user
+// looking at the screen, not whoever's turn it currently is. Mirrors
+// the solo Command panel: weapons → smite (TODO) → spells → scrolls →
+// heal → potions → skip. Disabled state surfaces a reason (not your
+// turn / out of slots / out of consumables / etc.); the panel always
+// shows your own kit so it doesn't flicker between players' loadouts
+// each round.
 function buildCommands({
-  actingPlayer,
+  viewerPlayer,
   isMyTurn,
   submitting,
   selectedMonster,
   selectedMonsterIndex,
   submit,
 }: {
-  actingPlayer: CampaignPlayer | null;
+  viewerPlayer: CampaignPlayer | null;
   isMyTurn: boolean;
   submitting: boolean;
   selectedMonster: Monster | null;
   selectedMonsterIndex: number;
   submit: (body: object) => void;
 }): CommandItem[] {
-  // Show disabled-but-readable buttons for the watcher; the panel
-  // would feel dead empty otherwise. The acting player drives the UI.
-  if (!actingPlayer) {
+  // Spectator (not a member of this campaign) — shouldn't normally
+  // happen since the page gates on membership, but render a stub so
+  // the panel isn't empty if it does.
+  if (!viewerPlayer) {
     return [
       {
         key: "skip",
@@ -227,12 +227,12 @@ function buildCommands({
         icon: FootprintsIcon,
         label: "Skip Turn",
         disabled: true,
-        disabledReason: "Wait for your turn",
+        disabledReason: "Spectating",
       },
     ];
   }
 
-  const snap = actingPlayer.character_snapshot;
+  const snap = viewerPlayer.character_snapshot;
   const klass = findClass(snap.class);
   const targetReason = !selectedMonster
     ? "No target selected"
@@ -323,7 +323,7 @@ function buildCommands({
       ? findLowestSlot(snap.spell_slots)
       : undefined;
     const outOfSlots = !!klass.healCostsSlot && !lowestSlot;
-    const fullHp = actingPlayer.current_hp >= snap.max_hp;
+    const fullHp = viewerPlayer.current_hp >= snap.max_hp;
     const reason = underMinLevel
       ? `Available at level ${minLevel}`
       : outOfSlots
@@ -347,7 +347,7 @@ function buildCommands({
     (c): c is Potion => c.kind === "potion",
   );
   for (const potion of potions) {
-    const fullHp = actingPlayer.current_hp >= snap.max_hp;
+    const fullHp = viewerPlayer.current_hp >= snap.max_hp;
     commands.push({
       key: `potion:${potion.id}`,
       kind: "potion",
