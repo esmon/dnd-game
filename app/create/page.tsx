@@ -256,7 +256,8 @@ export default function CreatePage() {
             >
               Sign in
             </Link>{" "}
-            to keep multiple characters and access them from any device.
+            to keep multiple characters, access them from any device, and play
+            co-op campaigns with friends.
           </div>
         ) : null}
         <Card className="w-full overflow-visible">
