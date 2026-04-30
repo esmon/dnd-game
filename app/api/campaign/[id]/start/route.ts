@@ -80,6 +80,19 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  // Every non-creator player must explicitly ready up. The creator's
+  // own ready flag is implicit — clicking Start is the signal — so we
+  // skip it in this check.
+  const notReady = players.filter(
+    (p) => p.user_id !== campaign.created_by && !p.is_ready,
+  );
+  if (notReady.length > 0) {
+    return NextResponse.json(
+      { error: "waiting on other players to ready up" },
+      { status: 409 },
+    );
+  }
+
   // Roll a 5e-style encounter spec: random difficulty (weighted toward
   // medium), random monster count (weighted toward 1–2), and a target
   // CR derived from the party's adjusted XP budget. See

@@ -190,6 +190,7 @@ export default function CampaignLobbyPage({
 
 function Lobby({
   campaignId,
+  campaign,
   players,
   userId,
   isCreator,
@@ -208,6 +209,7 @@ function Lobby({
   const [startError, setStartError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [togglingReady, setTogglingReady] = useState(false);
 
   const inviteUrl =
     typeof window !== "undefined"
@@ -215,7 +217,11 @@ function Lobby({
       : "";
 
   const slotsFilled = players.length;
-  const canStart = isCreator && slotsFilled >= 2;
+  const myPlayer = players.find((p) => p.user_id === userId);
+  const allJoinersReady = players
+    .filter((p) => p.user_id !== campaign.created_by)
+    .every((p) => p.is_ready);
+  const canStart = isCreator && slotsFilled >= 2 && allJoinersReady;
 
   async function copyInvite() {
     try {
@@ -225,6 +231,28 @@ function Lobby({
     } catch {
       // Older browsers / iframe contexts may block clipboard. The
       // input below is selectable as a fallback.
+    }
+  }
+
+  async function toggleReady() {
+    if (!myPlayer) return;
+    setTogglingReady(true);
+    try {
+      const res = await fetch(`/api/campaign/${campaignId}/player`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ready: !myPlayer.is_ready }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("toggle ready failed", res.status, text);
+        return;
+      }
+      onChanged();
+    } catch (err) {
+      console.error("toggle ready threw", err);
+    } finally {
+      setTogglingReady(false);
     }
   }
 
@@ -295,6 +323,11 @@ function Lobby({
                           (You)
                         </span>
                       ) : null}
+                      {p.user_id !== campaign.created_by && p.is_ready ? (
+                        <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] uppercase tracking-widest text-emerald-700">
+                          Ready
+                        </span>
+                      ) : null}
                     </span>
                     <span className="text-xs uppercase tracking-widest text-muted-foreground">
                       {p.character_snapshot.race} ·{" "}
@@ -333,11 +366,15 @@ function Lobby({
             >
               {starting ? "Starting…" : "Start Campaign"}
             </Button>
-            {!canStart ? (
+            {slotsFilled < MAX_PLAYERS ? (
               <p className="text-center text-xs text-muted-foreground">
                 Need {MAX_PLAYERS - slotsFilled} more player
                 {MAX_PLAYERS - slotsFilled === 1 ? "" : "s"} before you can
                 start.
+              </p>
+            ) : !allJoinersReady ? (
+              <p className="text-center text-xs text-muted-foreground">
+                Waiting for other players to ready up…
               </p>
             ) : null}
             {startError ? (
@@ -345,9 +382,28 @@ function Lobby({
             ) : null}
           </div>
         ) : (
-          <p className="text-center text-sm text-muted-foreground">
-            Waiting for the campaign creator to start…
-          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              onClick={toggleReady}
+              disabled={togglingReady || !myPlayer}
+              className={
+                myPlayer?.is_ready
+                  ? "bg-emerald-500 text-white hover:bg-emerald-500/90"
+                  : ""
+              }
+            >
+              {togglingReady
+                ? "Saving…"
+                : myPlayer?.is_ready
+                  ? "Ready ✓ (click to unready)"
+                  : "I'm Ready"}
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              {myPlayer?.is_ready
+                ? "Waiting for the campaign creator to start…"
+                : "Tap ready when you've picked your character."}
+            </p>
+          </div>
         )}
       </div>
       <CharacterPickerDialog

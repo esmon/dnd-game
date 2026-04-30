@@ -29,6 +29,7 @@ export interface CampaignPlayer {
   position: number;
   character_snapshot: Character;
   current_hp: number;
+  is_ready: boolean;
   joined_at: string;
 }
 

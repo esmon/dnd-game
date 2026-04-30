@@ -7,15 +7,20 @@ import type { Campaign } from "@/lib/coop/types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-// PATCH /api/campaign/[id]/player — swaps the caller's character in the
+// PATCH /api/campaign/[id]/player — updates the caller's row in the
 // campaign. Only valid while the campaign is `waiting`; once active,
 // frozen snapshots are load-bearing for combat math and can't be
 // hot-swapped without a more involved migration of in-flight state.
 //
-// Body: { characterId } — must belong to the caller. The new
-// character_snapshot replaces the old one, and current_hp is reset
-// from the character's saved current_hp (so a half-HP character
-// doesn't get a free heal by re-picking themselves).
+// Body (any subset):
+//   - characterId: string — swap to a new character (must belong to the
+//     caller). Snapshot is replaced and current_hp is reset from the
+//     character's saved current_hp so a half-HP character doesn't get a
+//     free heal by re-picking themselves. Changing characters also
+//     resets is_ready to false — picking a new sheet implies you're
+//     reconsidering, so the creator shouldn't be able to start in the
+//     same poll cycle.
+//   - ready: boolean — toggle the ready flag.
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
   const { userId } = await getRequestIdentity(request);
   if (!userId) {
@@ -28,10 +33,13 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   const { id: campaignId } = await ctx.params;
   const body = (await request.json().catch(() => ({}))) as {
     characterId?: string;
+    ready?: boolean;
   };
-  if (typeof body.characterId !== "string" || body.characterId.length === 0) {
+  const wantsCharacterChange = typeof body.characterId === "string" && body.characterId.length > 0;
+  const wantsReadyChange = typeof body.ready === "boolean";
+  if (!wantsCharacterChange && !wantsReadyChange) {
     return NextResponse.json(
-      { error: "missing characterId" },
+      { error: "nothing to update — pass characterId and/or ready" },
       { status: 400 },
     );
   }
@@ -59,37 +67,47 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Validate character ownership before touching the campaign row.
-  const charRes = await supabaseAdmin
-    .from("characters")
-    .select("*")
-    .eq("id", body.characterId)
-    .maybeSingle();
-  if (charRes.error) {
-    return NextResponse.json(
-      { error: charRes.error.message },
-      { status: 500 },
-    );
+  const patch: Record<string, unknown> = {};
+
+  if (wantsCharacterChange) {
+    // Validate character ownership before touching the campaign row.
+    const charRes = await supabaseAdmin
+      .from("characters")
+      .select("*")
+      .eq("id", body.characterId!)
+      .maybeSingle();
+    if (charRes.error) {
+      return NextResponse.json(
+        { error: charRes.error.message },
+        { status: 500 },
+      );
+    }
+    if (!charRes.data) {
+      return NextResponse.json({ error: "character not found" }, { status: 404 });
+    }
+    const character = charRes.data as Character;
+    if (character.user_id !== userId) {
+      return NextResponse.json(
+        { error: "character not owned by caller" },
+        { status: 403 },
+      );
+    }
+    patch.character_snapshot = character;
+    patch.current_hp = character.current_hp;
+    // Re-arming the ready flag on character change keeps the creator
+    // from starting on a stale "ready" if you swap mid-deliberation.
+    patch.is_ready = false;
   }
-  if (!charRes.data) {
-    return NextResponse.json({ error: "character not found" }, { status: 404 });
-  }
-  const character = charRes.data as Character;
-  if (character.user_id !== userId) {
-    return NextResponse.json(
-      { error: "character not owned by caller" },
-      { status: 403 },
-    );
+
+  if (wantsReadyChange) {
+    patch.is_ready = body.ready;
   }
 
   // Caller must already be a member; we're updating their row, not
   // creating one.
   const updateRes = await supabaseAdmin
     .from("campaign_players")
-    .update({
-      character_snapshot: character,
-      current_hp: character.current_hp,
-    })
+    .update(patch)
     .eq("campaign_id", campaignId)
     .eq("user_id", userId)
     .select("id")
@@ -108,5 +126,5 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  return NextResponse.json({ campaignId, characterId: character.id });
+  return NextResponse.json({ campaignId });
 }
