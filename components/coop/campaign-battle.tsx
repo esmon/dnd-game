@@ -253,13 +253,23 @@ export function CampaignBattle({
   onActionComplete: () => void;
   onAllActionsRevealed?: () => void;
 }) {
-  // Init the reveal cursor at the count of *this encounter's* actions,
-  // so a mid-encounter reload doesn't replay every past turn but the
-  // start of a fresh encounter (whose action log within this encounter
-  // is empty) still paces leading monster swings.
-  const initialEncounterCount = actions.filter(
+  // Init the reveal cursor: skip replay of pre-mount actions on a
+  // mid-encounter reload, BUT play out leading monster swings if
+  // initiative put a monster ahead of every player and we're loading
+  // for the first time. Detection: every action in this encounter
+  // is a monster action — meaning no player has acted yet, so what
+  // we see is the leading-monster-chain straight off /start. In that
+  // case start at 0 so the bars + log + shakes animate in instead of
+  // snapping to "you took damage and missed it."
+  const encounterActionsForInit = actions.filter(
     (a) => a.encounter_number === campaign.encounter_number,
-  ).length;
+  );
+  const noPlayerHasActed =
+    encounterActionsForInit.length > 0 &&
+    encounterActionsForInit.every((a) => a.actor_kind === "monster");
+  const initialEncounterCount = noPlayerHasActed
+    ? 0
+    : encounterActionsForInit.length;
   const [state, dispatch] = useReducer(battleReducer, undefined, () =>
     initBattleState(campaign, initialEncounterCount),
   );
