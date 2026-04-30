@@ -19,6 +19,7 @@ import { TurnLine } from "@/components/game/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { findClass } from "@/lib/dnd/classes";
 import { findLowestSlot } from "@/lib/dnd/spells";
+import { useShakeOnNonce, shakeIntensity } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
 import type {
   Campaign,
@@ -142,6 +143,7 @@ export function CampaignBattle({
         <div className="grid gap-4 md:grid-cols-2">
           <PartyRow
             players={players}
+            actions={actions}
             currentTurnUserId={
               currentSlot?.slot.kind === "player"
                 ? players[currentSlot.slot.index]?.user_id
@@ -151,6 +153,7 @@ export function CampaignBattle({
           />
           <MonsterRow
             monsters={campaign.monsters}
+            actions={actions}
             selectedIndex={selectedMonsterIndex}
             onSelect={setSelectedMonsterIndex}
             currentTurnMonsterIndex={
@@ -372,10 +375,12 @@ function buildCommands({
 
 function PartyRow({
   players,
+  actions,
   currentTurnUserId,
   myUserId,
 }: {
   players: CampaignPlayer[];
+  actions: CampaignAction[];
   currentTurnUserId: string | undefined;
   myUserId: string;
 }) {
@@ -383,54 +388,85 @@ function PartyRow({
     <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
       <PanelLabel>Party</PanelLabel>
       <div className="flex flex-col gap-2 pt-2">
-        {players.map((p) => {
-          const isCurrent = p.user_id === currentTurnUserId;
-          const isMe = p.user_id === myUserId;
-          const dead = p.current_hp <= 0;
-          return (
-            <div
-              key={p.id}
-              className={cn(
-                "flex flex-col gap-1 rounded-md border px-3 py-2",
-                isCurrent
-                  ? "border-2 border-zinc-900"
-                  : "border-muted-foreground/20",
-                dead ? "opacity-50" : "",
-              )}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-sm font-bold uppercase tracking-widest">
-                  {p.character_snapshot.name}
-                  {isMe ? (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      (You)
-                    </span>
-                  ) : null}
-                </span>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {p.current_hp}/{p.character_snapshot.max_hp}
-                </span>
-              </div>
-              <HealthBar
-                current={p.current_hp}
-                max={p.character_snapshot.max_hp}
-                className="h-2"
-              />
-            </div>
-          );
-        })}
+        {players.map((p) => (
+          <PartyMember
+            key={p.id}
+            player={p}
+            actions={actions}
+            isCurrent={p.user_id === currentTurnUserId}
+            isMe={p.user_id === myUserId}
+          />
+        ))}
       </div>
+    </div>
+  );
+}
+
+// One row in the party panel. Pulls its own shake nonce/intensity out of
+// the action log so a hit on this player jiggles only this card, scaled
+// to the damage it took.
+function PartyMember({
+  player,
+  actions,
+  isCurrent,
+  isMe,
+}: {
+  player: CampaignPlayer;
+  actions: CampaignAction[];
+  isCurrent: boolean;
+  isMe: boolean;
+}) {
+  const dead = player.current_hp <= 0;
+  const hits = actions.filter(
+    (a) => a.target_kind === "player" && a.target_player_id === player.id,
+  );
+  const lastDamage = hits.length
+    ? Number(
+        (hits[hits.length - 1].payload as Record<string, unknown>).damage ?? 0,
+      )
+    : 0;
+  const ref = useShakeOnNonce(
+    hits.length,
+    shakeIntensity(lastDamage, player.character_snapshot.max_hp),
+  );
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        "flex flex-col gap-1 rounded-md border px-3 py-2",
+        isCurrent ? "border-2 border-zinc-900" : "border-muted-foreground/20",
+        dead ? "opacity-50" : "",
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-bold uppercase tracking-widest">
+          {player.character_snapshot.name}
+          {isMe ? (
+            <span className="ml-2 text-xs text-muted-foreground">(You)</span>
+          ) : null}
+        </span>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {player.current_hp}/{player.character_snapshot.max_hp}
+        </span>
+      </div>
+      <HealthBar
+        current={player.current_hp}
+        max={player.character_snapshot.max_hp}
+        className="h-2"
+      />
     </div>
   );
 }
 
 function MonsterRow({
   monsters,
+  actions,
   selectedIndex,
   onSelect,
   currentTurnMonsterIndex,
 }: {
   monsters: Monster[];
+  actions: CampaignAction[];
   selectedIndex: number;
   onSelect: (index: number) => void;
   currentTurnMonsterIndex: number | undefined;
@@ -439,46 +475,85 @@ function MonsterRow({
     <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
       <PanelLabel>Monsters</PanelLabel>
       <div className="flex flex-col gap-2 pt-2">
-        {monsters.map((m, i) => {
-          const dead = m.health <= 0;
-          const selected = i === selectedIndex;
-          const acting = i === currentTurnMonsterIndex;
-          return (
-            <button
-              key={i}
-              type="button"
-              disabled={dead}
-              onClick={() => onSelect(i)}
-              className={cn(
-                "flex flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
-                acting
-                  ? "border-2 border-zinc-900"
-                  : selected && !dead
-                    ? "border-2 border-rose-500"
-                    : "border-muted-foreground/20",
-                dead
-                  ? "cursor-not-allowed opacity-50"
-                  : "cursor-pointer hover:bg-muted",
-              )}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-sm font-bold uppercase tracking-widest">
-                  {m.name}
-                </span>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  {m.health}/{m.maxHealth}
-                </span>
-              </div>
-              <HealthBar
-                current={m.health}
-                max={m.maxHealth}
-                className="h-2"
-              />
-            </button>
-          );
-        })}
+        {monsters.map((m, i) => (
+          <MonsterButton
+            key={i}
+            monster={m}
+            index={i}
+            actions={actions}
+            selected={i === selectedIndex}
+            acting={i === currentTurnMonsterIndex}
+            onSelect={onSelect}
+          />
+        ))}
       </div>
     </div>
+  );
+}
+
+// One monster row in the monster panel. Same pattern as PartyMember:
+// derives its own shake nonce/intensity from actions targeting this
+// monster index, so attacks visibly land on the right body.
+function MonsterButton({
+  monster,
+  index,
+  actions,
+  selected,
+  acting,
+  onSelect,
+}: {
+  monster: Monster;
+  index: number;
+  actions: CampaignAction[];
+  selected: boolean;
+  acting: boolean;
+  onSelect: (index: number) => void;
+}) {
+  const dead = monster.health <= 0;
+  const hits = actions.filter(
+    (a) => a.target_kind === "monster" && a.target_monster_index === index,
+  );
+  const lastDamage = hits.length
+    ? Number(
+        (hits[hits.length - 1].payload as Record<string, unknown>).damage ?? 0,
+      )
+    : 0;
+  const ref = useShakeOnNonce<HTMLButtonElement>(
+    hits.length,
+    shakeIntensity(lastDamage, monster.maxHealth),
+  );
+  return (
+    <button
+      ref={ref}
+      type="button"
+      disabled={dead}
+      onClick={() => onSelect(index)}
+      className={cn(
+        "flex flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
+        acting
+          ? "border-2 border-zinc-900"
+          : selected && !dead
+            ? "border-2 border-rose-500"
+            : "border-muted-foreground/20",
+        dead
+          ? "cursor-not-allowed opacity-50"
+          : "cursor-pointer hover:bg-muted",
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-bold uppercase tracking-widest">
+          {monster.name}
+        </span>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+          {monster.health}/{monster.maxHealth}
+        </span>
+      </div>
+      <HealthBar
+        current={monster.health}
+        max={monster.maxHealth}
+        className="h-2"
+      />
+    </button>
   );
 }
 

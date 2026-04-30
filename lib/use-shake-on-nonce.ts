@@ -9,12 +9,12 @@ const SHAKE_OFFSETS = [-5, 5, -2];
 // `intensity`. We use WAAPI rather than React state + a CSS class because
 // the false→true flip can batch and skip the class removal, leaving the
 // animation un-restarted.
-export function useShakeOnNonce(
+export function useShakeOnNonce<T extends HTMLElement = HTMLDivElement>(
   nonce: number,
   intensity = 1,
   durationMs = 350,
-): React.RefObject<HTMLDivElement | null> {
-  const ref = useRef<HTMLDivElement>(null);
+): React.RefObject<T | null> {
+  const ref = useRef<T>(null);
   const prev = useRef(nonce);
   // Keep the latest intensity in a ref so the effect (which only re-runs
   // when `nonce` changes) reads the current scale at fire time.
