@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { CampaignOutcomePanel } from "@/components/coop/campaign-outcome-panel";
+import { RestScreen } from "@/components/coop/rest-screen";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import type {
@@ -102,22 +103,42 @@ export default function CampaignLobbyPage({
   }, [fetchSnapshot, refreshTick]);
 
   // Latch seenActive the moment we observe an active fight, so a later
-  // status flip to "finished" routes through the battle screen long
-  // enough for CampaignBattle to play out the killing blow.
+  // status flip to "finished" or "between_encounters" routes through
+  // the battle screen long enough for CampaignBattle to play out the
+  // killing blow.
   useEffect(() => {
     if (state.kind === "ready" && state.data.campaign.status === "active") {
       setSeenActive(true);
     }
   }, [state]);
 
-  // Poll while the campaign is in motion: 3s in the lobby (joins are
-  // infrequent), 1.5s during combat so opponents see your moves
-  // promptly. Realtime would be lower-latency but RLS-on-Realtime is
-  // currently brittle in this project — polling is the M3 default.
+  // Each time a fresh encounter spins up the campaign re-enters
+  // "active" — wipe the actionsRevealed gate so the next encounter's
+  // killing blow can latch it again. The initial active flip from
+  // start/route benefits from this too: actionsRevealed defaults to
+  // false on mount, this just keeps it in sync across encounters.
+  const activeEncounterKey =
+    state.kind === "ready" && state.data.campaign.status === "active"
+      ? state.data.campaign.encounter_number
+      : null;
+  useEffect(() => {
+    if (activeEncounterKey !== null) setActionsRevealed(false);
+  }, [activeEncounterKey]);
+
+  // Poll while the campaign is in motion. between_encounters polls at
+  // the lobby cadence — the only thing that can change there is some
+  // member triggering /next-encounter or /end-campaign, both of which
+  // we want to see promptly but not aggressively.
   useEffect(() => {
     if (state.kind !== "ready") return;
     const status = state.data.campaign.status;
-    if (status !== "waiting" && status !== "active") return;
+    if (
+      status !== "waiting" &&
+      status !== "active" &&
+      status !== "between_encounters"
+    ) {
+      return;
+    }
     const intervalMs = status === "active" ? 1500 : 3000;
     const interval = setInterval(
       () => setRefreshTick((t) => t + 1),
@@ -183,13 +204,17 @@ export default function CampaignLobbyPage({
     );
   }
 
-  // Keep the battle mounted while finished-but-still-revealing so the
-  // killing blow's shake + log line get to play before the outcome
-  // panel takes over. If the user reloaded straight into a finished
-  // campaign (seenActive never latched), skip the reveal entirely.
+  // Keep the battle mounted while an encounter has ended but the
+  // killing blow hasn't finished revealing — applies to both the
+  // between-encounters rest screen and the final outcome panel. If
+  // the user reloaded straight into an ended state (seenActive never
+  // latched), skip the reveal and show the destination panel.
+  const isEncounterOver =
+    campaign.status === "finished" ||
+    campaign.status === "between_encounters";
   const showBattle =
     campaign.status === "active" ||
-    (campaign.status === "finished" && seenActive && !actionsRevealed);
+    (isEncounterOver && seenActive && !actionsRevealed);
 
   if (showBattle) {
     return (
@@ -200,6 +225,18 @@ export default function CampaignLobbyPage({
         userId={user.id}
         onActionComplete={() => setRefreshTick((t) => t + 1)}
         onAllActionsRevealed={() => setActionsRevealed(true)}
+      />
+    );
+  }
+
+  if (campaign.status === "between_encounters") {
+    return (
+      <RestScreen
+        campaign={campaign}
+        players={players}
+        actions={actions}
+        userId={user.id}
+        onContinue={() => setRefreshTick((t) => t + 1)}
       />
     );
   }

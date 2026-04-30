@@ -94,6 +94,7 @@ export async function walkMonsterChain(args: {
     await supabaseAdmin.from("campaign_actions").insert({
       campaign_id: campaignId,
       turn_number: nextTurnNumber,
+      encounter_number: campaign.encounter_number,
       actor_kind: "monster",
       actor_monster_index: next.slot.index,
       target_kind: "player",

@@ -200,23 +200,41 @@ export function CampaignBattle({
   onActionComplete: () => void;
   onAllActionsRevealed?: () => void;
 }) {
+  // Init the reveal cursor at the count of *this encounter's* actions,
+  // so a mid-encounter reload doesn't replay every past turn but the
+  // start of a fresh encounter (whose action log within this encounter
+  // is empty) still paces leading monster swings.
+  const initialEncounterCount = actions.filter(
+    (a) => a.encounter_number === campaign.encounter_number,
+  ).length;
   const [state, dispatch] = useReducer(battleReducer, undefined, () =>
-    initBattleState(campaign, actions.length),
+    initBattleState(campaign, initialEncounterCount),
   );
   const { submitting, actionError } = state;
+
+  // Per-encounter view: action log spans the whole campaign across
+  // multiple fights, but each encounter renders independently — past
+  // encounters' damage shouldn't show up on the new fight's HP bars
+  // or in the current log panel.
+  const encounterActions = actions.filter(
+    (a) => a.encounter_number === campaign.encounter_number,
+  );
 
   // Pace incoming actions: when polling brings new rows, reveal them
   // one at a time on a timer so the action log, shake animations, and
   // HP bars all step forward together — same beat solo gets from its
   // setTimeout-driven monster swing.
-  const displayedCount = Math.min(state.displayedActionCount, actions.length);
+  const displayedCount = Math.min(
+    state.displayedActionCount,
+    encounterActions.length,
+  );
   useEffect(() => {
-    if (displayedCount >= actions.length) return;
+    if (displayedCount >= encounterActions.length) return;
     const timer = setTimeout(() => {
       dispatch({ type: "REVEAL_NEXT_ACTION" });
     }, ACTION_REVEAL_MS);
     return () => clearTimeout(timer);
-  }, [displayedCount, actions.length]);
+  }, [displayedCount, encounterActions.length]);
 
   // Slice the action log at the displayed cursor and derive monster/
   // player HP purely from the displayed actions. UI children consume
@@ -224,24 +242,26 @@ export function CampaignBattle({
   // in sync — and we sidestep the GET race where action rows can land
   // before campaign.monsters / campaign_players.current_hp are
   // updated.
-  const displayedActions = actions.slice(0, displayedCount);
-  const pendingActions = actions.slice(displayedCount);
+  const displayedActions = encounterActions.slice(0, displayedCount);
+  const pendingActions = encounterActions.slice(displayedCount);
   const displayedMonsters = deriveDisplayedMonsters(
     campaign.monsters,
     displayedActions,
   );
   const displayedPlayers = deriveDisplayedPlayers(players, displayedActions);
 
-  // Tell the parent when the final swing/heal of a finished campaign
-  // has actually animated in, so it can hold off swapping to the
-  // outcome panel until the killing blow is visible. Gating on
-  // `status === "finished"` keeps this from firing every time pending
-  // happens to drain mid-fight.
+  // Tell the parent when the final swing/heal of an *ending* encounter
+  // has actually animated in, so it can hold off swapping to the rest
+  // screen or outcome panel until the killing blow is visible. Both
+  // between_encounters and finished trigger a screen swap; we gate on
+  // either to keep the killing blow on-screen long enough.
   const pendingDrained = pendingActions.length === 0;
-  const isFinished = campaign.status === "finished";
+  const isEnded =
+    campaign.status === "finished" ||
+    campaign.status === "between_encounters";
   useEffect(() => {
-    if (isFinished && pendingDrained) onAllActionsRevealed?.();
-  }, [isFinished, pendingDrained, onAllActionsRevealed]);
+    if (isEnded && pendingDrained) onAllActionsRevealed?.();
+  }, [isEnded, pendingDrained, onAllActionsRevealed]);
 
   // Effective target: the user's last-clicked monster if it's still
   // alive, otherwise auto-fall-through to the first living monster.

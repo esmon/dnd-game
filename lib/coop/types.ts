@@ -7,7 +7,11 @@
 import type { Character } from "@/lib/db/schema";
 import type { Monster } from "@/lib/game/types";
 
-export type CampaignStatus = "waiting" | "active" | "finished";
+export type CampaignStatus =
+  | "waiting"
+  | "active"
+  | "between_encounters"
+  | "finished";
 export type CampaignOutcome = "won" | "lost";
 
 // Persisted turn order — set by the start route from rolled
@@ -26,6 +30,10 @@ export interface Campaign {
   turn_deadline: string | null;
   outcome: CampaignOutcome | null;
   initiative_order: TurnSlot[] | null;
+  // 1-indexed; the encounter currently being fought (or just
+  // finished, when status === "between_encounters"). Increments
+  // when /next-encounter is called.
+  encounter_number: number;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +71,7 @@ export interface CampaignAction {
   id: string;
   campaign_id: string;
   turn_number: number;
+  encounter_number: number;
   actor_kind: CampaignActorKind;
   actor_player_id: string | null;
   actor_monster_index: number | null;

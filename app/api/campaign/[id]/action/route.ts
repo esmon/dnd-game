@@ -180,6 +180,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   await supabaseAdmin.from("campaign_actions").insert({
     campaign_id: campaignId,
     turn_number: nextTurnNumber,
+    encounter_number: campaign.encounter_number,
     ...resolution.action,
     payload: {
       ...resolution.action.payload,
@@ -195,19 +196,27 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   });
   nextTurnNumber++;
 
-  // Win check before rotating.
+  // Win check before rotating. In multi-encounter mode the campaign
+  // doesn't go straight to "finished" — it pauses in
+  // "between_encounters" so the party can rest, then either chains
+  // into another fight (POST /next-encounter) or ends the campaign
+  // (POST /end-campaign). Per-encounter rewards are committed now via
+  // persistVictoryRewards so a later TPK doesn't wipe the prior wins.
   if (monsters.length > 0 && monsters.every((m) => m.health <= 0)) {
     await supabaseAdmin
       .from("campaigns")
       .update({
         monsters,
-        status: "finished",
-        outcome: "won",
+        status: "between_encounters",
         turn_pointer: pointer,
       })
       .eq("id", campaignId);
     await persistVictoryRewards(players);
-    return NextResponse.json({ ok: true, finished: true, outcome: "won" });
+    return NextResponse.json({
+      ok: true,
+      finished: false,
+      betweenEncounters: true,
+    });
   }
 
   // Advance one slot past the player who just acted, then walk any
