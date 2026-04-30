@@ -1,6 +1,6 @@
 "use client";
 
-import { LogInIcon, LogOutIcon } from "lucide-react";
+import { LogInIcon, LogOutIcon, UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,11 @@ export function AuthButton() {
       <Button
         variant="outline"
         size="sm"
+        aria-label="Sign in"
         onClick={() => router.push("/auth/sign-in")}
       >
         <LogInIcon className="size-3.5 shrink-0" />
-        Sign In
+        <span className="hidden md:inline">Sign In</span>
       </Button>
     );
   }
@@ -49,9 +50,13 @@ export function AuthButton() {
           <Button
             variant="outline"
             size="sm"
+            aria-label="Account"
             className="max-w-[180px] justify-start"
           >
-            <span className="truncate">{user.email ?? "Account"}</span>
+            <UserIcon className="size-3.5 shrink-0" />
+            <span className="hidden truncate md:inline">
+              {user.email ?? "Account"}
+            </span>
           </Button>
         }
       />

@@ -13,6 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -149,22 +154,55 @@ function HintBadge({
 }
 
 function AbilityInfoIcon({ ability }: { ability: keyof AbilityScores }) {
+  // The icon sits inside a clickable AbilityChoice button. Without this,
+  // tapping it on mobile both fails to show the description (Tooltip is
+  // hover-only) and selects the ability. Stopping propagation prevents
+  // the parent select; the click also pops the mobile-only Popover.
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const label = `About ${ABILITY_LABELS[ability]}`;
+  const description = ABILITY_DESCRIPTIONS[ability];
+
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span
-            aria-label={`About ${ABILITY_LABELS[ability]}`}
-            className="inline-flex cursor-help text-muted-foreground transition-colors hover:text-foreground"
-          />
-        }
-      >
-        <InfoIcon className="size-3.5" />
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        {ABILITY_DESCRIPTIONS[ability]}
-      </TooltipContent>
-    </Tooltip>
+    <>
+      {/* Desktop: hover-driven Tooltip. */}
+      <span className="hidden md:inline-flex">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span
+                aria-label={label}
+                onClick={stop}
+                className="inline-flex cursor-help text-muted-foreground transition-colors hover:text-foreground"
+              />
+            }
+          >
+            <InfoIcon className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            {description}
+          </TooltipContent>
+        </Tooltip>
+      </span>
+      {/* Mobile: tap-to-open Popover; closes on outside click. */}
+      <span className="inline-flex md:hidden">
+        <Popover>
+          <PopoverTrigger
+            render={
+              <span
+                aria-label={label}
+                onClick={stop}
+                className="inline-flex cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+              />
+            }
+          >
+            <InfoIcon className="size-3.5" />
+          </PopoverTrigger>
+          <PopoverContent side="top" className="w-64 text-sm">
+            {description}
+          </PopoverContent>
+        </Popover>
+      </span>
+    </>
   );
 }
 
