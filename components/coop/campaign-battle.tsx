@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useReducer } from "react";
 
 import {
   FlagIcon,
@@ -34,6 +34,56 @@ import type {
   Turn,
 } from "@/lib/game/types";
 
+// Local UI state for the battle screen. Everything authoritative lives
+// on the server; the reducer just tracks the bits that don't round-trip
+// (the user's clicked monster, in-flight submit state, last error).
+interface BattleState {
+  selectedMonsterIndex: number;
+  submitting: boolean;
+  actionError: string | null;
+}
+
+type BattleAction =
+  | { type: "SELECT_MONSTER"; index: number }
+  | { type: "SUBMIT_START" }
+  | { type: "SUBMIT_DONE" }
+  | { type: "SUBMIT_ERROR"; message: string };
+
+function initBattleState(campaign: Campaign): BattleState {
+  const firstAlive = campaign.monsters.findIndex((m) => m.health > 0);
+  return {
+    selectedMonsterIndex: firstAlive >= 0 ? firstAlive : 0,
+    submitting: false,
+    actionError: null,
+  };
+}
+
+function battleReducer(state: BattleState, action: BattleAction): BattleState {
+  switch (action.type) {
+    case "SELECT_MONSTER":
+      return { ...state, selectedMonsterIndex: action.index };
+    case "SUBMIT_START":
+      return { ...state, submitting: true, actionError: null };
+    case "SUBMIT_DONE":
+      return { ...state, submitting: false };
+    case "SUBMIT_ERROR":
+      return { ...state, submitting: false, actionError: action.message };
+  }
+}
+
+// If the user's last-clicked monster has died, fall through to the
+// next living one. Pure derivation — no setState in render — so click
+// intent is preserved if the original target is still alive.
+function effectiveSelectedIndex(
+  intent: number,
+  monsters: Monster[],
+): number {
+  const m = monsters[intent];
+  if (m && m.health > 0) return intent;
+  const fallback = monsters.findIndex((m) => m.health > 0);
+  return fallback >= 0 ? fallback : intent;
+}
+
 // Active-state UI for a campaign. Two rows of mini panels (players +
 // monsters), a target selector, the command panel for whoever's turn it
 // is, and the action log on the side.
@@ -53,22 +103,19 @@ export function CampaignBattle({
   userId: string;
   onActionComplete: () => void;
 }) {
-  const [selectedMonsterIndex, setSelectedMonsterIndex] = useState<number>(
-    () => campaign.monsters.findIndex((m) => m.health > 0) || 0,
+  const [state, dispatch] = useReducer(battleReducer, undefined, () =>
+    initBattleState(campaign),
   );
-  const [submitting, setSubmitting] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const { submitting, actionError } = state;
 
-  // Auto-advance the target when the selected monster dies, so attack
-  // commands don't get stuck behind a "Pick a living target" disable.
-  useEffect(() => {
-    const current = campaign.monsters[selectedMonsterIndex];
-    if (current && current.health > 0) return;
-    const nextAlive = campaign.monsters.findIndex((m) => m.health > 0);
-    if (nextAlive >= 0 && nextAlive !== selectedMonsterIndex) {
-      setSelectedMonsterIndex(nextAlive);
-    }
-  }, [campaign.monsters, selectedMonsterIndex]);
+  // Effective target: the user's last-clicked monster if it's still
+  // alive, otherwise auto-fall-through to the first living monster.
+  // Derived on each render rather than synced via useEffect — no
+  // setState-during-render footgun, and click intent is preserved.
+  const selectedMonsterIndex = effectiveSelectedIndex(
+    state.selectedMonsterIndex,
+    campaign.monsters,
+  );
 
   const currentSlot = nextAliveSlot(
     campaign.turn_pointer,
@@ -92,8 +139,7 @@ export function CampaignBattle({
   })();
 
   async function submit(body: object) {
-    setSubmitting(true);
-    setActionError(null);
+    dispatch({ type: "SUBMIT_START" });
     try {
       const res = await fetch(`/api/campaign/${campaign.id}/action`, {
         method: "POST",
@@ -102,14 +148,19 @@ export function CampaignBattle({
       });
       if (!res.ok) {
         const text = await res.text();
-        setActionError(`Action failed (${res.status}): ${text}`);
+        dispatch({
+          type: "SUBMIT_ERROR",
+          message: `Action failed (${res.status}): ${text}`,
+        });
         return;
       }
+      dispatch({ type: "SUBMIT_DONE" });
       onActionComplete();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
+      dispatch({
+        type: "SUBMIT_ERROR",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -121,22 +172,26 @@ export function CampaignBattle({
     ) {
       return;
     }
-    setSubmitting(true);
-    setActionError(null);
+    dispatch({ type: "SUBMIT_START" });
     try {
       const res = await fetch(`/api/campaign/${campaign.id}/forfeit`, {
         method: "POST",
       });
       if (!res.ok) {
         const text = await res.text();
-        setActionError(`Forfeit failed (${res.status}): ${text}`);
+        dispatch({
+          type: "SUBMIT_ERROR",
+          message: `Forfeit failed (${res.status}): ${text}`,
+        });
         return;
       }
+      dispatch({ type: "SUBMIT_DONE" });
       onActionComplete();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
+      dispatch({
+        type: "SUBMIT_ERROR",
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -166,7 +221,7 @@ export function CampaignBattle({
             monsters={campaign.monsters}
             actions={actions}
             selectedIndex={selectedMonsterIndex}
-            onSelect={setSelectedMonsterIndex}
+            onSelect={(index) => dispatch({ type: "SELECT_MONSTER", index })}
             currentTurnMonsterIndex={
               currentSlot?.slot.kind === "monster"
                 ? currentSlot.slot.index

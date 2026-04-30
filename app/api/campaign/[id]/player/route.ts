@@ -100,7 +100,17 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
 
   if (wantsReadyChange) {
-    patch.is_ready = body.ready;
+    // One-way: ready is a commitment, not a toggle. Unreadying directly
+    // would invite spam right before the creator clicks Start. The
+    // legitimate way to "unready" is to swap characters, which already
+    // resets the flag above as a side effect.
+    if (body.ready === false) {
+      return NextResponse.json(
+        { error: "ready is one-way; change character to reset" },
+        { status: 409 },
+      );
+    }
+    patch.is_ready = true;
   }
 
   // Caller must already be a member; we're updating their row, not

@@ -234,23 +234,26 @@ function Lobby({
     }
   }
 
-  async function toggleReady() {
-    if (!myPlayer) return;
+  // Ready is one-way — once a joiner commits, they stay ready. The only
+  // way out is to change characters (which the PATCH handler resets the
+  // flag for). This avoids ready-spam right before the creator starts.
+  async function markReady() {
+    if (!myPlayer || myPlayer.is_ready) return;
     setTogglingReady(true);
     try {
       const res = await fetch(`/api/campaign/${campaignId}/player`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ready: !myPlayer.is_ready }),
+        body: JSON.stringify({ ready: true }),
       });
       if (!res.ok) {
         const text = await res.text();
-        console.error("toggle ready failed", res.status, text);
+        console.error("mark ready failed", res.status, text);
         return;
       }
       onChanged();
     } catch (err) {
-      console.error("toggle ready threw", err);
+      console.error("mark ready threw", err);
     } finally {
       setTogglingReady(false);
     }
@@ -384,8 +387,8 @@ function Lobby({
         ) : (
           <div className="flex flex-col gap-2">
             <Button
-              onClick={toggleReady}
-              disabled={togglingReady || !myPlayer}
+              onClick={markReady}
+              disabled={togglingReady || !myPlayer || myPlayer.is_ready}
               className={
                 myPlayer?.is_ready
                   ? "bg-emerald-500 text-white hover:bg-emerald-500/90"
@@ -395,13 +398,13 @@ function Lobby({
               {togglingReady
                 ? "Saving…"
                 : myPlayer?.is_ready
-                  ? "Ready ✓ (click to unready)"
+                  ? "Ready ✓"
                   : "I'm Ready"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               {myPlayer?.is_ready
                 ? "Waiting for the campaign creator to start…"
-                : "Tap ready when you've picked your character."}
+                : "Tap ready when you've picked your character. Change character to reset."}
             </p>
           </div>
         )}
