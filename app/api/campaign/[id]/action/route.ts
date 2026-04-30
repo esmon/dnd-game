@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestIdentity } from "@/lib/auth/server-identity";
+import type { Character } from "@/lib/db/schema";
 import { findClass } from "@/lib/dnd/classes";
 import { playerAC, rollAttack } from "@/lib/dnd/combat";
+import { rollLoot } from "@/lib/dnd/loot";
 import { rollDice } from "@/lib/game/dice";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
@@ -123,16 +125,13 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   // Apply the resolver's patches.
+  const monstersBefore = monsters;
   monsters =
     body.kind === "attack" || body.kind === "spell" || body.kind === "scroll"
       ? resolution.monsters
       : monsters;
 
   if (resolution.snapshotPatch) {
-    await supabaseAdmin
-      .from("campaign_players")
-      .update({ character_snapshot: resolution.snapshotPatch })
-      .eq("id", actingPlayer.id);
     actingPlayer.character_snapshot = resolution.snapshotPatch;
   }
 
@@ -150,10 +149,82 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       .eq("id", actingPlayer.id);
   }
 
+  // Detect a freshly-killed monster from the resolver's mutation. At
+  // most one kill per player turn (one attack per action), so we don't
+  // need to walk every index for awards.
+  const killedIndex = monsters.findIndex(
+    (m, i) => monstersBefore[i] && monstersBefore[i].health > 0 && m.health <= 0,
+  );
+  const modifiedSnapshots = new Set<string>();
+  if (resolution.snapshotPatch) modifiedSnapshots.add(actingPlayer.id);
+
+  // Loot + XP awards on kill. Loot goes to the killer (killing-blow
+  // policy); XP goes to every player who is still alive when the kill
+  // happens (so a downed teammate doesn't free-ride on the rest of
+  // the encounter).
+  let lootForLog: { name: string; kind: string } | null = null;
+  if (killedIndex >= 0) {
+    const killed = monsters[killedIndex];
+    const loot = rollLoot(killed);
+    if (loot) {
+      const isWeapon = !("kind" in loot);
+      if (isWeapon) {
+        actingPlayer.character_snapshot = {
+          ...actingPlayer.character_snapshot,
+          inventory: [...actingPlayer.character_snapshot.inventory, loot],
+        };
+        lootForLog = { name: loot.name, kind: "weapon" };
+      } else {
+        actingPlayer.character_snapshot = {
+          ...actingPlayer.character_snapshot,
+          consumables: [...actingPlayer.character_snapshot.consumables, loot],
+        };
+        lootForLog = {
+          name: loot.kind === "scroll" ? `Scroll of ${loot.spellName}` : loot.name,
+          kind: loot.kind,
+        };
+      }
+      modifiedSnapshots.add(actingPlayer.id);
+    }
+    const xpAward = killed.xp;
+    for (const p of players) {
+      if (playerHp[p.id] > 0) {
+        p.character_snapshot = {
+          ...p.character_snapshot,
+          xp: p.character_snapshot.xp + xpAward,
+        };
+        modifiedSnapshots.add(p.id);
+      }
+    }
+  }
+
+  // Persist any snapshot mutations (slot/consumable consumption from
+  // the resolver, plus loot/XP from kill awards). Doing it in one pass
+  // avoids racing the action insert.
+  for (const id of modifiedSnapshots) {
+    const player = players.find((p) => p.id === id);
+    if (!player) continue;
+    await supabaseAdmin
+      .from("campaign_players")
+      .update({ character_snapshot: player.character_snapshot })
+      .eq("id", id);
+  }
+
   await supabaseAdmin.from("campaign_actions").insert({
     campaign_id: campaignId,
     turn_number: nextTurnNumber,
     ...resolution.action,
+    payload: {
+      ...resolution.action.payload,
+      ...(killedIndex >= 0
+        ? {
+            killed_monster_index: killedIndex,
+            killed_monster_name: monstersBefore[killedIndex].name,
+            xp_awarded: monstersBefore[killedIndex].xp,
+            loot: lootForLog,
+          }
+        : {}),
+    },
   });
   nextTurnNumber++;
 
@@ -168,6 +239,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         turn_pointer: pointer,
       })
       .eq("id", campaignId);
+    await persistVictoryRewards(players);
     return NextResponse.json({ ok: true, finished: true, outcome: "won" });
   }
 
@@ -240,6 +312,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           turn_pointer: pointer,
         })
         .eq("id", campaignId);
+      await persistDefeatRecovery(players);
       return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
     }
 
@@ -252,4 +325,41 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .eq("id", campaignId);
 
   return NextResponse.json({ ok: true });
+}
+
+// Sync each player's mutated campaign snapshot back to their characters
+// row so xp gains, loot drops, and consumed slots/items persist into
+// solo and future campaigns. HP resets to full — winning a fight
+// shouldn't leave anyone stuck low when they exit to home.
+async function persistVictoryRewards(players: CampaignPlayer[]): Promise<void> {
+  for (const player of players) {
+    const snap = player.character_snapshot;
+    await supabaseAdmin
+      .from("characters")
+      .update({
+        xp: snap.xp,
+        weapons: snap.weapons,
+        inventory: snap.inventory,
+        consumables: snap.consumables,
+        spell_slots: snap.spell_slots,
+        current_hp: snap.max_hp,
+      } satisfies Partial<Character>)
+      .eq("id", snap.id);
+  }
+}
+
+// On defeat we don't sync the snapshot's consumed-slot / consumed-item
+// state back to characters — losing a fight is enough cost without
+// destroying mid-campaign resource expenditure. We do reset HP so
+// nobody returns to the home screen with 0 HP.
+async function persistDefeatRecovery(
+  players: CampaignPlayer[],
+): Promise<void> {
+  for (const player of players) {
+    const snap = player.character_snapshot;
+    await supabaseAdmin
+      .from("characters")
+      .update({ current_hp: snap.max_hp } satisfies Partial<Character>)
+      .eq("id", snap.id);
+  }
 }

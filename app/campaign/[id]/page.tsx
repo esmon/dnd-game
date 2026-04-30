@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { CampaignBattle } from "@/components/coop/campaign-battle";
+import { CampaignOutcomePanel } from "@/components/coop/campaign-outcome-panel";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import type {
@@ -176,16 +177,14 @@ export default function CampaignLobbyPage({
     );
   }
 
-  // Finished.
+  // Finished — show the outcome recap (XP + loot per player on win).
   return (
-    <CenteredCard>
-      <p className="font-bold">
-        Campaign finished — {campaign.outcome === "won" ? "Victory!" : "Defeat."}
-      </p>
-      <Link href="/" className="font-bold underline">
-        Back to home
-      </Link>
-    </CenteredCard>
+    <CampaignOutcomePanel
+      campaign={campaign}
+      players={players}
+      actions={actions}
+      userId={user.id}
+    />
   );
 }
 
