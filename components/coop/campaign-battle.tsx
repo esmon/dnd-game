@@ -26,7 +26,11 @@ import type {
   CampaignAction,
   CampaignPlayer,
 } from "@/lib/coop/types";
-import { nextAliveSlot } from "@/lib/coop/turn-order";
+import {
+  nextAliveSlot,
+  slotsForCampaign,
+  type TurnSlot,
+} from "@/lib/coop/turn-order";
 import type {
   Monster,
   Potion,
@@ -404,6 +408,14 @@ export function CampaignBattle({
             {turnDescription}
           </h1>
         </div>
+
+        <InitiativeStrip
+          campaign={campaign}
+          players={displayedPlayers}
+          monsters={displayedMonsters}
+          currentSlot={currentSlot}
+          userId={userId}
+        />
 
         <div className="grid gap-4 md:grid-cols-2">
           <PartyRow
@@ -820,6 +832,79 @@ function MonsterButton({
         className="h-2"
       />
     </button>
+  );
+}
+
+// Horizontal initiative pill strip. Up to 6 PCs + several monsters
+// in any DEX-rolled order makes "whose turn is up next" hard to track
+// from the turn header alone — this exposes the order so players can
+// plan around it (heal the next-acting low-HP teammate, save a spell
+// for the monster about to swing, etc.).
+function InitiativeStrip({
+  campaign,
+  players,
+  monsters,
+  currentSlot,
+  userId,
+}: {
+  campaign: Campaign;
+  players: CampaignPlayer[];
+  monsters: Monster[];
+  currentSlot: { pointer: number; slot: TurnSlot } | null;
+  userId: string;
+}) {
+  const slots = slotsForCampaign(campaign, players, monsters);
+  if (slots.length === 0) return null;
+  const currentIndex = currentSlot?.pointer ?? -1;
+
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+      <ol className="flex min-w-max items-stretch gap-1.5 font-mono">
+        {slots.map((slot, i) => {
+          const isCurrent = i === currentIndex;
+          let name = "";
+          let isMe = false;
+          let dead = false;
+          if (slot.kind === "player") {
+            const p = players[slot.index];
+            if (!p) return null;
+            name = p.character_snapshot.name;
+            isMe = p.user_id === userId;
+            dead = p.current_hp <= 0;
+          } else {
+            const m = monsters[slot.index];
+            if (!m) return null;
+            name = m.name;
+            dead = m.health <= 0;
+          }
+          return (
+            <li
+              key={`${slot.kind}:${slot.index}`}
+              className={cn(
+                "flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs uppercase tracking-widest",
+                isCurrent
+                  ? "border-2 border-zinc-900 bg-card font-bold"
+                  : "border-muted-foreground/20 bg-card/50 text-muted-foreground",
+                dead ? "line-through opacity-50" : "",
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block size-1.5 rounded-full",
+                  slot.kind === "player" ? "bg-emerald-500" : "bg-rose-500",
+                )}
+              />
+              <span className="truncate max-w-[10ch]">{name}</span>
+              {isMe ? (
+                <span className="text-[10px] text-muted-foreground">
+                  (You)
+                </span>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 
