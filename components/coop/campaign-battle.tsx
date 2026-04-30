@@ -994,8 +994,11 @@ function InitiativeStrip({
 function CombatLogPanel({ turns }: { turns: Turn[] }) {
   // Reverse for newest-first to match the solo log convention.
   const reversed = [...turns].reverse();
+  // Fixed height on mobile so the log doesn't dominate the screen
+  // before any actions are taken; on md+ let the grid stretch the
+  // panel to match the command panel's content height.
   return (
-    <div className="relative h-80 w-full rounded-md border-2 border-zinc-900 bg-card">
+    <div className="relative h-80 w-full rounded-md border-2 border-zinc-900 bg-card md:h-auto">
       <PanelLabel>Logs</PanelLabel>
       <ScrollArea className="h-full w-full p-3">
         {reversed.length === 0 ? (
