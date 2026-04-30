@@ -106,6 +106,7 @@ export type Action =
   | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
   | { type: "DEV_NEXT_LEVEL" }
   | { type: "DISMISS_VICTORY"; keepLoot?: boolean }
+  | { type: "RESOLVE_LOOT"; keepLoot: boolean }
   | { type: "SET_INVENTORY_OPEN"; open: boolean }
   | { type: "SET_CHARACTER_COUNT"; count: number }
   | { type: "SET_CHARACTER_PICKER_OPEN"; open: boolean }
@@ -234,7 +235,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
     case "START_FIGHT":
       // Caller is responsible for following up with SET_MONSTER once fetched.
       // Combat log persists across fights — SET_MONSTER's "encountered"
-      // entry marks the start of each new battle.
+      // entry marks the start of each new battle. Lobby outcome panels
+      // (victory + lastDefeatedBy) clear here so the next fight starts
+      // with a clean middle column.
       return {
         ...state,
         status: "fighting",
@@ -242,6 +245,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         monsterPending: false,
         attacksExpanded: false,
         lastDefeatedBy: null,
+        victory: null,
       };
 
     case "RETURN_TO_LOBBY":
@@ -436,6 +440,47 @@ export function gameReducer(state: GameState, action: Action): GameState {
         return pushTurn(next, true, text, "loot");
       }
       return { ...state, victory: null };
+    }
+
+    // Same loot keep/discard logic as DISMISS_VICTORY, but only clears
+    // `victory.loot` — the rest of the panel (XP, monster name, level
+    // info) stays visible until the user starts a new fight. Lets the
+    // user resolve loot without dismissing the celebration.
+    case "RESOLVE_LOOT": {
+      if (!state.victory || !state.victory.loot || !state.player) return state;
+      const loot = state.victory.loot;
+      const victoryWithoutLoot = { ...state.victory, loot: null };
+
+      if (action.keepLoot) {
+        const lootName =
+          "kind" in loot && loot.kind === "scroll"
+            ? `Scroll of ${loot.spellName}`
+            : loot.name;
+        const text = `${state.player.name} picks up ${lootName}!`;
+        if ("kind" in loot) {
+          const consumable: Consumable = loot;
+          const next: GameState = {
+            ...state,
+            victory: victoryWithoutLoot,
+            player: {
+              ...state.player,
+              consumables: [...state.player.consumables, consumable],
+            },
+          };
+          return pushTurn(next, true, text, "loot");
+        }
+        const weapon: Weapon = loot;
+        const next: GameState = {
+          ...state,
+          victory: victoryWithoutLoot,
+          player: {
+            ...state.player,
+            inventory: [...state.player.inventory, weapon],
+          },
+        };
+        return pushTurn(next, true, text, "loot");
+      }
+      return { ...state, victory: victoryWithoutLoot };
     }
 
     case "DEV_NEXT_LEVEL": {

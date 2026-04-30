@@ -159,13 +159,13 @@ export function Arena() {
   }, []);
 
   const startFight = useCallback(() => {
-    // Panel is non-blocking, so the user can press FIGHT with unresolved
-    // loot showing. Match the old dialog's onOpenChange behavior and default
-    // to keep.
+    // Default-keep any unresolved loot before kicking off the fight, so
+    // pressing FIGHT mid-victory doesn't silently discard a drop.
+    // START_FIGHT itself clears the rest of the victory panel.
     const snap = stateRef.current;
-    if (snap.victory) {
-      if (snap.victory.loot) forceSyncRef.current = true;
-      dispatch({ type: "DISMISS_VICTORY", keepLoot: true });
+    if (snap.victory?.loot) {
+      forceSyncRef.current = true;
+      dispatch({ type: "RESOLVE_LOOT", keepLoot: true });
     }
     dispatch({ type: "START_FIGHT" });
     void fetchAndSetMonster();
@@ -1041,11 +1041,11 @@ export function Arena() {
               playerName={player.name}
               onKeep={() => {
                 if (state.victory?.loot) forceSyncRef.current = true;
-                dispatch({ type: "DISMISS_VICTORY", keepLoot: true });
+                dispatch({ type: "RESOLVE_LOOT", keepLoot: true });
               }}
               onDiscard={() => {
                 if (state.victory?.loot) forceSyncRef.current = true;
-                dispatch({ type: "DISMISS_VICTORY", keepLoot: false });
+                dispatch({ type: "RESOLVE_LOOT", keepLoot: false });
               }}
             />
           ) : state.lastDefeatedBy ? (
