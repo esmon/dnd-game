@@ -159,10 +159,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   if (resolution.snapshotPatch) modifiedSnapshots.add(actingPlayer.id);
 
   // Loot + XP awards on kill. Loot goes to the killer (killing-blow
-  // policy); XP goes to every player who is still alive when the kill
-  // happens (so a downed teammate doesn't free-ride on the rest of
-  // the encounter).
+  // policy). XP follows 5e RAW: the monster's full XP is divided evenly
+  // across the whole party, regardless of whether a member is currently
+  // down — they "participated in the encounter."
   let lootForLog: { name: string; kind: string } | null = null;
+  let xpPerPlayer = 0;
   if (killedIndex >= 0) {
     const killed = monsters[killedIndex];
     const loot = rollLoot(killed);
@@ -186,15 +187,13 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       }
       modifiedSnapshots.add(actingPlayer.id);
     }
-    const xpAward = killed.xp;
+    xpPerPlayer = Math.floor(killed.xp / Math.max(1, players.length));
     for (const p of players) {
-      if (playerHp[p.id] > 0) {
-        p.character_snapshot = {
-          ...p.character_snapshot,
-          xp: p.character_snapshot.xp + xpAward,
-        };
-        modifiedSnapshots.add(p.id);
-      }
+      p.character_snapshot = {
+        ...p.character_snapshot,
+        xp: p.character_snapshot.xp + xpPerPlayer,
+      };
+      modifiedSnapshots.add(p.id);
     }
   }
 
@@ -220,7 +219,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         ? {
             killed_monster_index: killedIndex,
             killed_monster_name: monstersBefore[killedIndex].name,
-            xp_awarded: monstersBefore[killedIndex].xp,
+            xp_awarded: xpPerPlayer,
             loot: lootForLog,
           }
         : {}),

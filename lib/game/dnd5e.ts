@@ -54,7 +54,13 @@ export function pickRandomMonsterIndex(
 }
 
 export async function fetchMonsterIndexList(level: number): Promise<MonsterIndex[]> {
-  const crs = crsForLevel(level);
+  return fetchMonsterIndexListByCrs(crsForLevel(level));
+}
+
+export async function fetchMonsterIndexListByCrs(
+  crs: string[],
+): Promise<MonsterIndex[]> {
+  if (crs.length === 0) return [];
   const query = crs
     .map((c) => `challenge_rating=${crToQueryValue(c)}`)
     .join("&");

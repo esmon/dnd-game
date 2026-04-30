@@ -3,24 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestIdentity } from "@/lib/auth/server-identity";
 import {
   fetchMonster,
-  fetchMonsterIndexList,
+  fetchMonsterIndexListByCrs,
   pickRandomMonsterIndex,
 } from "@/lib/game/dnd5e";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
+import {
+  buildEncounterSpec,
+  nearbyCrStrings,
+} from "@/lib/coop/encounter-builder";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
 const MIN_PLAYERS_TO_START = 2;
-
-// Scale the encounter to the party so a 2-player fight isn't trivially
-// dunked on by both PCs swinging at one monster. Future passes can take
-// a body param ("lone boss" / "horde" / "themed") and pick CRs from
-// 5e's encounter-difficulty multiplier table; for now: one monster per
-// player.
-function monsterCountFor(playerCount: number): number {
-  return Math.max(1, playerCount);
-}
 
 // POST /api/campaign/[id]/start — creator-only. Validates the lobby is
 // full enough to fight, picks a monster pool sized to the party's
@@ -85,25 +80,25 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Average party level — keeps a low-level player from getting bodied
-  // alongside a level-20 friend, and avoids trivializing high-level
-  // characters with a CR-1 monster. round() is "good enough" for MVP.
-  const avgLevel = Math.max(
-    1,
-    Math.round(
-      players.reduce(
-        (sum, p) => sum + p.character_snapshot.level,
-        0,
-      ) / players.length,
-    ),
-  );
+  // Roll a 5e-style encounter spec: random difficulty (weighted toward
+  // medium), random monster count (weighted toward 1–2), and a target
+  // CR derived from the party's adjusted XP budget. See
+  // lib/coop/encounter-builder.ts for the math.
+  const playerLevels = players.map((p) => p.character_snapshot.level);
+  const spec = buildEncounterSpec(playerLevels);
 
-  const monsterCount = monsterCountFor(players.length);
   let monsters;
   try {
-    const indices = await fetchMonsterIndexList(avgLevel);
+    // Try the target CR first; widen outward if dnd5eapi has nothing
+    // listed at that CR (rare, but possible for niche tiers).
+    let indices = await fetchMonsterIndexListByCrs([spec.perMonsterCr]);
+    if (indices.length === 0) {
+      indices = await fetchMonsterIndexListByCrs(
+        nearbyCrStrings(spec.perMonsterCr, 2),
+      );
+    }
     const picks: string[] = [];
-    for (let i = 0; i < monsterCount; i++) {
+    for (let i = 0; i < spec.monsterCount; i++) {
       const pick = pickRandomMonsterIndex(indices);
       if (!pick) break;
       picks.push(pick.index);
@@ -140,5 +135,5 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  return NextResponse.json({ campaignId, monsters });
+  return NextResponse.json({ campaignId, monsters, encounter: spec });
 }
