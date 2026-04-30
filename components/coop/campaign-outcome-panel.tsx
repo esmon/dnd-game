@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
 
 import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
@@ -6,6 +9,7 @@ import type {
   CampaignAction,
   CampaignPlayer,
 } from "@/lib/coop/types";
+import { clearPlayerStateCache } from "@/lib/session";
 
 // Final-screen panel for a finished campaign. Mirrors solo's
 // VictoryPanel / DefeatPanel feel: emerald celebration on a win,
@@ -25,6 +29,18 @@ export function CampaignOutcomePanel({
   userId: string;
 }) {
   const won = campaign.outcome === "won";
+
+  // The home page overlays a localStorage cache on top of the freshly
+  // fetched character row (it's how solo persists in-flight state
+  // between fights). After a campaign, the DB row is the source of
+  // truth — XP, loot, consumables were all persisted server-side — so
+  // the local cache is stale and would mask the rewards. Clear it on
+  // mount so the home page falls through to the DB.
+  const myCharacterId = players.find((p) => p.user_id === userId)
+    ?.character_snapshot.id;
+  useEffect(() => {
+    if (myCharacterId) clearPlayerStateCache(myCharacterId);
+  }, [myCharacterId]);
 
   // Per-player tallies from the action log. Walk every action; on
   // kills, the server stamped killed_monster_index + xp_awarded +
