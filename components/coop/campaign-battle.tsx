@@ -726,7 +726,7 @@ function buildCommands({
           : null;
     commands.push({
       key: "heal",
-      kind: "primary",
+      kind: "heal",
       icon: HeartIcon,
       label: "HEAL",
       onClick: () => submit({ kind: "heal" }),

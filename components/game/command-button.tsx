@@ -13,9 +13,10 @@ export type CommandKind =
   | "weapon" // red — physical attack
   | "smite" // amber — divine smite
   | "spell" // indigo — spellcast
-  | "scroll" // gray — one-shot scroll
+  | "scroll" // amber-200 — parchment scroll
   | "potion" // rose — heal consumable
-  | "primary" // emerald — forward action (FIGHT, HEAL, Play Again)
+  | "heal" // teal — self-heal action (HEAL)
+  | "primary" // emerald — forward action (FIGHT, Play Again, Start Campaign)
   | "neutral" // outline — utility (REST, INVENTORY, RUN AWAY, navigation)
   | "dev"; // outline + small + muted — dev-only shortcuts
 
@@ -33,9 +34,14 @@ const KIND_STYLE: Record<
   spell: {
     className: "bg-indigo-600 text-white hover:bg-indigo-600/90",
   },
-  scroll: { variant: "secondary", className: "" },
+  scroll: {
+    className: "bg-amber-200 text-amber-950 hover:bg-amber-200/80",
+  },
   potion: {
     className: "bg-rose-300 text-rose-950 hover:bg-rose-300/80",
+  },
+  heal: {
+    className: "bg-teal-400 text-foreground hover:bg-teal-400/90",
   },
   primary: {
     className: "bg-emerald-500 text-foreground hover:bg-emerald-500/90",
