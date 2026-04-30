@@ -433,7 +433,7 @@ function Lobby({
                     </span>
                   </div>
                   {isMe ? (
-                    <Button onClick={() => setPickerOpen(true)}>
+                    <Button size="sm" onClick={() => setPickerOpen(true)}>
                       Change
                     </Button>
                   ) : null}
