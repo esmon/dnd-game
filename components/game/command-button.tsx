@@ -64,12 +64,13 @@ export function CommandButton({
   disabledReason = null,
 }: CommandButtonProps) {
   const { variant, size, className } = KIND_STYLE[kind];
-  // Both layouts share a single flex-row button so the icon stays vertically
-  // centered. With a subtitle, the label and subtitle stack inside a flex-col
-  // text column to the right of the icon — so they share the same left edge.
-  const layoutClass = subtitle
-    ? "h-auto justify-start py-1.5 text-left leading-tight"
-    : "justify-start";
+  // Single layout for every command button so the panel reads as a
+  // uniform stack — without min-h, label-only buttons (HEAL, Skip Turn,
+  // REST) collapse to ~32px while subtitled ones balloon to ~50px.
+  // Both share the icon position; the label/subtitle column just adds
+  // a second line when a subtitle is present.
+  const layoutClass =
+    "h-auto min-h-12 justify-start py-1.5 text-left leading-tight";
 
   const button = (
     <Button
