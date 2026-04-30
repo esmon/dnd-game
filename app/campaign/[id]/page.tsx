@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
 import { getActiveCharacterId } from "@/lib/session";
@@ -141,7 +142,9 @@ export default function CampaignLobbyPage({
         campaignId={campaignId}
         campaign={campaign}
         players={players}
+        userId={user.id}
         isCreator={isCreator}
+        onChanged={() => setRefreshTick((t) => t + 1)}
         onStarted={() => setRefreshTick((t) => t + 1)}
       />
     );
@@ -175,18 +178,23 @@ export default function CampaignLobbyPage({
 function Lobby({
   campaignId,
   players,
+  userId,
   isCreator,
+  onChanged,
   onStarted,
 }: {
   campaignId: string;
   campaign: Campaign;
   players: CampaignPlayer[];
+  userId: string;
   isCreator: boolean;
+  onChanged: () => void;
   onStarted: () => void;
 }) {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const inviteUrl =
     typeof window !== "undefined"
@@ -234,43 +242,64 @@ function Lobby({
           Campaign Lobby
         </h1>
 
-        <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
-          <p className="text-sm text-muted-foreground">
-            Share this link with a friend. They'll need to be signed in to
-            join.
-          </p>
-          <div className="flex gap-2">
-            <input
-              readOnly
-              value={inviteUrl}
-              className="flex-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm"
-              onFocus={(e) => e.currentTarget.select()}
-            />
-            <Button variant="outline" size="sm" onClick={copyInvite}>
-              {copied ? "Copied" : "Copy"}
-            </Button>
+        {isCreator ? (
+          <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+            <p className="text-sm text-muted-foreground">
+              Share this link with a friend. They'll need to be signed in to
+              join.
+            </p>
+            <div className="flex gap-2">
+              <input
+                readOnly
+                value={inviteUrl}
+                className="flex-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <Button size="sm" onClick={copyInvite}>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
           <p className="text-sm font-bold uppercase tracking-widest">
             Players ({slotsFilled}/{MAX_PLAYERS})
           </p>
           <ul className="flex flex-col gap-2">
-            {players.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between rounded-md border border-zinc-300 px-3 py-2 text-sm"
-              >
-                <span className="font-bold">
-                  {p.character_snapshot.name}
-                </span>
-                <span className="text-xs uppercase tracking-widest text-muted-foreground">
-                  {p.character_snapshot.race} · {p.character_snapshot.class} ·
-                  Lv {p.character_snapshot.level}
-                </span>
-              </li>
-            ))}
+            {players.map((p) => {
+              const isMe = p.user_id === userId;
+              return (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                >
+                  <div className="flex flex-1 flex-col">
+                    <span className="font-bold">
+                      {p.character_snapshot.name}
+                      {isMe ? (
+                        <span className="ml-2 text-xs uppercase tracking-widest text-muted-foreground">
+                          (You)
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                      {p.character_snapshot.race} ·{" "}
+                      {p.character_snapshot.class} · Lv{" "}
+                      {p.character_snapshot.level}
+                    </span>
+                  </div>
+                  {isMe ? (
+                    <Button
+                      size="sm"
+                      onClick={() => setPickerOpen(true)}
+                    >
+                      Change
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
             {Array.from({ length: MAX_PLAYERS - slotsFilled }).map((_, i) => (
               <li
                 key={`empty-${i}`}
@@ -308,6 +337,32 @@ function Lobby({
           </p>
         )}
       </div>
+      <CharacterPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        currentCharacterId={
+          players.find((p) => p.user_id === userId)?.character_snapshot.id ??
+          ""
+        }
+        onSelect={async (characterId) => {
+          try {
+            const res = await fetch(`/api/campaign/${campaignId}/player`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ characterId }),
+            });
+            if (!res.ok) {
+              const text = await res.text();
+              console.error("change character failed", res.status, text);
+              return;
+            }
+            setPickerOpen(false);
+            onChanged();
+          } catch (err) {
+            console.error("change character threw", err);
+          }
+        }}
+      />
     </main>
   );
 }
