@@ -79,7 +79,7 @@ export function CommandButton({
       disabled={disabled}
       className={cn("w-full", className, layoutClass)}
     >
-      {Icon ? <Icon className="size-3.5 shrink-0" /> : null}
+      {Icon ? <Icon className="size-5 shrink-0" /> : null}
       {subtitle ? (
         <span className="flex min-w-0 flex-col items-start gap-0">
           <span className="truncate">{label}</span>
