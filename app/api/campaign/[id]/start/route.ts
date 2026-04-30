@@ -12,10 +12,15 @@ import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
 type RouteContext = { params: Promise<{ id: string }> };
 
 const MIN_PLAYERS_TO_START = 2;
-// MVP: one monster per encounter, sized to party average level. Future
-// passes can take a body param for multi-monster fights, themed pools,
-// etc.
-const MONSTER_COUNT = 1;
+
+// Scale the encounter to the party so a 2-player fight isn't trivially
+// dunked on by both PCs swinging at one monster. Future passes can take
+// a body param ("lone boss" / "horde" / "themed") and pick CRs from
+// 5e's encounter-difficulty multiplier table; for now: one monster per
+// player.
+function monsterCountFor(playerCount: number): number {
+  return Math.max(1, playerCount);
+}
 
 // POST /api/campaign/[id]/start — creator-only. Validates the lobby is
 // full enough to fight, picks a monster pool sized to the party's
@@ -93,11 +98,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     ),
   );
 
+  const monsterCount = monsterCountFor(players.length);
   let monsters;
   try {
     const indices = await fetchMonsterIndexList(avgLevel);
     const picks: string[] = [];
-    for (let i = 0; i < MONSTER_COUNT; i++) {
+    for (let i = 0; i < monsterCount; i++) {
       const pick = pickRandomMonsterIndex(indices);
       if (!pick) break;
       picks.push(pick.index);
