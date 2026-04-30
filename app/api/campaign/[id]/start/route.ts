@@ -13,6 +13,7 @@ import {
 } from "@/lib/coop/encounter-builder";
 import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .update(finalUpdate)
     .eq("id", campaignId);
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({
     campaignId,
     monsters,

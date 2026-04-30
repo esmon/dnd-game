@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestIdentity } from "@/lib/auth/server-identity";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import type { Character } from "@/lib/db/schema";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { Campaign, CampaignPlayer } from "@/lib/coop/types";
@@ -133,5 +134,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({ campaignId, position }, { status: 201 });
 }

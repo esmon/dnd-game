@@ -7,6 +7,7 @@ import {
 } from "@/lib/coop/encounter-builder";
 import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { slotsForLevel } from "@/lib/dnd/spells";
 import {
   fetchMonster,
@@ -182,6 +183,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .update(finalUpdate)
     .eq("id", campaignId);
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({
     campaignId,
     encounter_number: nextEncounterNumber,

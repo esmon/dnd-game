@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCampaign } from "@/lib/coop/auth";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { supabaseAdmin } from "@/lib/supabase";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -37,5 +38,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({ ok: true, outcome: "won" });
 }

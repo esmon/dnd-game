@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCampaign } from "@/lib/coop/auth";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import type { Character } from "@/lib/db/schema";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -45,5 +46,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       .eq("id", player.character_snapshot.id);
   }
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({ ok: true });
 }

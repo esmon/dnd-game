@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCampaign } from "@/lib/coop/auth";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import type { Character } from "@/lib/db/schema";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -122,5 +123,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({ campaignId });
 }

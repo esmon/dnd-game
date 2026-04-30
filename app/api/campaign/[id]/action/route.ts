@@ -11,6 +11,7 @@ import {
 } from "@/lib/coop/server-actions";
 import { nextAliveSlot, slotsForCampaign } from "@/lib/coop/turn-order";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -261,6 +262,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       );
     }
     await persistVictoryRewards(players);
+    await broadcastCampaignUpdate(campaignId);
     return NextResponse.json({
       ok: true,
       finished: false,
@@ -304,6 +306,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       );
     }
     await persistDefeatRecovery(players);
+    await broadcastCampaignUpdate(campaignId);
     return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
   }
 
@@ -318,6 +321,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  await broadcastCampaignUpdate(campaignId);
   return NextResponse.json({ ok: true });
 }
 

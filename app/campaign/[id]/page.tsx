@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { CampaignOutcomePanel } from "@/components/coop/campaign-outcome-panel";
 import { RestScreen } from "@/components/coop/rest-screen";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import type {
@@ -125,10 +126,11 @@ export default function CampaignLobbyPage({
     if (activeEncounterKey !== null) setActionsRevealed(false);
   }, [activeEncounterKey]);
 
-  // Poll while the campaign is in motion. between_encounters polls at
-  // the lobby cadence — the only thing that can change there is some
-  // member triggering /next-encounter or /end-campaign, both of which
-  // we want to see promptly but not aggressively.
+  // Subscribe to the campaign's Realtime broadcast channel so any
+  // teammate's mutating route (action, join, ready, start, next /
+  // end encounter, forfeit) refetches us in <100ms instead of the
+  // poll cadence. The polling below is now a slow safety net for
+  // missed broadcasts (websocket hiccups, channel auth quirks).
   useEffect(() => {
     if (state.kind !== "ready") return;
     const status = state.data.campaign.status;
@@ -139,7 +141,32 @@ export default function CampaignLobbyPage({
     ) {
       return;
     }
-    const intervalMs = status === "active" ? 1500 : 3000;
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel(`campaign:${campaignId}`)
+      .on("broadcast", { event: "updated" }, () => {
+        setRefreshTick((t) => t + 1);
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [campaignId, state]);
+
+  // Slow polling fallback while the campaign is in motion. Cadence is
+  // intentionally relaxed (the broadcast above does the heavy lifting);
+  // this just guarantees we converge after a missed message.
+  useEffect(() => {
+    if (state.kind !== "ready") return;
+    const status = state.data.campaign.status;
+    if (
+      status !== "waiting" &&
+      status !== "active" &&
+      status !== "between_encounters"
+    ) {
+      return;
+    }
+    const intervalMs = status === "active" ? 5000 : 10000;
     const interval = setInterval(
       () => setRefreshTick((t) => t + 1),
       intervalMs,
