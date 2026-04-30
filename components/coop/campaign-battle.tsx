@@ -663,20 +663,52 @@ function actionToTurn(
   const damageType = (payload.damage_type as string) ?? "";
   const isPlayer = action.actor_kind === "player";
 
+  const spellName = (payload.spell_name as string) ?? "";
+  const potionName = (payload.potion_name as string) ?? "";
+  const amount = (payload.amount as number) ?? 0;
+  const noteSuffix = note ? ` (${note})` : "";
+  const typeSuffix = damageType ? ` ${damageType}` : "";
+
   let text: string;
-  if (action.kind === "skip") {
-    text = `${actorName} skips their turn`;
-  } else if (action.kind === "attack") {
-    if (missed) {
-      text = `${actorName} attacks ${targetName} — MISS (d20 ${payload.d20})`;
-    } else {
-      const noteSuffix = note ? ` (${note})` : "";
-      text = crit
-        ? `CRIT — ${actorName} attacks ${targetName} for ${damage}hp${damageType ? ` ${damageType}` : ""}${noteSuffix}`
-        : `${actorName} attacks ${targetName} for ${damage}hp${damageType ? ` ${damageType}` : ""}${noteSuffix}`;
-    }
-  } else {
-    text = `${actorName} does ${action.kind}`;
+  switch (action.kind) {
+    case "skip":
+      text = `${actorName} skips their turn`;
+      break;
+    case "attack":
+      if (missed) {
+        text = `${actorName} attacks ${targetName} — MISS (d20 ${payload.d20})`;
+      } else {
+        text = crit
+          ? `CRIT — ${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`
+          : `${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
+      }
+      break;
+    case "spell":
+      if (missed) {
+        text = `${actorName} casts ${spellName} at ${targetName} — MISS (d20 ${payload.d20})`;
+      } else {
+        text = crit
+          ? `CRIT — ${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`
+          : `${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
+      }
+      break;
+    case "scroll":
+      if (missed) {
+        text = `${actorName} reads Scroll of ${spellName} at ${targetName} — MISS (d20 ${payload.d20})`;
+      } else {
+        text = crit
+          ? `CRIT — ${actorName} reads Scroll of ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`
+          : `${actorName} reads Scroll of ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
+      }
+      break;
+    case "heal":
+      text = `${actorName} heals for ${amount}hp`;
+      break;
+    case "potion":
+      text = `${actorName} drinks ${potionName} for ${amount}hp`;
+      break;
+    default:
+      text = `${actorName} does ${action.kind}`;
   }
 
   return {
