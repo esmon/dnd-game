@@ -76,6 +76,10 @@ export function useArenaPersistence({
       equipped_spells: player.equippedSpells,
       spell_slots: player.spellSlots,
       consumables: player.consumables,
+      // Stamp the DB version this cache was written against so the
+      // bootstrap can detect external writes (other device, coop,
+      // etc.) and discard a stale cache.
+      dbUpdatedAt: player.dbUpdatedAt,
     });
   }, []);
 
@@ -93,6 +97,18 @@ export function useArenaPersistence({
         if (!res.ok) {
           console.error("character patch failed", res.status);
           return;
+        }
+        // The PATCH returns the updated row including the new
+        // updated_at; thread it back onto the player so subsequent
+        // cache writes stamp the right server version.
+        try {
+          const row = (await res.json()) as { updated_at?: string };
+          if (typeof row.updated_at === "string") {
+            player.dbUpdatedAt = row.updated_at;
+          }
+        } catch {
+          // Body parse failed — non-blocking, the cache will just
+          // miss its stamp this round and refetch will re-sync.
         }
         lastSyncedRef.current = { id: player.id, level: player.level };
         clearPlayerStateCache(player.id);

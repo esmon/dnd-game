@@ -22,7 +22,15 @@ export type CachedPlayerState = {
   equipped_spells: Spell[];
   spell_slots: Record<string, number>;
   consumables: Consumable[];
+  // Client-clock timestamp the cache was written. Kept for debugging;
+  // we don't use it for invalidation because client clocks drift.
   updatedAt: number;
+  // Server-stamped DB updated_at as known at the moment of the cache
+  // write. Bootstrap compares this to the freshly-fetched row's
+  // updated_at — if they differ, an external writer (coop on another
+  // device, admin tool, etc.) has touched the row and the local
+  // cache is stale.
+  dbUpdatedAt?: string;
 };
 
 export function getSessionId(): string {

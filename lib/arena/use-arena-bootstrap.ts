@@ -180,32 +180,42 @@ async function applyMigrations(
   let result = character;
 
   if (signedIn) {
-    // FOLLOW-UP: this overlay clobbers the fresh DB row with whatever
-    // localStorage last cached, which goes stale any time an external
-    // writer (coop campaign rewards, manual edits, future shared-state
-    // features) updates `characters` while solo is idle. Coop currently
-    // works around it with a per-feature `clearPlayerStateCache` call
-    // in CampaignOutcomePanel. The robust fix is to compare
-    // cache.updatedAt against the character row's updated_at and only
-    // overlay when the cache is strictly newer.
+    // Cache overlay: write-through state from the most recent solo
+    // session. Discard the cache if the DB row has been updated
+    // externally since this cache was written — detected by
+    // comparing the cache's stamped `dbUpdatedAt` against the
+    // freshly-fetched row's `updated_at`. Catches multi-device
+    // shenanigans (coop on phone wins XP, then laptop reloads with
+    // stale solo cache) and any future external writers without
+    // needing a per-feature cache-clear at every external write site.
     const cache = readPlayerStateCache(result.id);
     if (cache) {
-      result = {
-        ...result,
-        current_hp: cache.current_hp,
-        xp: cache.xp,
-        level: cache.level,
-        max_hp: cache.max_hp,
-        proficiency_bonus: cache.proficiency_bonus,
-        ability_scores: cache.ability_scores,
-        weapons: cache.weapons,
-        inventory: cache.inventory,
-        known_spells: cache.known_spells ?? result.known_spells ?? [],
-        equipped_spells:
-          cache.equipped_spells ?? result.equipped_spells ?? [],
-        spell_slots: cache.spell_slots ?? result.spell_slots ?? {},
-        consumables: cache.consumables ?? result.consumables ?? [],
-      };
+      const cacheIsForCurrentDbState =
+        typeof cache.dbUpdatedAt === "string" &&
+        cache.dbUpdatedAt === result.updated_at;
+      if (cacheIsForCurrentDbState) {
+        result = {
+          ...result,
+          current_hp: cache.current_hp,
+          xp: cache.xp,
+          level: cache.level,
+          max_hp: cache.max_hp,
+          proficiency_bonus: cache.proficiency_bonus,
+          ability_scores: cache.ability_scores,
+          weapons: cache.weapons,
+          inventory: cache.inventory,
+          known_spells: cache.known_spells ?? result.known_spells ?? [],
+          equipped_spells:
+            cache.equipped_spells ?? result.equipped_spells ?? [],
+          spell_slots: cache.spell_slots ?? result.spell_slots ?? {},
+          consumables: cache.consumables ?? result.consumables ?? [],
+        };
+      } else {
+        // External writer has touched the row since this cache was
+        // stamped (or the cache predates the dbUpdatedAt field).
+        // Drop the stale entry so it doesn't haunt future loads.
+        clearPlayerStateCache(result.id);
+      }
     }
   }
 

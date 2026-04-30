@@ -68,6 +68,11 @@ export type Player = {
   level: number;
   classId: string;
   raceId: string;
+  // The DB row's updated_at as last seen by this client. Used to
+  // invalidate the localStorage cache when an external writer (e.g.
+  // a coop campaign on another device) advances the row past the
+  // cached state. Optional because anonymous play has no DB row.
+  dbUpdatedAt?: string;
   abilityScores: AbilityScores;
   proficiencyBonus: number;
   knownSpells: Spell[];
