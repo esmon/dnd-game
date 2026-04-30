@@ -49,6 +49,15 @@ export default function CampaignLobbyPage({
 
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [refreshTick, setRefreshTick] = useState(0);
+  // Two flags coordinate the active→finished swap:
+  //   - seenActive: did this mount ever observe an active fight? If
+  //     not, the user reloaded into a finished campaign and should go
+  //     straight to the outcome panel — no point replaying.
+  //   - actionsRevealed: has CampaignBattle finished pacing the final
+  //     swing in? Until it has, keep rendering the battle so the
+  //     killing blow's shake/log line gets to play.
+  const [seenActive, setSeenActive] = useState(false);
+  const [actionsRevealed, setActionsRevealed] = useState(false);
 
   // Send signed-out users through sign-in, returning here after.
   useEffect(() => {
@@ -91,6 +100,15 @@ export default function CampaignLobbyPage({
   useEffect(() => {
     void fetchSnapshot();
   }, [fetchSnapshot, refreshTick]);
+
+  // Latch seenActive the moment we observe an active fight, so a later
+  // status flip to "finished" routes through the battle screen long
+  // enough for CampaignBattle to play out the killing blow.
+  useEffect(() => {
+    if (state.kind === "ready" && state.data.campaign.status === "active") {
+      setSeenActive(true);
+    }
+  }, [state]);
 
   // Poll while the campaign is in motion: 3s in the lobby (joins are
   // infrequent), 1.5s during combat so opponents see your moves
@@ -165,7 +183,15 @@ export default function CampaignLobbyPage({
     );
   }
 
-  if (campaign.status === "active") {
+  // Keep the battle mounted while finished-but-still-revealing so the
+  // killing blow's shake + log line get to play before the outcome
+  // panel takes over. If the user reloaded straight into a finished
+  // campaign (seenActive never latched), skip the reveal entirely.
+  const showBattle =
+    campaign.status === "active" ||
+    (campaign.status === "finished" && seenActive && !actionsRevealed);
+
+  if (showBattle) {
     return (
       <CampaignBattle
         campaign={campaign}
@@ -173,6 +199,7 @@ export default function CampaignLobbyPage({
         actions={actions}
         userId={user.id}
         onActionComplete={() => setRefreshTick((t) => t + 1)}
+        onAllActionsRevealed={() => setActionsRevealed(true)}
       />
     );
   }

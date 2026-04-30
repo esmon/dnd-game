@@ -190,12 +190,14 @@ export function CampaignBattle({
   actions,
   userId,
   onActionComplete,
+  onAllActionsRevealed,
 }: {
   campaign: Campaign;
   players: CampaignPlayer[];
   actions: CampaignAction[];
   userId: string;
   onActionComplete: () => void;
+  onAllActionsRevealed?: () => void;
 }) {
   const [state, dispatch] = useReducer(battleReducer, undefined, () =>
     initBattleState(campaign, actions.length),
@@ -223,6 +225,17 @@ export function CampaignBattle({
   const pendingActions = actions.slice(displayedCount);
   const displayedMonsters = rewindMonsters(campaign.monsters, pendingActions);
   const displayedPlayers = rewindPlayers(players, pendingActions);
+
+  // Tell the parent when the final swing/heal of a finished campaign
+  // has actually animated in, so it can hold off swapping to the
+  // outcome panel until the killing blow is visible. Gating on
+  // `status === "finished"` keeps this from firing every time pending
+  // happens to drain mid-fight.
+  const pendingDrained = pendingActions.length === 0;
+  const isFinished = campaign.status === "finished";
+  useEffect(() => {
+    if (isFinished && pendingDrained) onAllActionsRevealed?.();
+  }, [isFinished, pendingDrained, onAllActionsRevealed]);
 
   // Effective target: the user's last-clicked monster if it's still
   // alive, otherwise auto-fall-through to the first living monster.
