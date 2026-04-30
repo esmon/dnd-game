@@ -896,8 +896,8 @@ function MonsterButton({
       />
       <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
         <span>CR {formatCr(monster.challengeRating)}</span>
-        <span>· {monster.damageType}</span>
         <span>· AC {monster.ac}</span>
+        <span>· ATK {monster.damageType}</span>
         {monster.damageVulnerabilities.length > 0 ? (
           <span className="text-amber-600">
             · VUL {monster.damageVulnerabilities.join(", ")}
