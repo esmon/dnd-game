@@ -1,0 +1,171 @@
+import { findClass } from "@/lib/dnd/classes";
+import { playerAC, rollAttack } from "@/lib/dnd/combat";
+import { rollDice } from "@/lib/game/dice";
+import type { Monster } from "@/lib/game/types";
+import { supabaseAdmin } from "@/lib/supabase";
+import { pickMonsterTarget } from "./monster-ai";
+import { nextAliveSlot, slotsForCampaign } from "./turn-order";
+import type { Campaign, CampaignPlayer } from "./types";
+
+// Look up the next available turn_number for this campaign. Action
+// rows are monotonically numbered across the whole campaign (not
+// reset per encounter) and the (campaign_id, turn_number) unique
+// constraint is what gives us optimistic concurrency on simultaneous
+// posts. Used by every route that inserts an action row from a
+// non-zero starting point.
+export async function nextTurnNumberFor(campaignId: string): Promise<number> {
+  const lastActionRes = await supabaseAdmin
+    .from("campaign_actions")
+    .select("turn_number")
+    .eq("campaign_id", campaignId)
+    .order("turn_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lastActionRes.error) {
+    throw new Error(
+      `failed to read last turn_number: ${lastActionRes.error.message}`,
+    );
+  }
+  return typeof lastActionRes.data?.turn_number === "number"
+    ? lastActionRes.data.turn_number + 1
+    : 0;
+}
+
+// Walk forward through the initiative slots, resolving each monster's
+// turn until we either land on a player slot (they get to act next)
+// or every player is downed (campaign loss). Used by:
+//
+//   - action/route: after the acting player's action lands, advance
+//     the pointer through any monster turns that come up before the
+//     next player's turn arrives.
+//   - start/route: when initiative puts a monster ahead of the first
+//     player, run those swings before flipping status to active so
+//     the players don't see "Goblin's turn" with no resolution.
+//
+// Mutates `playerHp` in place and writes campaign_players + campaign_actions
+// rows for each monster swing. Returns the new pointer/turn_number plus
+// whether the chain ended in a TPK; the caller is responsible for
+// finalizing the campaign row (status='finished', outcome='lost') and
+// running persistDefeatRecovery in the defeat case.
+
+export interface MonsterChainResult {
+  pointer: number;
+  nextTurnNumber: number;
+  defeat: boolean;
+}
+
+export async function walkMonsterChain(args: {
+  campaignId: string;
+  campaign: Campaign;
+  players: CampaignPlayer[];
+  monsters: Monster[];
+  playerHp: Record<string, number>;
+  pointer: number;
+  nextTurnNumber: number;
+}): Promise<MonsterChainResult> {
+  const { campaignId, campaign, players, monsters, playerHp } = args;
+  let pointer = args.pointer;
+  let nextTurnNumber = args.nextTurnNumber;
+  const slotCount = slotsForCampaign(campaign, players, monsters).length;
+  if (slotCount === 0) {
+    return { pointer, nextTurnNumber, defeat: false };
+  }
+
+  while (true) {
+    const next = nextAliveSlot(pointer, campaign, players, monsters);
+    if (!next) return { pointer, nextTurnNumber, defeat: false };
+    pointer = next.pointer;
+    if (next.slot.kind === "player") {
+      return { pointer, nextTurnNumber, defeat: false };
+    }
+
+    const monster = monsters[next.slot.index];
+
+    // Live-HP snapshot so the AI doesn't keep targeting a teammate
+    // that already dropped earlier in this same chain.
+    const aliveTargets = players
+      .filter((p) => playerHp[p.id] > 0)
+      .map((p) => ({ ...p, current_hp: playerHp[p.id] }));
+    if (aliveTargets.length === 0) {
+      return { pointer, nextTurnNumber, defeat: true };
+    }
+    const targetPlayer = pickMonsterTarget(aliveTargets);
+    if (!targetPlayer) {
+      return { pointer, nextTurnNumber, defeat: true };
+    }
+
+    const klass = findClass(targetPlayer.character_snapshot.class) ?? null;
+    const targetAC = playerAC(
+      klass,
+      targetPlayer.character_snapshot.ability_scores,
+    );
+    const attack = rollAttack(monster.attackBonus, targetAC);
+    let damage = 0;
+    if (attack.hit) {
+      const raw =
+        rollDice(monster.damageDice) +
+        (attack.crit ? rollDice(monster.damageDice) : 0);
+      damage = Math.max(0, raw);
+    }
+    const newHp = Math.max(0, playerHp[targetPlayer.id] - damage);
+    playerHp[targetPlayer.id] = newHp;
+
+    // Keep the in-memory players row in sync too — nextAliveSlot
+    // (called on the next loop iteration) reads aliveness via
+    // players[i].current_hp, so without this mutation the pointer
+    // would land on a player we just downed and the next request's
+    // timeout/action endpoint would resolve to a monster slot
+    // (since reloading from DB shows them dead) and refuse to act.
+    const targetIndex = players.findIndex((p) => p.id === targetPlayer.id);
+    if (targetIndex >= 0) {
+      players[targetIndex] = { ...players[targetIndex], current_hp: newHp };
+    }
+
+    const hpUpdate = await supabaseAdmin
+      .from("campaign_players")
+      .update({ current_hp: newHp })
+      .eq("id", targetPlayer.id);
+    if (hpUpdate.error) {
+      throw new Error(
+        `monster-chain: failed to update player HP: ${hpUpdate.error.message}`,
+      );
+    }
+
+    const insert = await supabaseAdmin.from("campaign_actions").insert({
+      campaign_id: campaignId,
+      turn_number: nextTurnNumber,
+      encounter_number: campaign.encounter_number,
+      actor_kind: "monster",
+      actor_monster_index: next.slot.index,
+      target_kind: "player",
+      target_player_id: targetPlayer.id,
+      kind: "attack",
+      payload: {
+        actor_name: monster.name,
+        target_name: targetPlayer.character_snapshot.name,
+        damage_type: monster.damageType,
+        damage,
+        d20: attack.d20,
+        hit: attack.hit,
+        crit: attack.crit,
+        missed: !attack.hit,
+      },
+    });
+    // Without this guard the chain would silently swallow a failed
+    // insert (e.g. unique-constraint collision on turn_number) and the
+    // pointer would still advance — turn order ends up out of sync
+    // with the log. Better to fail the whole POST.
+    if (insert.error) {
+      throw new Error(
+        `monster-chain: failed to insert action row: ${insert.error.message}`,
+      );
+    }
+    nextTurnNumber++;
+
+    if (Object.values(playerHp).every((hp) => hp <= 0)) {
+      return { pointer, nextTurnNumber, defeat: true };
+    }
+
+    pointer = (pointer + 1) % slotCount;
+  }
+}

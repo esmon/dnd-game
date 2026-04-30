@@ -1,0 +1,164 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { authorizeCampaign } from "@/lib/coop/auth";
+import { buildEncounterSpec } from "@/lib/coop/encounter-builder";
+import { fetchMonsterPoolForSpec } from "@/lib/coop/encounter-pool";
+import { rollInitiative } from "@/lib/coop/initiative";
+import {
+  nextTurnNumberFor,
+  walkMonsterChain,
+} from "@/lib/coop/monster-chain";
+import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
+import { nextTurnDeadline } from "@/lib/coop/turn-timer";
+import { slotsForLevel } from "@/lib/dnd/spells";
+import { supabaseAdmin } from "@/lib/supabase";
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+// POST /api/campaign/[id]/next-encounter — chains into another fight
+// from the rest screen. Any member can trigger it (it's a party
+// decision, but anyone can pull the trigger). Increments
+// encounter_number, revives every player to full HP, rolls a new
+// encounter spec + initiative, and flips status back to active. If
+// initiative puts a monster ahead of all players, the leading swings
+// land before the response returns — same shape as the start route.
+export async function POST(request: NextRequest, ctx: RouteContext) {
+  const { id: campaignId } = await ctx.params;
+  const auth = await authorizeCampaign(request, campaignId);
+  if (!auth.ok) return auth.response;
+  const { campaign, players } = auth.ctx;
+
+  if (campaign.status !== "between_encounters") {
+    return NextResponse.json(
+      { error: "campaign is not between encounters" },
+      { status: 409 },
+    );
+  }
+
+  // Roll a fresh encounter for the now-revived party. Same builder as
+  // the start route — random difficulty (weighted), random monster
+  // count, target CR derived from the party's adjusted XP budget at
+  // their *current* levels (any level-ups from the prior encounter
+  // are already on the snapshots).
+  const playerLevels = players.map((p) => p.character_snapshot.level);
+  const spec = buildEncounterSpec(playerLevels);
+
+  const pool = await fetchMonsterPoolForSpec(spec);
+  if (!pool.ok) {
+    return NextResponse.json({ error: pool.error }, { status: pool.status });
+  }
+  const monsters = pool.monsters;
+
+  const initiativeOrder = rollInitiative(players, monsters);
+  const nextEncounterNumber = campaign.encounter_number + 1;
+
+  // Long-rest reset between encounters: full HP, full spell slots.
+  // Consumables (potions, scrolls) stay because those are physical
+  // items the party doesn't magically restock. Mutate the local
+  // `players` array too so walkMonsterChain runs against the
+  // restored state if initiative kicks off with a monster.
+  for (const player of players) {
+    const refreshedSnapshot = {
+      ...player.character_snapshot,
+      spell_slots: slotsForLevel(player.character_snapshot.level),
+    };
+    const restoredHp = player.character_snapshot.max_hp;
+    const update = await supabaseAdmin
+      .from("campaign_players")
+      .update({
+        current_hp: restoredHp,
+        character_snapshot: refreshedSnapshot,
+      })
+      .eq("id", player.id);
+    if (update.error) {
+      return NextResponse.json(
+        {
+          error: `failed to restore player state: ${update.error.message}`,
+        },
+        { status: 500 },
+      );
+    }
+    player.character_snapshot = refreshedSnapshot;
+    player.current_hp = restoredHp;
+  }
+
+  // Flip into the new encounter atomically with the bookkeeping —
+  // status, fresh monster pool, fresh initiative, pointer reset to
+  // top of the new initiative order, encounter number incremented.
+  // walkMonsterChain reads campaign.encounter_number to stamp action
+  // rows, so we update first then run the chain.
+  const flip = await supabaseAdmin
+    .from("campaigns")
+    .update({
+      status: "active",
+      monsters,
+      turn_pointer: 0,
+      initiative_order: initiativeOrder,
+      encounter_number: nextEncounterNumber,
+      current_difficulty: spec.difficulty,
+    })
+    .eq("id", campaignId);
+
+  if (flip.error) {
+    return NextResponse.json(
+      { error: flip.error.message },
+      { status: 500 },
+    );
+  }
+
+  // Same leading-monster-chain as the start route: if initiative puts
+  // a monster ahead of every player, run those swings now.
+  const activeCampaign = {
+    ...campaign,
+    status: "active" as const,
+    monsters,
+    turn_pointer: 0,
+    initiative_order: initiativeOrder,
+    encounter_number: nextEncounterNumber,
+  };
+  const playerHp: Record<string, number> = Object.fromEntries(
+    players.map((p) => [p.id, p.character_snapshot.max_hp]),
+  );
+
+  let nextTurnNumber: number;
+  try {
+    nextTurnNumber = await nextTurnNumberFor(campaignId);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
+
+  const chain = await walkMonsterChain({
+    campaignId,
+    campaign: activeCampaign,
+    players,
+    monsters,
+    playerHp,
+    pointer: 0,
+    nextTurnNumber,
+  });
+
+  const finalUpdate: Record<string, unknown> = {
+    turn_pointer: chain.pointer,
+    turn_deadline: chain.defeat ? null : nextTurnDeadline(),
+  };
+  if (chain.defeat) {
+    finalUpdate.status = "finished";
+    finalUpdate.outcome = "lost";
+  }
+  await supabaseAdmin
+    .from("campaigns")
+    .update(finalUpdate)
+    .eq("id", campaignId);
+
+  await broadcastCampaignUpdate(campaignId);
+  return NextResponse.json({
+    campaignId,
+    encounter_number: nextEncounterNumber,
+    monsters,
+    encounter: spec,
+    initiative: initiativeOrder,
+  });
+}

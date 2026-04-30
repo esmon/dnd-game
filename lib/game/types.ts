@@ -28,6 +28,12 @@ export type Spell = {
   damage: string;
   damageType: string;
   school: string;
+  // True for area-of-effect spells (Fireball, Burning Hands, etc.).
+  // The coop resolver applies the rolled damage to every alive
+  // monster (with per-monster resistance multipliers) instead of
+  // requiring a target selection. Older snapshots may be missing
+  // this field; treat undefined as false.
+  aoe?: boolean;
 };
 
 export type Scroll = {
@@ -62,6 +68,11 @@ export type Player = {
   level: number;
   classId: string;
   raceId: string;
+  // The DB row's updated_at as last seen by this client. Used to
+  // invalidate the localStorage cache when an external writer (e.g.
+  // a coop campaign on another device) advances the row past the
+  // cached state. Optional because anonymous play has no DB row.
+  dbUpdatedAt?: string;
   abilityScores: AbilityScores;
   proficiencyBonus: number;
   knownSpells: Spell[];
@@ -85,6 +96,10 @@ export type Monster = {
   damageResistances: string[];
   damageVulnerabilities: string[];
   damageImmunities: string[];
+  // Raw DEX score from dnd5eapi (10 = +0 mod). Used for initiative
+  // rolls in coop. Older monster snapshots may be missing this; the
+  // initiative roller treats undefined as DEX 10.
+  dexterity?: number;
 };
 
 export type Turn = {

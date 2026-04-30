@@ -82,7 +82,7 @@ export function VictoryPanel({
             </Button>
             <Button
               onClick={onKeep}
-              className="flex-1 justify-center bg-emerald-500 text-white hover:bg-emerald-500/90"
+              className="flex-1 justify-center bg-emerald-500 text-foreground hover:bg-emerald-500/90"
             >
               Keep
             </Button>

@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DnD Game
 
-## Getting Started
+A D&D-flavored arena combat game built on Next.js + Supabase + Tailwind. Roll a 5e character, solo through random encounters, or open a co-op campaign for 2–6 players to fight through a chain of scaling encounters together.
 
-First, run the development server:
+## What's in it
+
+**Character creation**
+- Race / class / background wizard (5e SRD content)
+- Manual or rolled ability scores, level 1–20
+- Magic-link auth (Supabase) with cross-device character access; anonymous play also supported via localStorage
+
+**Solo arena**
+- Random monster pulled from [dnd5eapi.co](https://www.dnd5eapi.co/) scaled to party level
+- Turn-based combat with weapons, spells, scrolls, potions, smite, and self-heal
+- Encounter difficulty rolls (Easy / Medium / Hard / Deadly) using DMG p.82 XP thresholds
+- Loot drops and XP awards on kill, level-ups with ASI / spell learning
+
+**Co-op multiplayer**
+- 2–6 player campaigns via shareable invite link
+- Initiative-rolled turn order (d20 + DEX) interleaving players and monsters
+- Multi-encounter campaigns with rest screen between fights — full HP and spell-slot restore
+- Server-authoritative combat; dice rolled server-side
+- Smart monster targeting weighted by party HP
+- AoE spells, Paladin Divine Smite
+- 60s idle turn timer auto-skips disconnected teammates
+- Realtime broadcast updates (Supabase Realtime); polling fallback
+- Per-encounter recap + final outcome panel with party-wide loot/XP rollup
+
+## Tech stack
+
+- **Next.js 16** App Router
+- **TypeScript** strict mode
+- **Tailwind v4** + shadcn-style components
+- **Supabase** Postgres + Auth + Realtime
+- **dnd5eapi.co** for monster data
+
+## Local development
+
+Requires a Supabase project. Set up:
 
 ```bash
+npm install
+cp .env.example .env.local  # fill in NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SECRET_KEY / etc.
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Apply migrations from `lib/db/migrations/` in order via the Supabase SQL editor or CLI.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Open [http://localhost:3000](http://localhost:3000).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project layout
 
-## Learn More
+```
+app/                      # Next.js routes
+  api/                    # API routes (campaign, character, auth)
+  campaign/[id]/          # Co-op lobby + battle pages
+  create/                 # Character creation wizard
+components/
+  coop/                   # Campaign battle, rest screen, outcome panel
+  game/                   # Arena, command panel, victory/defeat panels
+  create/                 # Wizard steps
+lib/
+  coop/                   # Server-side coop logic (auth, resolvers, monster chain,
+                          #   initiative, encounter builder, realtime broadcast)
+  dnd/                    # 5e domain logic (classes, races, spells, combat math)
+  game/                   # Solo arena reducer, dice, types
+  arena/                  # Arena hooks (bootstrap, persistence)
+  db/migrations/          # Supabase migrations (timestamps in filename)
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Migrations
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Schema changes live in `lib/db/migrations/` with `YYYYMMDDHHMMSS_name.sql` filenames. Apply in order — they're not idempotent re-runners by default.

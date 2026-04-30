@@ -44,6 +44,7 @@ type RawMonster = {
   damage_resistances?: string[];
   damage_immunities?: string[];
   damage_vulnerabilities?: string[];
+  dexterity?: number;
 };
 
 export function pickRandomMonsterIndex(
@@ -54,7 +55,13 @@ export function pickRandomMonsterIndex(
 }
 
 export async function fetchMonsterIndexList(level: number): Promise<MonsterIndex[]> {
-  const crs = crsForLevel(level);
+  return fetchMonsterIndexListByCrs(crsForLevel(level));
+}
+
+export async function fetchMonsterIndexListByCrs(
+  crs: string[],
+): Promise<MonsterIndex[]> {
+  if (crs.length === 0) return [];
   const query = crs
     .map((c) => `challenge_rating=${crToQueryValue(c)}`)
     .join("&");
@@ -152,5 +159,6 @@ export async function fetchMonster(index: string): Promise<Monster> {
     damageResistances: lower(data.damage_resistances),
     damageVulnerabilities: lower(data.damage_vulnerabilities),
     damageImmunities: lower(data.damage_immunities),
+    dexterity: typeof data.dexterity === "number" ? data.dexterity : 10,
   };
 }

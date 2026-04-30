@@ -13,9 +13,10 @@ export type CommandKind =
   | "weapon" // red — physical attack
   | "smite" // amber — divine smite
   | "spell" // indigo — spellcast
-  | "scroll" // gray — one-shot scroll
+  | "scroll" // amber-200 — parchment scroll
   | "potion" // rose — heal consumable
-  | "primary" // emerald — forward action (FIGHT, HEAL, Play Again)
+  | "heal" // teal — self-heal action (HEAL)
+  | "primary" // emerald — forward action (FIGHT, Play Again, Start Campaign)
   | "neutral" // outline — utility (REST, INVENTORY, RUN AWAY, navigation)
   | "dev"; // outline + small + muted — dev-only shortcuts
 
@@ -33,14 +34,19 @@ const KIND_STYLE: Record<
   spell: {
     className: "bg-indigo-600 text-white hover:bg-indigo-600/90",
   },
-  scroll: { variant: "secondary", className: "" },
+  scroll: {
+    className: "bg-amber-200 text-amber-950 hover:bg-amber-200/80",
+  },
   potion: {
     className: "bg-rose-300 text-rose-950 hover:bg-rose-300/80",
   },
-  primary: {
-    className: "bg-emerald-500 text-white hover:bg-emerald-500/90",
+  heal: {
+    className: "bg-teal-400 text-foreground hover:bg-teal-400/90",
   },
-  neutral: { variant: "outline", className: "" },
+  primary: {
+    className: "bg-emerald-500 text-foreground hover:bg-emerald-500/90",
+  },
+  neutral: { className: "" },
   dev: { variant: "outline", size: "sm", className: "text-xs opacity-60" },
 };
 
@@ -64,12 +70,13 @@ export function CommandButton({
   disabledReason = null,
 }: CommandButtonProps) {
   const { variant, size, className } = KIND_STYLE[kind];
-  // Both layouts share a single flex-row button so the icon stays vertically
-  // centered. With a subtitle, the label and subtitle stack inside a flex-col
-  // text column to the right of the icon — so they share the same left edge.
-  const layoutClass = subtitle
-    ? "h-auto justify-start py-1.5 text-left leading-tight"
-    : "justify-start";
+  // Single layout for every command button so the panel reads as a
+  // uniform stack — without min-h, label-only buttons (HEAL, Skip Turn,
+  // REST) collapse to ~32px while subtitled ones balloon to ~50px.
+  // Both share the icon position; the label/subtitle column just adds
+  // a second line when a subtitle is present.
+  const layoutClass =
+    "h-auto min-h-12 justify-start py-1.5 text-left leading-tight";
 
   const button = (
     <Button

@@ -28,7 +28,7 @@ export function CommandPanel({
         className,
       )}
     >
-      <PanelLabel>Command</PanelLabel>
+      <PanelLabel>Commands</PanelLabel>
       {commands.map((item) => {
         if ("render" in item) {
           return <Fragment key={item.key}>{item.render}</Fragment>;
