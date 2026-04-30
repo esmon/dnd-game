@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   FlagIcon,
@@ -58,6 +58,17 @@ export function CampaignBattle({
   );
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Auto-advance the target when the selected monster dies, so attack
+  // commands don't get stuck behind a "Pick a living target" disable.
+  useEffect(() => {
+    const current = campaign.monsters[selectedMonsterIndex];
+    if (current && current.health > 0) return;
+    const nextAlive = campaign.monsters.findIndex((m) => m.health > 0);
+    if (nextAlive >= 0 && nextAlive !== selectedMonsterIndex) {
+      setSelectedMonsterIndex(nextAlive);
+    }
+  }, [campaign.monsters, selectedMonsterIndex]);
 
   const currentSlot = nextAliveSlot(
     campaign.turn_pointer,
