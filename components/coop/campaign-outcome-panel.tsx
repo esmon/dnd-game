@@ -4,6 +4,10 @@ import { useEffect } from "react";
 import Link from "next/link";
 
 import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
+import {
+  aggregateRecaps,
+  buildEncounterRecaps,
+} from "@/lib/coop/encounter-recap";
 import type {
   Campaign,
   CampaignAction,
@@ -42,28 +46,11 @@ export function CampaignOutcomePanel({
     if (myCharacterId) clearPlayerStateCache(myCharacterId);
   }, [myCharacterId]);
 
-  // Per-player tallies from the action log. Walk every action; on
-  // kills, the server stamped killed_monster_index + xp_awarded +
-  // loot. XP went to every player alive at the moment of the kill
-  // (server-side determination), but the action row itself doesn't
-  // record that — for the recap we just show the snapshot's final
-  // xp delta vs the original character (server already did the math
-  // when it persisted to characters).
-  const lootByPlayer = new Map<string, string[]>();
-  let totalXp = 0;
-  for (const action of actions) {
-    const payload = action.payload as Record<string, unknown>;
-    if (!payload.killed_monster_index && payload.killed_monster_index !== 0) {
-      continue;
-    }
-    totalXp += (payload.xp_awarded as number) ?? 0;
-    const loot = payload.loot as { name: string; kind: string } | null;
-    if (loot && action.actor_player_id) {
-      const list = lootByPlayer.get(action.actor_player_id) ?? [];
-      list.push(loot.name);
-      lootByPlayer.set(action.actor_player_id, list);
-    }
-  }
+  // Per-encounter recap from the action log + a campaign-wide rollup.
+  // Each kill action carries killed_monster_name + xp_awarded + loot,
+  // stamped with the encounter number it happened in.
+  const recaps = buildEncounterRecaps(actions);
+  const cumulative = aggregateRecaps(recaps);
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
@@ -81,25 +68,63 @@ export function CampaignOutcomePanel({
             </p>
             <p className="text-sm text-muted-foreground">
               {won
-                ? `The party defeated ${campaign.monsters.length === 1 ? "the monster" : "all the monsters"}.`
+                ? cumulative.encountersCleared === 1
+                  ? "The party cleared the encounter."
+                  : `The party cleared ${cumulative.encountersCleared} encounters.`
                 : `The party fell to ${campaign.monsters.find((m) => m.health > 0)?.name ?? "the encounter"}.`}
             </p>
-            {won && totalXp > 0 ? (
+            {won && cumulative.totalXpPerPlayer > 0 ? (
               <p className="text-sm tabular-nums text-muted-foreground">
-                + {totalXp} XP earned across the party
+                + {cumulative.totalXpPerPlayer} XP banked per player
               </p>
             ) : null}
           </div>
 
           {won ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-3">
+              {recaps.map((recap) => (
+                <div
+                  key={recap.encounterNumber}
+                  className="flex flex-col gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm dark:border-zinc-700"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-bold uppercase tracking-widest">
+                      Encounter {recap.encounterNumber}
+                    </span>
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      +{recap.xpPerPlayer} XP
+                    </span>
+                  </div>
+                  {recap.killed.length > 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Defeated: {recap.killed.join(", ")}
+                    </p>
+                  ) : null}
+                  {players.map((p) => {
+                    const isMe = p.user_id === userId;
+                    const myLoot = recap.lootByPlayer.get(p.id) ?? [];
+                    if (myLoot.length === 0) return null;
+                    return (
+                      <p key={p.id} className="text-xs text-muted-foreground">
+                        <span className="font-bold text-foreground">
+                          {p.character_snapshot.name}
+                          {isMe ? " (You)" : ""}
+                        </span>
+                        : {myLoot.join(", ")}
+                      </p>
+                    );
+                  })}
+                </div>
+              ))}
+
               <p className="text-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Party
               </p>
               <ul className="flex flex-col gap-2">
                 {players.map((p) => {
                   const isMe = p.user_id === userId;
-                  const myLoot = lootByPlayer.get(p.id) ?? [];
+                  const myLoot =
+                    cumulative.totalLootByPlayer.get(p.id) ?? [];
                   return (
                     <li
                       key={p.id}
@@ -118,15 +143,11 @@ export function CampaignOutcomePanel({
                           Lv {p.character_snapshot.level}
                         </span>
                       </div>
-                      {myLoot.length > 0 ? (
-                        <p className="text-xs text-muted-foreground">
-                          Loot: {myLoot.join(", ")}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          No drops this fight.
-                        </p>
-                      )}
+                      <p className="text-xs text-muted-foreground">
+                        {myLoot.length > 0
+                          ? `Loot: ${myLoot.join(", ")}`
+                          : "No drops this run."}
+                      </p>
                     </li>
                   );
                 })}

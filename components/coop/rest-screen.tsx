@@ -7,6 +7,10 @@ import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
 import { PanelLabel } from "@/components/game/panel-label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  aggregateRecaps,
+  buildEncounterRecaps,
+} from "@/lib/coop/encounter-recap";
 import type {
   Campaign,
   CampaignAction,
@@ -37,30 +41,16 @@ export function RestScreen({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Per-encounter recap: walk the actions stamped with this encounter,
-  // sum xp_awarded and collect loot per killer. Same shape the outcome
-  // panel uses, just scoped to one fight.
-  const encounterActions = actions.filter(
-    (a) => a.encounter_number === campaign.encounter_number,
+  // Build the same recap shape the final outcome panel uses, then
+  // pluck out *this* encounter for the per-fight detail and aggregate
+  // across all of them for the running campaign-so-far totals.
+  const recaps = buildEncounterRecaps(actions);
+  const thisRecap = recaps.find(
+    (r) => r.encounterNumber === campaign.encounter_number,
   );
-  const lootByPlayer = new Map<string, string[]>();
-  let totalXp = 0;
-  for (const action of encounterActions) {
-    const payload = action.payload as Record<string, unknown>;
-    if (
-      payload.killed_monster_index === undefined ||
-      payload.killed_monster_index === null
-    ) {
-      continue;
-    }
-    totalXp += (payload.xp_awarded as number) ?? 0;
-    const loot = payload.loot as { name: string; kind: string } | null;
-    if (loot && action.actor_player_id) {
-      const list = lootByPlayer.get(action.actor_player_id) ?? [];
-      list.push(loot.name);
-      lootByPlayer.set(action.actor_player_id, list);
-    }
-  }
+  const cumulative = aggregateRecaps(recaps);
+  const lootByPlayer = thisRecap?.lootByPlayer ?? new Map<string, string[]>();
+  const totalXp = thisRecap?.xpPerPlayer ?? 0;
 
   async function next() {
     setBusy(true);
@@ -157,8 +147,22 @@ export function RestScreen({
 
           <p className="text-center font-mono text-sm">
             <span className="font-bold">+{totalXp} XP</span>
-            <span className="text-muted-foreground"> per player</span>
+            <span className="text-muted-foreground"> per player this fight</span>
           </p>
+
+          {cumulative.encountersCleared > 1 ? (
+            <div className="rounded-md border border-dashed border-muted-foreground/30 bg-background/50 px-3 py-2 text-center font-mono text-xs text-muted-foreground">
+              Campaign so far —{" "}
+              <span className="font-bold text-foreground">
+                {cumulative.encountersCleared} cleared
+              </span>
+              {", "}
+              <span className="font-bold text-foreground">
+                +{cumulative.totalXpPerPlayer} XP
+              </span>{" "}
+              banked per player
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-2">
             <Button
