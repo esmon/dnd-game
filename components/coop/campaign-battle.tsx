@@ -994,28 +994,30 @@ function InitiativeStrip({
 function CombatLogPanel({ turns }: { turns: Turn[] }) {
   // Reverse for newest-first to match the solo log convention.
   const reversed = [...turns].reverse();
-  // Mobile: fixed h-80 so the log doesn't dominate the screen before
-  // any actions land. md+: let grid stretch the panel to match the
-  // commands sibling — but `min-h-0 overflow-hidden` keeps the log's
-  // content from contributing to the row height, so the row stays
-  // sized by commands and the log scrolls internally instead of
-  // pushing layout when the action history grows.
+  // Mobile: fixed h-80 so the log doesn't dominate before any actions
+  // land. md+: take whatever height grid stretching gives us (commands
+  // sibling dictates the row), and absolute-position the scroll area
+  // so the log's content never contributes to the panel's intrinsic
+  // size — without that, even overflow-hidden lets the content's
+  // natural height push the grid row taller than commands.
   return (
-    <div className="relative h-80 w-full rounded-md border-2 border-zinc-900 bg-card md:h-auto md:min-h-0 md:overflow-hidden">
+    <div className="relative h-80 w-full rounded-md border-2 border-zinc-900 bg-card md:h-auto md:min-h-0">
       <PanelLabel>Logs</PanelLabel>
-      <ScrollArea className="h-full w-full p-3">
-        {reversed.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
-            The arena is silent... for now.
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {reversed.map((turn) => (
-              <TurnLine key={turn.id} turn={turn} />
-            ))}
-          </ul>
-        )}
-      </ScrollArea>
+      <div className="md:absolute md:inset-0 md:overflow-hidden">
+        <ScrollArea className="h-full w-full p-3">
+          {reversed.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground">
+              The arena is silent... for now.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {reversed.map((turn) => (
+                <TurnLine key={turn.id} turn={turn} />
+              ))}
+            </ul>
+          )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }
