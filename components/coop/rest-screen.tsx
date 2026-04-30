@@ -172,7 +172,7 @@ export function RestScreen({
             >
               {busy ? "Loading…" : `Encounter ${campaign.encounter_number + 1}`}
             </Button>
-            <Button onClick={end} disabled={busy} variant="outline">
+            <Button onClick={end} disabled={busy}>
               End Campaign
             </Button>
             {error ? (

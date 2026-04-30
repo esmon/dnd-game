@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
+import { buttonVariants } from "@/components/ui/button";
 import {
   aggregateRecaps,
   buildEncounterRecaps,
@@ -12,6 +13,7 @@ import type {
   CampaignAction,
   CampaignPlayer,
 } from "@/lib/coop/types";
+import { cn } from "@/lib/utils";
 
 // Final-screen panel for a finished campaign. Mirrors solo's
 // VictoryPanel / DefeatPanel feel: emerald celebration on a win,
@@ -141,10 +143,7 @@ export function CampaignOutcomePanel({
             </div>
           ) : null}
 
-          <Link
-            href="/"
-            className="inline-flex w-full items-center justify-center rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted"
-          >
+          <Link href="/" className={cn(buttonVariants(), "w-full")}>
             Back to home
           </Link>
         </LobbyResultFrame>

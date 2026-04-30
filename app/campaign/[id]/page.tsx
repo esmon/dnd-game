@@ -201,7 +201,7 @@ export default function CampaignLobbyPage({
     return (
       <CenteredCard>
         <p className="text-rose-600">Error: {state.message}</p>
-        <Button variant="outline" onClick={() => setRefreshTick((t) => t + 1)}>
+        <Button onClick={() => setRefreshTick((t) => t + 1)}>
           Retry
         </Button>
       </CenteredCard>
