@@ -180,6 +180,14 @@ async function applyMigrations(
   let result = character;
 
   if (signedIn) {
+    // FOLLOW-UP: this overlay clobbers the fresh DB row with whatever
+    // localStorage last cached, which goes stale any time an external
+    // writer (coop campaign rewards, manual edits, future shared-state
+    // features) updates `characters` while solo is idle. Coop currently
+    // works around it with a per-feature `clearPlayerStateCache` call
+    // in CampaignOutcomePanel. The robust fix is to compare
+    // cache.updatedAt against the character row's updated_at and only
+    // overlay when the cache is strictly newer.
     const cache = readPlayerStateCache(result.id);
     if (cache) {
       result = {
