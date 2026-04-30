@@ -14,6 +14,7 @@ import {
 import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
+import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -151,7 +152,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // — players are at full HP, no consumables spent — but handle it
   // for completeness so the campaign doesn't sit "active" with a
   // dead party.
-  const finalUpdate: Record<string, unknown> = { turn_pointer: chain.pointer };
+  const finalUpdate: Record<string, unknown> = {
+    turn_pointer: chain.pointer,
+    // Arm the idle-skip timer if combat is still live.
+    turn_deadline: chain.defeat ? null : nextTurnDeadline(),
+  };
   if (chain.defeat) {
     finalUpdate.status = "finished";
     finalUpdate.outcome = "lost";

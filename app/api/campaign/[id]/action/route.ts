@@ -12,6 +12,7 @@ import {
 import { nextAliveSlot, slotsForCampaign } from "@/lib/coop/turn-order";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
+import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -256,6 +257,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         monsters,
         status: "between_encounters",
         turn_pointer: pointer,
+        // No active turn during the rest screen; clear the timer.
+        turn_deadline: null,
       })
       .eq("id", campaignId);
     if (winUpdate.error) {
@@ -300,6 +303,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         status: "finished",
         outcome: "lost",
         turn_pointer: pointer,
+        turn_deadline: null,
       })
       .eq("id", campaignId);
     if (lossUpdate.error) {
@@ -313,9 +317,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
   }
 
+  // Chain ended on a player slot (walkMonsterChain returns there);
+  // arm the idle-skip timer so a disconnected teammate doesn't stall
+  // the encounter forever.
   const turnUpdate = await supabaseAdmin
     .from("campaigns")
-    .update({ monsters, turn_pointer: pointer })
+    .update({
+      monsters,
+      turn_pointer: pointer,
+      turn_deadline: nextTurnDeadline(),
+    })
     .eq("id", campaignId);
   if (turnUpdate.error) {
     return NextResponse.json(

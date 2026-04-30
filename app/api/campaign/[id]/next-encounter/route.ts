@@ -8,6 +8,7 @@ import {
 import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
+import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 import { slotsForLevel } from "@/lib/dnd/spells";
 import {
   fetchMonster,
@@ -173,7 +174,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     nextTurnNumber,
   });
 
-  const finalUpdate: Record<string, unknown> = { turn_pointer: chain.pointer };
+  const finalUpdate: Record<string, unknown> = {
+    turn_pointer: chain.pointer,
+    turn_deadline: chain.defeat ? null : nextTurnDeadline(),
+  };
   if (chain.defeat) {
     finalUpdate.status = "finished";
     finalUpdate.outcome = "lost";

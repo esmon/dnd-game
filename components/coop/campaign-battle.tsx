@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import {
   FlagIcon,
@@ -467,6 +467,13 @@ export function CampaignBattle({
           <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl">
             {turnDescription}
           </h1>
+          <TurnTimer
+            deadline={campaign.turn_deadline}
+            campaignId={campaign.id}
+            active={
+              campaign.status === "active" && pendingActions.length === 0
+            }
+          />
         </div>
 
         <InitiativeStrip
@@ -974,6 +981,72 @@ function MonsterButton({
 // from the turn header alone — this exposes the order so players can
 // plan around it (heal the next-acting low-HP teammate, save a spell
 // for the monster about to swing, etc.).
+// Per-turn idle countdown. Renders the seconds remaining until the
+// active player's turn auto-skips. When the deadline passes, the
+// first connected client posts /timeout — server is idempotent so
+// duplicate calls from racing clients just 409. A small jitter (0–1.5s)
+// after expiry stops every client from posting in the same instant.
+function TurnTimer({
+  deadline,
+  campaignId,
+  active,
+}: {
+  deadline: string | null;
+  campaignId: string;
+  active: boolean;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  const firedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!active || !deadline) {
+      setSecondsLeft(null);
+      return;
+    }
+    const tick = () => {
+      const ms = new Date(deadline).getTime() - Date.now();
+      setSecondsLeft(Math.max(0, Math.ceil(ms / 1000)));
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [deadline, active]);
+
+  useEffect(() => {
+    if (!active || !deadline) return;
+    if (secondsLeft === null || secondsLeft > 0) return;
+    if (firedFor.current === deadline) return;
+    firedFor.current = deadline;
+    // Jitter 0–1500ms so two browsers watching the same fight don't
+    // both fire at the exact same millisecond. Whichever lands first
+    // wins; the other gets a 409 because turn_deadline has already
+    // been reset by the timeout endpoint.
+    const wait = Math.floor(Math.random() * 1500);
+    const timer = setTimeout(() => {
+      void fetch(`/api/campaign/${campaignId}/timeout`, { method: "POST" });
+    }, wait);
+    return () => clearTimeout(timer);
+  }, [secondsLeft, deadline, campaignId, active]);
+
+  if (!active || secondsLeft === null) return null;
+  const tone =
+    secondsLeft <= 5
+      ? "text-rose-600"
+      : secondsLeft <= 15
+        ? "text-amber-600"
+        : "text-muted-foreground";
+  return (
+    <p
+      className={cn(
+        "font-mono text-xs uppercase tracking-widest tabular-nums",
+        tone,
+      )}
+    >
+      Auto-skip in {secondsLeft}s
+    </p>
+  );
+}
+
 function InitiativeStrip({
   campaign,
   players,
