@@ -796,7 +796,7 @@ function PartyMember({
         className="h-2"
       />
       <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-        Race: {snap.race} · Class: {snap.class} · Lv: {snap.level}
+        {snap.race} · {snap.class} · Lv: {snap.level}
       </p>
     </div>
   );
