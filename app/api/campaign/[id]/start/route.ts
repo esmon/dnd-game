@@ -12,6 +12,7 @@ import {
   nearbyCrStrings,
 } from "@/lib/coop/encounter-builder";
 import { rollInitiative } from "@/lib/coop/initiative";
+import { walkMonsterChain } from "@/lib/coop/monster-chain";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -98,7 +99,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // next regardless of position.
   const initiativeOrder = rollInitiative(players, monsters);
 
-  const update = await supabaseAdmin
+  // Flip status to active first so walkMonsterChain's writes (action
+  // log rows, current_hp updates) land on a non-waiting campaign.
+  // Initiative order has to be persisted at the same time because the
+  // chain-walker reads it back via the campaign param.
+  const flip = await supabaseAdmin
     .from("campaigns")
     .update({
       status: "active",
@@ -108,12 +113,51 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     })
     .eq("id", campaignId);
 
-  if (update.error) {
+  if (flip.error) {
     return NextResponse.json(
-      { error: update.error.message },
+      { error: flip.error.message },
       { status: 500 },
     );
   }
+
+  // If initiative put a monster ahead of every player, run those
+  // swings now so the first player to load the battle screen sees
+  // their own turn (and any damage already taken), not a stuck
+  // "Goblin's turn" that nobody can advance.
+  const activeCampaign = {
+    ...campaign,
+    status: "active" as const,
+    monsters,
+    turn_pointer: 0,
+    initiative_order: initiativeOrder,
+  };
+  const playerHp: Record<string, number> = Object.fromEntries(
+    players.map((p) => [p.id, p.current_hp]),
+  );
+  const chain = await walkMonsterChain({
+    campaignId,
+    campaign: activeCampaign,
+    players,
+    monsters,
+    playerHp,
+    pointer: 0,
+    nextTurnNumber: 0,
+  });
+
+  // Persist the resulting pointer (and outcome if the opening round
+  // somehow downed every PC). Defeat at start is exceedingly unlikely
+  // — players are at full HP, no consumables spent — but handle it
+  // for completeness so the campaign doesn't sit "active" with a
+  // dead party.
+  const finalUpdate: Record<string, unknown> = { turn_pointer: chain.pointer };
+  if (chain.defeat) {
+    finalUpdate.status = "finished";
+    finalUpdate.outcome = "lost";
+  }
+  await supabaseAdmin
+    .from("campaigns")
+    .update(finalUpdate)
+    .eq("id", campaignId);
 
   return NextResponse.json({
     campaignId,

@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCampaign } from "@/lib/coop/auth";
 import type { Character } from "@/lib/db/schema";
-import { findClass } from "@/lib/dnd/classes";
-import { playerAC, rollAttack } from "@/lib/dnd/combat";
 import { rollLoot } from "@/lib/dnd/loot";
-import { rollDice } from "@/lib/game/dice";
 import { supabaseAdmin } from "@/lib/supabase";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import {
@@ -13,7 +10,7 @@ import {
   type ActionBody,
 } from "@/lib/coop/server-actions";
 import { nextAliveSlot, slotsForCampaign } from "@/lib/coop/turn-order";
-import { pickMonsterTarget } from "@/lib/coop/monster-ai";
+import { walkMonsterChain } from "@/lib/coop/monster-chain";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -213,90 +210,37 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ ok: true, finished: true, outcome: "won" });
   }
 
-  // Walk forward — possibly executing several monster actions — until
-  // the pointer lands on an alive player or the campaign ends. Slot
-  // count varies by campaign (initiative may include all players +
-  // multiple monsters in any order), so wrap on the resolved slot
-  // list rather than a hard-coded total.
+  // Advance one slot past the player who just acted, then walk any
+  // monster swings up to the next player turn (or until everyone's
+  // down). Slot count varies — initiative interleaves monsters and
+  // players in any order — so wrap on the resolved slot list.
   const slotCount = slotsForCampaign(campaign, players, monsters).length;
   pointer = (pointer + 1) % slotCount;
 
-  while (true) {
-    const next = nextAliveSlot(pointer, campaign, players, monsters);
-    if (!next) break;
-    pointer = next.pointer;
-    if (next.slot.kind === "player") break;
+  const chain = await walkMonsterChain({
+    campaignId,
+    campaign,
+    players,
+    monsters,
+    playerHp,
+    pointer,
+    nextTurnNumber,
+  });
+  pointer = chain.pointer;
+  nextTurnNumber = chain.nextTurnNumber;
 
-    const monster = monsters[next.slot.index];
-
-    // Build live-HP snapshots so the AI sees the *current* state of
-    // the chain (a teammate downed earlier this round shouldn't still
-    // look full-HP). Casting is just a re-typed projection of
-    // CampaignPlayer; the AI only reads current_hp + max_hp.
-    const aliveTargets = players
-      .filter((p) => playerHp[p.id] > 0)
-      .map((p) => ({ ...p, current_hp: playerHp[p.id] }));
-    if (aliveTargets.length === 0) break;
-    const targetPlayer = pickMonsterTarget(aliveTargets);
-    if (!targetPlayer) break;
-
-    const klass = findClass(targetPlayer.character_snapshot.class) ?? null;
-    const targetAC = playerAC(
-      klass,
-      targetPlayer.character_snapshot.ability_scores,
-    );
-    const attack = rollAttack(monster.attackBonus, targetAC);
-    let damage = 0;
-    if (attack.hit) {
-      const raw =
-        rollDice(monster.damageDice) +
-        (attack.crit ? rollDice(monster.damageDice) : 0);
-      damage = Math.max(0, raw);
-    }
-    const newHp = Math.max(0, playerHp[targetPlayer.id] - damage);
-    playerHp[targetPlayer.id] = newHp;
-
+  if (chain.defeat) {
     await supabaseAdmin
-      .from("campaign_players")
-      .update({ current_hp: newHp })
-      .eq("id", targetPlayer.id);
-
-    await supabaseAdmin.from("campaign_actions").insert({
-      campaign_id: campaignId,
-      turn_number: nextTurnNumber,
-      actor_kind: "monster",
-      actor_monster_index: next.slot.index,
-      target_kind: "player",
-      target_player_id: targetPlayer.id,
-      kind: "attack",
-      payload: {
-        actor_name: monster.name,
-        target_name: targetPlayer.character_snapshot.name,
-        damage_type: monster.damageType,
-        damage,
-        d20: attack.d20,
-        hit: attack.hit,
-        crit: attack.crit,
-        missed: !attack.hit,
-      },
-    });
-    nextTurnNumber++;
-
-    if (Object.values(playerHp).every((hp) => hp <= 0)) {
-      await supabaseAdmin
-        .from("campaigns")
-        .update({
-          monsters,
-          status: "finished",
-          outcome: "lost",
-          turn_pointer: pointer,
-        })
-        .eq("id", campaignId);
-      await persistDefeatRecovery(players);
-      return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
-    }
-
-    pointer = (pointer + 1) % slotCount;
+      .from("campaigns")
+      .update({
+        monsters,
+        status: "finished",
+        outcome: "lost",
+        turn_pointer: pointer,
+      })
+      .eq("id", campaignId);
+    await persistDefeatRecovery(players);
+    return NextResponse.json({ ok: true, finished: true, outcome: "lost" });
   }
 
   await supabaseAdmin
