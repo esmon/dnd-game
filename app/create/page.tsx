@@ -320,7 +320,7 @@ export default function CreatePage() {
               </div>
             ) : null}
 
-            <div className="sticky bottom-0 -mx-6 -mb-6 flex items-center justify-between rounded-b-xl border-t bg-card px-6 py-4 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.04)]">
+            <div className="sticky bottom-0 -mx-4 -mb-4 flex items-center justify-between rounded-b-xl border-t-2 border-zinc-900 bg-card px-4 py-4 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.04)]">
               <Button
                 variant="outline"
                 onClick={() => dispatch({ type: "PREV_STEP" })}
