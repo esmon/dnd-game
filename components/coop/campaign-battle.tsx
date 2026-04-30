@@ -94,16 +94,21 @@ function battleReducer(state: BattleState, action: BattleAction): BattleState {
 // long monster chains drag.
 const ACTION_REVEAL_MS = 700;
 
-// "Rewind" the server's authoritative monster HP back to the state
-// before each pending (un-displayed) attack landed. Order doesn't
-// matter — adding back damage is commutative — so we just sum the
-// per-monster damage from pending actions and cap at maxHealth.
-function rewindMonsters(
+// Compute displayed monster HP purely from the action log instead of
+// rewinding server state. The previous approach (server.health +
+// pending damage) was correct only when server.health was already
+// post-action; if a poll caught the server mid-write — actions
+// inserted but campaign.monsters not yet updated — the rewind would
+// double-count and the bar visibly shot up before reveal dropped it
+// again. Deriving from actions sidesteps the race entirely: the bar
+// only reflects what's been displayed, regardless of server-side
+// inconsistency between action log and HP rows.
+function deriveDisplayedMonsters(
   monsters: Monster[],
-  pendingActions: CampaignAction[],
+  displayedActions: CampaignAction[],
 ): Monster[] {
   const damageByIndex = new Map<number, number>();
-  for (const a of pendingActions) {
+  for (const a of displayedActions) {
     if (a.target_kind !== "monster" || a.target_monster_index == null) continue;
     const damage = Number(
       (a.payload as Record<string, unknown>).damage ?? 0,
@@ -114,23 +119,22 @@ function rewindMonsters(
       (damageByIndex.get(a.target_monster_index) ?? 0) + damage,
     );
   }
-  if (damageByIndex.size === 0) return monsters;
   return monsters.map((m, i) => {
-    const back = damageByIndex.get(i) ?? 0;
-    if (back === 0) return m;
-    return { ...m, health: Math.min(m.maxHealth, m.health + back) };
+    const taken = damageByIndex.get(i) ?? 0;
+    return { ...m, health: Math.max(0, m.maxHealth - taken) };
   });
 }
 
-// Same idea for player HP — reverse damage from incoming attacks and
-// reverse heals/potions, so each player's bar drops in step with the
-// log line that explains it.
-function rewindPlayers(
+// Same idea for player HP — start from the per-player join HP
+// (snapshot.current_hp captures the moment they joined the campaign,
+// before any combat) and apply damage/heal from each displayed action
+// targeting them.
+function deriveDisplayedPlayers(
   players: CampaignPlayer[],
-  pendingActions: CampaignAction[],
+  displayedActions: CampaignAction[],
 ): CampaignPlayer[] {
   const deltaByPlayer = new Map<string, number>();
-  for (const a of pendingActions) {
+  for (const a of displayedActions) {
     if (a.target_kind !== "player" || a.target_player_id == null) continue;
     const payload = a.payload as Record<string, unknown>;
     if (a.kind === "attack") {
@@ -138,7 +142,7 @@ function rewindPlayers(
       if (damage > 0) {
         deltaByPlayer.set(
           a.target_player_id,
-          (deltaByPlayer.get(a.target_player_id) ?? 0) + damage,
+          (deltaByPlayer.get(a.target_player_id) ?? 0) - damage,
         );
       }
     } else if (a.kind === "heal" || a.kind === "potion") {
@@ -146,21 +150,18 @@ function rewindPlayers(
       if (amount > 0) {
         deltaByPlayer.set(
           a.target_player_id,
-          (deltaByPlayer.get(a.target_player_id) ?? 0) - amount,
+          (deltaByPlayer.get(a.target_player_id) ?? 0) + amount,
         );
       }
     }
   }
-  if (deltaByPlayer.size === 0) return players;
   return players.map((p) => {
     const delta = deltaByPlayer.get(p.id) ?? 0;
-    if (delta === 0) return p;
+    const startHp = p.character_snapshot.current_hp;
+    const maxHp = p.character_snapshot.max_hp;
     return {
       ...p,
-      current_hp: Math.max(
-        0,
-        Math.min(p.character_snapshot.max_hp, p.current_hp + delta),
-      ),
+      current_hp: Math.max(0, Math.min(maxHp, startHp + delta)),
     };
   });
 }
@@ -217,14 +218,19 @@ export function CampaignBattle({
     return () => clearTimeout(timer);
   }, [displayedCount, actions.length]);
 
-  // Slice the action log at the displayed cursor, then rewind the
-  // server's authoritative monsters/players state to the moment before
-  // the un-displayed actions landed. UI children consume only the
-  // displayed slice, so bars + shakes + log lines all advance in sync.
+  // Slice the action log at the displayed cursor and derive monster/
+  // player HP purely from the displayed actions. UI children consume
+  // only the displayed slice, so bars + shakes + log lines all advance
+  // in sync — and we sidestep the GET race where action rows can land
+  // before campaign.monsters / campaign_players.current_hp are
+  // updated.
   const displayedActions = actions.slice(0, displayedCount);
   const pendingActions = actions.slice(displayedCount);
-  const displayedMonsters = rewindMonsters(campaign.monsters, pendingActions);
-  const displayedPlayers = rewindPlayers(players, pendingActions);
+  const displayedMonsters = deriveDisplayedMonsters(
+    campaign.monsters,
+    displayedActions,
+  );
+  const displayedPlayers = deriveDisplayedPlayers(players, displayedActions);
 
   // Tell the parent when the final swing/heal of a finished campaign
   // has actually animated in, so it can hold off swapping to the
