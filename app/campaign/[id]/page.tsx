@@ -19,6 +19,9 @@ import type {
 import { getActiveCharacterId } from "@/lib/session";
 
 const MAX_PLAYERS = 6;
+// Mirrors MIN_PLAYERS_TO_START on the start route. Hard-coded copy
+// gate; the server is still the source of truth.
+const MIN_PLAYERS_TO_START = 2;
 
 type Snapshot = {
   campaign: Campaign;
@@ -460,11 +463,11 @@ function Lobby({
             >
               {starting ? "Starting…" : "Start Campaign"}
             </Button>
-            {slotsFilled < MAX_PLAYERS ? (
+            {slotsFilled < MIN_PLAYERS_TO_START ? (
               <p className="text-center text-xs text-muted-foreground">
-                Need {MAX_PLAYERS - slotsFilled} more player
-                {MAX_PLAYERS - slotsFilled === 1 ? "" : "s"} before you can
-                start.
+                Need {MIN_PLAYERS_TO_START - slotsFilled} more player
+                {MIN_PLAYERS_TO_START - slotsFilled === 1 ? "" : "s"} before
+                you can start.
               </p>
             ) : !allJoinersReady ? (
               <p className="text-center text-xs text-muted-foreground">
@@ -495,7 +498,7 @@ function Lobby({
             <p className="text-center text-sm text-muted-foreground">
               {myPlayer?.is_ready
                 ? "Waiting for the campaign creator to start…"
-                : "Tap ready when you've picked your character. Change character to reset."}
+                : "Tap ready when you've picked your character."}
             </p>
           </div>
         )}
