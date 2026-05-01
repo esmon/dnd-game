@@ -362,6 +362,39 @@ export function CampaignBattle({
     currentSlot?.slot.kind === "player" &&
     players[currentSlot.slot.index]?.user_id === userId;
 
+  // Highlight slot for the InitiativeStrip / PartyRow / MonsterRow.
+  // While action reveals are still pacing in, follow the next-to-
+  // -reveal action's actor so the highlight tracks what the user is
+  // currently watching — without this, the highlight jumps straight
+  // to the post-chain turn pointer (e.g. the next player) and the
+  // monster's swing animates with no one marked as "currently
+  // acting." Falls back to the server's turn pointer once the queue
+  // drains.
+  const narratedSlot: { pointer: number; slot: TurnSlot } | null = (() => {
+    if (pendingActions.length === 0) return currentSlot;
+    const next = pendingActions[0];
+    const slots = slotsForCampaign(campaign, players, campaign.monsters);
+    if (next.actor_kind === "monster" && next.actor_monster_index !== null) {
+      const idx = next.actor_monster_index;
+      const pointer = slots.findIndex(
+        (s) => s.kind === "monster" && s.index === idx,
+      );
+      if (pointer >= 0) {
+        return { pointer, slot: { kind: "monster", index: idx } };
+      }
+    }
+    if (next.actor_kind === "player" && next.actor_player_id !== null) {
+      const idx = players.findIndex((p) => p.id === next.actor_player_id);
+      const pointer = slots.findIndex(
+        (s) => s.kind === "player" && s.index === idx,
+      );
+      if (idx >= 0 && pointer >= 0) {
+        return { pointer, slot: { kind: "player", index: idx } };
+      }
+    }
+    return currentSlot;
+  })();
+
   // While there are still un-displayed actions in flight, the action
   // log narrates whose move the audience is currently watching — feels
   // weirder to flash "Your turn" before the monster's swing has even
@@ -526,7 +559,7 @@ export function CampaignBattle({
           campaign={campaign}
           players={displayedPlayers}
           monsters={displayedMonsters}
-          currentSlot={currentSlot}
+          currentSlot={narratedSlot}
           userId={userId}
         />
 
@@ -535,8 +568,8 @@ export function CampaignBattle({
             players={displayedPlayers}
             actions={displayedActions}
             currentTurnUserId={
-              currentSlot?.slot.kind === "player"
-                ? players[currentSlot.slot.index]?.user_id
+              narratedSlot?.slot.kind === "player"
+                ? players[narratedSlot.slot.index]?.user_id
                 : undefined
             }
             myUserId={userId}
@@ -547,8 +580,8 @@ export function CampaignBattle({
             selectedIndex={selectedMonsterIndex}
             onSelect={(index) => dispatch({ type: "SELECT_MONSTER", index })}
             currentTurnMonsterIndex={
-              currentSlot?.slot.kind === "monster"
-                ? currentSlot.slot.index
+              narratedSlot?.slot.kind === "monster"
+                ? narratedSlot.slot.index
                 : undefined
             }
           />
