@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { Fragment, useState, type ReactElement, type ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -115,10 +115,8 @@ export function BattleCommands({
     >
       <PanelLabel>Commands</PanelLabel>
       <div className="grid grid-cols-2 gap-2 md:grid-cols-1">
-        {tiles.map((tile) => (
-          <Fragment key={tile.key}>
-            <CategoryButton {...tile} />
-          </Fragment>
+        {tiles.map(({ key, ...rest }) => (
+          <CategoryButton key={key} {...rest} />
         ))}
       </div>
     </div>
