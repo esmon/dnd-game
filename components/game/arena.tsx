@@ -1047,7 +1047,7 @@ export function Arena() {
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
-      <h1 className="text-center text-2xl font-bold tracking-tight md:text-3xl">
+      <h1 className="hidden text-center text-2xl font-bold tracking-tight md:block md:text-3xl">
         Monster Smashy Smashy
       </h1>
 

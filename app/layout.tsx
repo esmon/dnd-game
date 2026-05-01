@@ -29,7 +29,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <TooltipProvider>
           <AuthClaimer />
-          <div className="fixed right-2 top-2 z-50 md:right-4 md:top-4">
+          <div className="fixed right-6 top-6 z-50">
             <AuthButton />
           </div>
           {children}

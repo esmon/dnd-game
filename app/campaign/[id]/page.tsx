@@ -4,13 +4,16 @@ import { use, useCallback, useEffect, useReducer, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import { ArrowLeftIcon } from "lucide-react";
+
+import { Button, buttonVariants } from "@/components/ui/button";
 import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { CampaignOutcomePanel } from "@/components/coop/campaign-outcome-panel";
 import { RestScreen } from "@/components/coop/rest-screen";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
+import { cn } from "@/lib/utils";
 import type {
   Campaign,
   CampaignAction,
@@ -485,9 +488,14 @@ function Lobby({
     <main className="relative flex min-h-screen items-start justify-center p-6">
       <Link
         href="/"
-        className="absolute left-6 top-6 font-mono text-xs uppercase tracking-widest underline underline-offset-4 hover:text-foreground"
+        aria-label="Back to home"
+        className={cn(
+          buttonVariants({ variant: "outline", size: "sm" }),
+          "absolute left-6 top-6",
+        )}
       >
-        ← Back to home
+        <ArrowLeftIcon className="size-3.5 shrink-0" />
+        <span className="hidden md:inline">Back to home</span>
       </Link>
       <div className="flex w-full max-w-xl flex-col gap-6">
         <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl">
@@ -594,11 +602,7 @@ function Lobby({
             <Button
               onClick={markReady}
               disabled={togglingReady || !myPlayer || myPlayer.is_ready}
-              className={
-                myPlayer?.is_ready
-                  ? "bg-emerald-500 text-foreground hover:bg-emerald-500/90"
-                  : ""
-              }
+              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
             >
               {togglingReady
                 ? "Saving…"

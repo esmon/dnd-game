@@ -63,7 +63,6 @@ export function AuthButton() {
       <PopoverContent align="end" className="flex w-56 flex-col gap-2">
         <p className="truncate text-xs">{user.email}</p>
         <Button
-          variant="outline"
           size="sm"
           className="justify-start"
           onClick={handleSignOut}
