@@ -147,8 +147,15 @@ function pushTurn(
   isPlayer: boolean,
   text: string,
   kind?: Turn["kind"],
+  action?: Turn["action"],
 ): GameState {
-  const turn: Turn = { id: state.nextTurnId, isPlayer, text, ...(kind && { kind }) };
+  const turn: Turn = {
+    id: state.nextTurnId,
+    isPlayer,
+    text,
+    ...(kind && { kind }),
+    ...(action && { action }),
+  };
   return {
     ...state,
     turns: [turn, ...state.turns],
@@ -278,6 +285,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         true,
         text,
         action.crit ? "crit" : undefined,
+        "attack",
       );
     }
 
@@ -307,6 +315,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         false,
         text,
         action.crit ? "crit" : undefined,
+        "attack",
       );
     }
 
@@ -326,7 +335,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const player: Player = { ...state.player, health: newHealth, spellSlots };
       const slotNote = action.slotLevel ? ` (L${action.slotLevel} slot)` : "";
       const text = `${state.player.name} heals for ${action.amount}${slotNote}`;
-      return pushTurn({ ...state, player }, true, text);
+      return pushTurn({ ...state, player }, true, text, undefined, "heal");
     }
 
     case "RUN_AWAY_SUCCESS": {
@@ -342,13 +351,15 @@ export function gameReducer(state: GameState, action: Action): GameState {
         },
         true,
         text,
+        undefined,
+        "skip",
       );
     }
 
     case "RUN_AWAY_FAIL": {
       if (!state.player) return state;
       const text = `${state.player.name} failed to run away!`;
-      return pushTurn(state, true, text);
+      return pushTurn(state, true, text, undefined, "skip");
     }
 
     case "WIN": {
@@ -658,6 +669,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         true,
         text,
         action.crit ? "crit" : undefined,
+        "spell",
       );
     }
 
@@ -696,6 +708,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         true,
         text,
         action.crit ? "crit" : undefined,
+        "smite",
       );
     }
 
@@ -734,6 +747,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         true,
         text,
         action.crit ? "crit" : undefined,
+        "scroll",
       );
     }
 
@@ -755,7 +769,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         ),
       };
       const text = `${player.name} drinks a ${potion.name} for ${healed} hp`;
-      return pushTurn({ ...state, player }, true, text);
+      return pushTurn({ ...state, player }, true, text, undefined, "potion");
     }
 
     case "REFILL_SLOTS": {

@@ -37,6 +37,7 @@ import type {
   Potion,
   Scroll,
   Turn,
+  TurnAction,
 } from "@/lib/game/types";
 
 // Local UI state for the battle screen. Everything authoritative lives
@@ -1257,10 +1258,31 @@ function actionToTurn(
       text = `${actorName} does ${action.kind}`;
   }
 
+  // Map server-side CampaignActionKind to the client TurnAction so
+  // the combat log row can render the matching icon. "run-away"
+  // collapses to "skip" (nothing distinguishes it visually for now).
+  const turnAction: TurnAction | undefined =
+    action.kind === "attack"
+      ? "attack"
+      : action.kind === "spell"
+        ? "spell"
+        : action.kind === "scroll"
+          ? "scroll"
+          : action.kind === "smite"
+            ? "smite"
+            : action.kind === "heal"
+              ? "heal"
+              : action.kind === "potion"
+                ? "potion"
+                : action.kind === "skip" || action.kind === "run-away"
+                  ? "skip"
+                  : undefined;
+
   return {
     id: action.turn_number,
     isPlayer,
     text,
     kind: crit ? "crit" : undefined,
+    action: turnAction,
   };
 }

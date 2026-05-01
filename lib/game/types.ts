@@ -102,11 +102,24 @@ export type Monster = {
   dexterity?: number;
 };
 
+// Action type drives the icon shown in the combat log. Kept separate
+// from `kind` (which drives row highlighting) so a crit attack still
+// renders the sword icon plus the gold crit background.
+export type TurnAction =
+  | "attack"
+  | "spell"
+  | "scroll"
+  | "smite"
+  | "heal"
+  | "potion"
+  | "skip";
+
 export type Turn = {
   id: number;
   isPlayer: boolean;
   text: string;
   kind?: "levelup" | "loot" | "crit";
+  action?: TurnAction;
 };
 
 export type GameStats = {
