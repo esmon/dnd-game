@@ -90,7 +90,13 @@ function CategoryPopover({
       <PopoverContent
         side="top"
         align="center"
-        className="flex w-72 flex-col gap-2"
+        // Cap to viewport so a long Spells / Inventory list scrolls
+        // inside the popover instead of bleeding past the top of the
+        // browser. base-ui's positioner exposes --available-height
+        // as the safe space on the chosen side; min() with 80vh as a
+        // fallback for older browsers / cases where the var is
+        // unset.
+        className="flex w-72 flex-col gap-2 overflow-y-auto max-h-[min(80vh,var(--available-height,80vh))]"
         onClick={() => setOpen(false)}
       >
         {popover}
