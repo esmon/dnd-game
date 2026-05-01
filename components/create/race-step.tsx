@@ -52,7 +52,7 @@ export function RaceStep({ selectedId, onSelect }: Props) {
                 <CardDescription>{asiSummary(race.asi)} · Speed {race.speed}</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{race.description}</p>
+                <p className="text-sm">{race.description}</p>
               </CardContent>
             </Card>
           </button>

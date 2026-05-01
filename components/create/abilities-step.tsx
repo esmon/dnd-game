@@ -54,7 +54,7 @@ export function AbilitiesStep({ abilities, race, klass, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-muted-foreground">
+      <p className="text-sm">
         Assign each value from the standard array {`[${STANDARD_ARRAY.join(", ")}]`} to one ability.
         Each value can only be used once. Race ASI is added on top.
       </p>
@@ -79,7 +79,7 @@ export function AbilitiesStep({ abilities, race, klass, onChange }: Props) {
                         <button
                           type="button"
                           aria-label={`About ${ABILITY_LABELS[key]}`}
-                          className="inline-flex cursor-help text-muted-foreground transition-colors hover:text-foreground"
+                          className="inline-flex cursor-help transition-colors hover:text-foreground"
                         />
                       }
                     >
@@ -95,12 +95,12 @@ export function AbilitiesStep({ abilities, race, klass, onChange }: Props) {
                     </span>
                   ) : null}
                   {key === "con" ? (
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    <span className="font-mono text-[10px] uppercase tracking-widest">
                       Affects HP
                     </span>
                   ) : null}
                 </div>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs">
                   {bonus > 0 ? `Race bonus +${bonus}` : "No race bonus"}
                 </span>
               </div>
@@ -136,12 +136,12 @@ export function AbilitiesStep({ abilities, race, klass, onChange }: Props) {
                 </Select>
                 <div className="min-w-28 text-right text-sm">
                   {finalScore === null ? (
-                    <span className="text-muted-foreground">—</span>
+                    <span>—</span>
                   ) : (
                     <span>
                       {assigned}
                       {bonus > 0 ? ` + ${bonus}` : ""} = <strong>{finalScore}</strong>{" "}
-                      <span className="text-muted-foreground">({formatMod(mod ?? 0)})</span>
+                      <span>({formatMod(mod ?? 0)})</span>
                     </span>
                   )}
                 </div>

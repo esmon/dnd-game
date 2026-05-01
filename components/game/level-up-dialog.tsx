@@ -172,7 +172,7 @@ function AbilityInfoIcon({ ability }: { ability: keyof AbilityScores }) {
               <span
                 aria-label={label}
                 onClick={stop}
-                className="inline-flex cursor-help text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex cursor-help transition-colors hover:text-foreground"
               />
             }
           >
@@ -191,7 +191,7 @@ function AbilityInfoIcon({ ability }: { ability: keyof AbilityScores }) {
               <span
                 aria-label={label}
                 onClick={stop}
-                className="inline-flex cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex cursor-pointer transition-colors hover:text-foreground"
               />
             }
           >
@@ -220,7 +220,7 @@ function PickedRow({
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
       <div className="flex flex-col">
-        <span className="text-xs uppercase tracking-widest text-muted-foreground">
+        <span className="text-xs uppercase tracking-widest">
           {label}
         </span>
         <span className="text-sm font-bold tabular-nums">
@@ -430,7 +430,7 @@ export function LevelUpDialog({
             Level {level} — Ability Score Improvement
           </DialogTitle>
           {race || klass ? (
-            <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            <p className="font-mono text-xs uppercase tracking-widest">
               {race?.name ?? raceId} · {klass?.name ?? classId}
             </p>
           ) : null}
@@ -494,7 +494,7 @@ export function LevelUpDialog({
                 />
               ) : (
                 <div>
-                  <Label className="mb-1 block text-xs text-muted-foreground">
+                  <Label className="mb-1 block text-xs">
                     First ability (+1)
                   </Label>
                   <AbilityList
@@ -521,7 +521,7 @@ export function LevelUpDialog({
                   />
                 ) : (
                   <div>
-                    <Label className="mb-1 block text-xs text-muted-foreground">
+                    <Label className="mb-1 block text-xs">
                       Second ability (+1)
                     </Label>
                     <AbilityList

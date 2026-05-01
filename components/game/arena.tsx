@@ -676,7 +676,7 @@ export function Arena() {
   if (state.loading || !state.player) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
-        <p className="text-muted-foreground">Loading the arena...</p>
+        <p>Loading the arena...</p>
       </div>
     );
   }
@@ -941,7 +941,7 @@ export function Arena() {
             />
           ) : (
             <div className="flex min-h-[200px] items-center justify-center rounded-xl border bg-card p-6">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm">
                 A new challenger approaches...
               </p>
             </div>
@@ -1103,6 +1103,20 @@ export function Arena() {
                 disabled: asiPending.length > 0,
                 disabledReason: lobbyActionReason,
               },
+              ...(user
+                ? [
+                    {
+                      key: "start-campaign",
+                      kind: "neutral" as const,
+                      icon: CompassIcon,
+                      label: creatingCampaign
+                        ? "Starting Campaign…"
+                        : "Start A Campaign",
+                      onClick: handleStartCampaign,
+                      disabled: creatingCampaign,
+                    } satisfies CommandItem,
+                  ]
+                : []),
               {
                 key: "rest",
                 kind: "neutral",
@@ -1126,7 +1140,7 @@ export function Arena() {
                 // Create New / Start Campaign / dev). Same hairline as the
                 // Card divider so it reads as a category break.
                 key: "nav-separator",
-                render: <div className="my-1 h-px bg-border" />,
+                render: <div className="my-1 h-px bg-primary" />,
               },
               ...(state.characterCount > 1
                 ? [
@@ -1150,20 +1164,6 @@ export function Arena() {
                 label: "Create New Character",
                 onClick: () => router.push("/create"),
               },
-              ...(user
-                ? [
-                    {
-                      key: "start-campaign",
-                      kind: "neutral" as const,
-                      icon: CompassIcon,
-                      label: creatingCampaign
-                        ? "Starting Campaign…"
-                        : "Start Campaign",
-                      onClick: handleStartCampaign,
-                      disabled: creatingCampaign,
-                    } satisfies CommandItem,
-                  ]
-                : []),
               ...(process.env.NODE_ENV === "development"
                 ? [
                     {
@@ -1188,8 +1188,6 @@ export function Arena() {
           />
         </div>
       )}
-
-      <Separator className="hidden md:block" />
 
       <div className="hidden md:block">
         <CombatLog turns={turns} />

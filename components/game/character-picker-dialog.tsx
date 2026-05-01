@@ -59,11 +59,11 @@ export function CharacterPickerDialog({
           </DialogTitle>
         </DialogHeader>
         {loading || characters === null ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <p className="py-6 text-center text-sm">
             Loading...
           </p>
         ) : characters.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
+          <p className="py-6 text-center text-sm">
             No characters.
           </p>
         ) : (
@@ -87,7 +87,7 @@ export function CharacterPickerDialog({
                       <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
                         {c.name}
                       </span>
-                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      <span className="font-mono text-xs tabular-nums">
                         Lvl {c.level} · {race?.name ?? c.race} ·{" "}
                         {klass?.name ?? c.class}
                       </span>

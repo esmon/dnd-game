@@ -93,11 +93,11 @@ export function InventoryDialog({
 
         {tab === "weapons" ? (
           <>
-            <p className="text-center font-mono text-xs tabular-nums text-muted-foreground">
+            <p className="text-center font-mono text-xs tabular-nums">
               Equipped {equippedCount}/{equipCap}
             </p>
             {inventory.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
+              <p className="py-6 text-center text-sm">
                 Inventory is empty.
               </p>
             ) : (
@@ -119,7 +119,7 @@ export function InventoryDialog({
                           <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
                             {w.name}
                           </span>
-                          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                          <span className="font-mono text-xs tabular-nums">
                             {w.damage}
                           </span>
                         </div>
@@ -162,11 +162,11 @@ export function InventoryDialog({
 
         {tab === "spells" ? (
           <>
-            <p className="text-center font-mono text-xs tabular-nums text-muted-foreground">
+            <p className="text-center font-mono text-xs tabular-nums">
               Equipped {equippedSpellCount}/{spellCap}
             </p>
             {knownSpells.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
+              <p className="py-6 text-center text-sm">
                 No spells known.
               </p>
             ) : (
@@ -188,7 +188,7 @@ export function InventoryDialog({
                           <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
                             {s.name}
                           </span>
-                          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                          <span className="font-mono text-xs tabular-nums">
                             {spellLevelLabel(s.level)} · {s.damage} {s.damageType}
                           </span>
                         </div>
@@ -224,7 +224,7 @@ export function InventoryDialog({
         {tab === "consumables" ? (
           <>
             {consumables.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">
+              <p className="py-6 text-center text-sm">
                 No consumables.
               </p>
             ) : (
@@ -246,7 +246,7 @@ export function InventoryDialog({
                           <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
                             {label}
                           </span>
-                          <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                          <span className="font-mono text-xs tabular-nums">
                             {detail}
                           </span>
                         </div>

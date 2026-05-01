@@ -38,7 +38,7 @@ export function BackgroundStep({ selectedId, onSelect }: Props) {
                 <CardTitle>{bg.name}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-muted-foreground">{bg.description}</p>
+                <p className="text-sm">{bg.description}</p>
               </CardContent>
             </Card>
           </button>

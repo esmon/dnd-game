@@ -44,7 +44,7 @@ export function ClassStep({ selectedId, onSelect }: Props) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
-                <p className="text-sm text-muted-foreground">{klass.description}</p>
+                <p className="text-sm">{klass.description}</p>
                 <div className="flex flex-wrap gap-1.5">
                   {klass.weapons.map((w) => {
                     const def = weaponsByBaseId[w.baseId];

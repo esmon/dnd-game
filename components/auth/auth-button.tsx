@@ -61,7 +61,7 @@ export function AuthButton() {
         }
       />
       <PopoverContent align="end" className="flex w-56 flex-col gap-2">
-        <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+        <p className="truncate text-xs">{user.email}</p>
         <Button
           variant="outline"
           size="sm"

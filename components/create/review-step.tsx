@@ -85,22 +85,22 @@ export function ReviewStep({
       <div className="flex flex-col gap-3 text-sm">
         <div className="grid gap-2 sm:grid-cols-2">
           <div>
-            <span className="text-muted-foreground">Race:</span> <strong>{race.name}</strong>
+            <span>Race:</span> <strong>{race.name}</strong>
           </div>
           <div>
-            <span className="text-muted-foreground">Class:</span> <strong>{klass.name}</strong>
+            <span>Class:</span> <strong>{klass.name}</strong>
           </div>
           <div>
-            <span className="text-muted-foreground">Background:</span>{" "}
+            <span>Background:</span>{" "}
             <strong>{background.name}</strong>
           </div>
           <div>
-            <span className="text-muted-foreground">Max HP:</span> <strong>{maxHp}</strong>
+            <span>Max HP:</span> <strong>{maxHp}</strong>
           </div>
         </div>
 
         <div>
-          <p className="mb-2 text-muted-foreground">Ability scores</p>
+          <p className="mb-2">Ability scores</p>
           <div className="grid gap-2 sm:grid-cols-3">
             {ABILITY_KEYS.map((key) => {
               const score = finalAbilities[key];
@@ -109,7 +109,7 @@ export function ReviewStep({
                   <span>{ABILITY_LABELS[key]}</span>
                   <span>
                     <strong>{score}</strong>{" "}
-                    <span className="text-muted-foreground">
+                    <span>
                       ({formatMod(abilityModifier(score))})
                     </span>
                   </span>
@@ -120,7 +120,7 @@ export function ReviewStep({
         </div>
 
         <div>
-          <p className="mb-2 text-muted-foreground">Starting weapons</p>
+          <p className="mb-2">Starting weapons</p>
           <div className="flex flex-wrap gap-1.5">
             {klass.weapons.map((w) => {
               const def = weaponsByBaseId[w.baseId];

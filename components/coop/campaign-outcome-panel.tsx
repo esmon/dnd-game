@@ -54,7 +54,7 @@ export function CampaignOutcomePanel({
             >
               {won ? "Victory" : "Defeat"}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm">
               {won
                 ? cumulative.encountersCleared === 1
                   ? "The party cleared the encounter."
@@ -62,7 +62,7 @@ export function CampaignOutcomePanel({
                 : `The party fell to ${campaign.monsters.find((m) => m.health > 0)?.name ?? "the encounter"}.`}
             </p>
             {won && cumulative.totalXpPerPlayer > 0 ? (
-              <p className="text-sm tabular-nums text-muted-foreground">
+              <p className="text-sm tabular-nums">
                 + {cumulative.totalXpPerPlayer} XP banked per player
               </p>
             ) : null}
@@ -79,12 +79,12 @@ export function CampaignOutcomePanel({
                     <span className="font-bold uppercase tracking-widest">
                       Encounter {recap.encounterNumber}
                     </span>
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                    <span className="font-mono text-xs tabular-nums">
                       +{recap.xpPerPlayer} XP
                     </span>
                   </div>
                   {recap.killed.length > 0 ? (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs">
                       Defeated: {recap.killed.join(", ")}
                     </p>
                   ) : null}
@@ -93,7 +93,7 @@ export function CampaignOutcomePanel({
                     const myLoot = recap.lootByPlayer.get(p.id) ?? [];
                     if (myLoot.length === 0) return null;
                     return (
-                      <p key={p.id} className="text-xs text-muted-foreground">
+                      <p key={p.id} className="text-xs">
                         <span className="font-bold text-foreground">
                           {p.character_snapshot.name}
                           {isMe ? " (You)" : ""}
@@ -105,7 +105,7 @@ export function CampaignOutcomePanel({
                 </div>
               ))}
 
-              <p className="text-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <p className="text-center text-xs font-bold uppercase tracking-widest">
                 Party
               </p>
               <ul className="flex flex-col gap-2">
@@ -122,16 +122,16 @@ export function CampaignOutcomePanel({
                         <span className="font-bold uppercase tracking-widest">
                           {p.character_snapshot.name}
                           {isMe ? (
-                            <span className="ml-2 text-xs text-muted-foreground">
+                            <span className="ml-2 text-xs">
                               (You)
                             </span>
                           ) : null}
                         </span>
-                        <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                        <span className="text-xs uppercase tracking-widest">
                           Lv {p.character_snapshot.level}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs">
                         {myLoot.length > 0
                           ? `Loot: ${myLoot.join(", ")}`
                           : "No drops this run."}

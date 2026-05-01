@@ -4,7 +4,7 @@
 export function StatRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-2 text-sm tabular-nums">
-      <span className="text-muted-foreground">{label}</span>
+      <span>{label}</span>
       <span className="text-right">{value}</span>
     </div>
   );

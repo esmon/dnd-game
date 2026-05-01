@@ -77,7 +77,7 @@ export function MonsterCard({
         value={`${monster.damageDice} ${monster.damageType}`}
       />
       {drviParts.length > 0 ? (
-        <p className="mt-2 text-center text-[10px] tracking-wide text-muted-foreground">
+        <p className="mt-2 text-center text-[10px] tracking-wide">
           {drviParts.join(" · ")}
         </p>
       ) : null}

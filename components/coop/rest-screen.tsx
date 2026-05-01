@@ -101,7 +101,7 @@ export function RestScreen({
             <p className="text-2xl font-bold uppercase tracking-widest text-emerald-600">
               Encounter {campaign.encounter_number} cleared
             </p>
-            <p className="text-sm uppercase tracking-widest text-muted-foreground">
+            <p className="text-sm uppercase tracking-widest">
               The party rests
             </p>
           </div>
@@ -124,18 +124,18 @@ export function RestScreen({
                       <span className="truncate text-sm font-bold uppercase tracking-widest">
                         {p.character_snapshot.name}
                         {isMe ? (
-                          <span className="ml-2 text-xs text-muted-foreground">
+                          <span className="ml-2 text-xs">
                             (You)
                           </span>
                         ) : null}
                       </span>
-                      <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      <span className="font-mono text-xs tabular-nums">
                         {max}/{max}
                       </span>
                     </div>
                     <HealthBar current={max} max={max} className="h-2" />
                     {lootList.length > 0 ? (
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs">
                         Loot: {lootList.join(", ")}
                       </p>
                     ) : null}
@@ -147,11 +147,11 @@ export function RestScreen({
 
           <p className="text-center font-mono text-sm">
             <span className="font-bold">+{totalXp} XP</span>
-            <span className="text-muted-foreground"> per player this fight</span>
+            <span className=""> per player this fight</span>
           </p>
 
           {cumulative.encountersCleared > 1 ? (
-            <div className="rounded-md border border-dashed border-muted-foreground/30 bg-background/50 px-3 py-2 text-center font-mono text-xs text-muted-foreground">
+            <div className="rounded-md border border-dashed border-muted-foreground/30 bg-background/50 px-3 py-2 text-center font-mono text-xs">
               Campaign so far —{" "}
               <span className="font-bold text-foreground">
                 {cumulative.encountersCleared} cleared

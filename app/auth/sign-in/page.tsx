@@ -63,7 +63,7 @@ function SignInForm() {
           <h1 className="text-xl font-bold uppercase tracking-widest">
             Sign In
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p>
             Save your characters and access them from any device.
           </p>
         </div>

@@ -30,7 +30,7 @@ export function MobileCombatLog({
     >
       <PanelLabel>Logs</PanelLabel>
       {turns.length === 0 ? (
-        <p className="text-center text-sm text-muted-foreground">
+        <p className="text-center text-sm">
           The arena is silent... for now.
         </p>
       ) : expanded ? (

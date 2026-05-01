@@ -47,10 +47,10 @@ export function VictoryPanel({
         <p className="text-2xl font-bold uppercase tracking-widest text-emerald-600">
           Victory
         </p>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm">
           {playerName} defeated {monsterName}
         </p>
-        <p className="text-sm tabular-nums text-muted-foreground">
+        <p className="text-sm tabular-nums">
           + {xpGained} XP
         </p>
         {leveledUp ? (
@@ -61,14 +61,14 @@ export function VictoryPanel({
       </div>
       {display ? (
         <div className="flex flex-col gap-2">
-          <p className="text-center text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          <p className="text-center text-xs font-bold uppercase tracking-widest">
             Loot
           </p>
           <div className="flex items-center justify-between rounded-md border border-zinc-300 bg-background px-3 py-2 dark:border-zinc-700">
             <span className="text-sm font-bold uppercase tracking-widest">
               {display.name}
             </span>
-            <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="text-xs tabular-nums">
               {display.detail}
             </span>
           </div>

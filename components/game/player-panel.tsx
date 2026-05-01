@@ -61,7 +61,7 @@ export function PlayerPanel({
         {player.name}
       </p>
       {race || klass ? (
-        <p className="mb-2 text-center text-xs uppercase tracking-widest text-muted-foreground">
+        <p className="mb-2 text-center text-xs uppercase tracking-widest">
           <span className="block md:inline">
             {race?.name ?? player.raceId}
           </span>
@@ -90,7 +90,7 @@ export function PlayerPanel({
         />
       </div>
       {drviParts.length > 0 ? (
-        <p className="mt-2 text-center text-[10px] tracking-wide text-muted-foreground">
+        <p className="mt-2 text-center text-[10px] tracking-wide">
           {drviParts.join(" · ")}
         </p>
       ) : null}

@@ -9,7 +9,7 @@ export function CombatLog({ turns }: { turns: Turn[] }) {
       <PanelLabel>Logs</PanelLabel>
       <ScrollArea className="h-full w-full p-3">
         {turns.length === 0 ? (
-          <p className="text-center text-sm text-muted-foreground">
+          <p className="text-center text-sm">
             The arena is silent... for now.
           </p>
         ) : (

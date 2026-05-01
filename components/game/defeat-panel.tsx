@@ -8,7 +8,7 @@ export function DefeatPanel({ defeatedBy }: { defeatedBy: string }) {
       <p className="text-2xl font-bold uppercase tracking-widest text-rose-600">
         You Lose
       </p>
-      <p className="text-sm text-muted-foreground">Defeated by {defeatedBy}</p>
+      <p className="text-sm">Defeated by {defeatedBy}</p>
     </LobbyResultFrame>
   );
 }
