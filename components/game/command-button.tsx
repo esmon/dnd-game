@@ -58,6 +58,12 @@ export type CommandButtonProps = {
   onClick?: () => void;
   disabled?: boolean;
   disabledReason?: string | null;
+  // When true, the panel hides this button instead of rendering it
+  // disabled. Use for state-disabled actions (already at full HP, no
+  // living targets) where the button conveys no useful info while
+  // unavailable. Resource-disabled buttons (out of slots, not your
+  // turn) should stay visible so the player can see what they have.
+  hideWhenDisabled?: boolean;
 };
 
 export function CommandButton({

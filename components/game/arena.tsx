@@ -1016,6 +1016,9 @@ export function Arena() {
                     onClick: () => handleUsePotion(useId, c.healDice),
                     disabled: actionsDisabled || potionFull,
                     disabledReason: potionReason,
+                    // Full HP — pure state, hide. Resource reasons
+                    // (out of fight, asi pending) keep it visible.
+                    hideWhenDisabled: potionFull,
                   },
                 ];
               }),
@@ -1033,6 +1036,13 @@ export function Arena() {
                         healOutOfSlots ||
                         player.health >= player.maxHealth,
                       disabledReason: healReason,
+                      // Hide only when full HP is the sole reason.
+                      // Under-min-level and out-of-slots stay visible
+                      // so the player sees they have HEAL.
+                      hideWhenDisabled:
+                        player.health >= player.maxHealth &&
+                        !healUnderMinLevel &&
+                        !healOutOfSlots,
                     } satisfies CommandItem,
                   ]
                 : []),

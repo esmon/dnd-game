@@ -33,6 +33,12 @@ export function CommandPanel({
         if ("render" in item) {
           return <Fragment key={item.key}>{item.render}</Fragment>;
         }
+        // State-disabled buttons (heal at full HP, AoE with no living
+        // targets, etc.) opt out of rendering via hideWhenDisabled —
+        // their disabled state conveys no info worth the space.
+        // Resource-disabled (out of slots, not your turn) keep
+        // rendering so the player still sees what they have.
+        if (item.disabled && item.hideWhenDisabled) return null;
         const { key, ...props } = item;
         return <CommandButton key={key} {...props} />;
       })}

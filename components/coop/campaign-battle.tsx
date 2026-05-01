@@ -611,6 +611,9 @@ function buildCommands({
         }),
       disabled: baseDisabled || !!targetReason,
       disabledReason: turnReason ?? targetReason,
+      // No living target → hide; "wait your turn" is a resource-ish
+      // reason (keep visible so the player still sees their kit).
+      hideWhenDisabled: !!targetReason,
     });
   }
 
@@ -645,6 +648,9 @@ function buildCommands({
         }),
       disabled: baseDisabled || outOfSlots || !!targetReason,
       disabledReason: turnReason ?? smiteReason ?? targetReason,
+      // Hide on no-target state; out-of-slots is a resource reason
+      // worth seeing (so the player knows they have Smite at all).
+      hideWhenDisabled: !!targetReason && !outOfSlots,
     });
   }
 
@@ -683,6 +689,9 @@ function buildCommands({
       disabledReason:
         turnReason ??
         (outOfSlots ? `Out of L${spell.level} spell slots` : aoeReason),
+      // Hide on state (no living target / no living anyone for AoE);
+      // keep visible when out-of-slots so the player sees the spell.
+      hideWhenDisabled: !!aoeReason && !outOfSlots,
     });
   }
 
@@ -705,6 +714,7 @@ function buildCommands({
         }),
       disabled: baseDisabled || !!targetReason,
       disabledReason: turnReason ?? targetReason,
+      hideWhenDisabled: !!targetReason,
     });
   }
 
@@ -732,6 +742,9 @@ function buildCommands({
       onClick: () => submit({ kind: "heal" }),
       disabled: baseDisabled || !!reason,
       disabledReason: turnReason ?? reason,
+      // Full HP is a state reason — hide. Out-of-slots and
+      // under-min-level are informative (keep visible).
+      hideWhenDisabled: fullHp && !outOfSlots && !underMinLevel,
     });
   }
 
@@ -750,6 +763,7 @@ function buildCommands({
       onClick: () => submit({ kind: "potion", potionId: potion.id }),
       disabled: baseDisabled || fullHp,
       disabledReason: turnReason ?? (fullHp ? "Already at full HP" : null),
+      hideWhenDisabled: fullHp,
     });
   }
 
