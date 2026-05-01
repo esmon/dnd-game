@@ -161,6 +161,17 @@ export default function CampaignLobbyPage({
     void fetchSnapshot();
   }, [fetchSnapshot, refreshTick]);
 
+  // Stable callback refs so child components' effects (notably
+  // CampaignBattle's onAllActionsRevealed deps array) don't re-run
+  // on every parent render — pageDispatch is already stable, these
+  // wrappers just give the dispatch a constant identity at the JSX
+  // call site.
+  const refresh = useCallback(() => pageDispatch({ type: "REFRESH" }), []);
+  const markActionsRevealed = useCallback(
+    () => pageDispatch({ type: "ACTIONS_REVEALED" }),
+    [],
+  );
+
   // seenActive + actionsRevealed used to live in their own
   // useEffects that watched `state` and called setState to latch /
   // reset the flags. That setState-in-useEffect chain is now folded
@@ -210,7 +221,7 @@ export default function CampaignLobbyPage({
     }
     const intervalMs = status === "active" ? 5000 : 10000;
     const interval = setInterval(
-      () => pageDispatch({ type: "REFRESH" }),
+      refresh,
       intervalMs,
     );
     return () => clearInterval(interval);
@@ -240,7 +251,7 @@ export default function CampaignLobbyPage({
     return (
       <CenteredCard>
         <p className="text-rose-600">Error: {state.message}</p>
-        <Button onClick={() => pageDispatch({ type: "REFRESH" })}>
+        <Button onClick={refresh}>
           Retry
         </Button>
       </CenteredCard>
@@ -251,7 +262,7 @@ export default function CampaignLobbyPage({
     return (
       <JoinPrompt
         campaignId={campaignId}
-        onJoined={() => pageDispatch({ type: "REFRESH" })}
+        onJoined={refresh}
       />
     );
   }
@@ -267,8 +278,8 @@ export default function CampaignLobbyPage({
         players={players}
         userId={user.id}
         isCreator={isCreator}
-        onChanged={() => pageDispatch({ type: "REFRESH" })}
-        onStarted={() => pageDispatch({ type: "REFRESH" })}
+        onChanged={refresh}
+        onStarted={refresh}
       />
     );
   }
@@ -292,8 +303,8 @@ export default function CampaignLobbyPage({
         players={players}
         actions={actions}
         userId={user.id}
-        onActionComplete={() => pageDispatch({ type: "REFRESH" })}
-        onAllActionsRevealed={() => pageDispatch({ type: "ACTIONS_REVEALED" })}
+        onActionComplete={refresh}
+        onAllActionsRevealed={markActionsRevealed}
       />
     );
   }
@@ -305,7 +316,7 @@ export default function CampaignLobbyPage({
         players={players}
         actions={actions}
         userId={user.id}
-        onContinue={() => pageDispatch({ type: "REFRESH" })}
+        onContinue={refresh}
       />
     );
   }
@@ -480,7 +491,7 @@ function Lobby({
         {isCreator ? (
           <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
             <p className="text-sm">
-              Share this link with a friend. They'll need to be signed in to
+              Share this link with a friend. They&apos;ll need to be signed in to
               join.
             </p>
             <div className="flex gap-2">

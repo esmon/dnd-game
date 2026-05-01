@@ -453,7 +453,7 @@ export function CampaignBattle({
     <main className="flex min-h-screen flex-col items-center p-4 md:p-6">
       <div className="flex w-full max-w-5xl flex-col gap-6">
         <div className="flex flex-col items-center gap-1">
-          <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="font-mono text-xs uppercase tracking-widest">
             Encounter {campaign.encounter_number}
             {campaign.current_difficulty ? (
               <>
@@ -532,7 +532,7 @@ export function CampaignBattle({
           type="button"
           onClick={forfeit}
           disabled={submitting}
-          className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest text-muted-foreground transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 dark:border-zinc-700"
+          className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 dark:border-zinc-700"
         >
           <FlagIcon className="size-3.5 shrink-0" />
           Forfeit Campaign
@@ -836,10 +836,10 @@ function PartyMember({
         <span className="truncate text-sm font-bold uppercase tracking-widest">
           {snap.name}
           {isMe ? (
-            <span className="ml-2 text-xs text-muted-foreground">(You)</span>
+            <span className="ml-2 text-xs">(You)</span>
           ) : null}
         </span>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums">
           {player.current_hp}/{snap.max_hp}
         </span>
       </div>
@@ -848,7 +848,7 @@ function PartyMember({
         max={snap.max_hp}
         className="h-2"
       />
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+      <p className="text-[10px] uppercase tracking-widest">
         {snap.race} · {snap.class} · Lv: {snap.level}
       </p>
     </div>
@@ -943,7 +943,7 @@ function MonsterButton({
         <span className="truncate text-sm font-bold uppercase tracking-widest">
           {monster.name}
         </span>
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
+        <span className="font-mono text-xs tabular-nums">
           {monster.health}/{monster.maxHealth}
         </span>
       </div>
@@ -952,7 +952,7 @@ function MonsterButton({
         max={monster.maxHealth}
         className="h-2"
       />
-      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-widest text-muted-foreground">
+      <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] uppercase tracking-widest">
         <span>CR: {formatCr(monster.challengeRating)}</span>
         <span>· AC: {monster.ac}</span>
         <span>· ATK: {monster.damageType}</span>
@@ -995,38 +995,43 @@ function TurnTimer({
   campaignId: string;
   active: boolean;
 }) {
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // Hold wall-clock `now` in state so the render path stays pure
+  // (no Date.now() during render, which the lint rule blocks). The
+  // tick that advances `now` is fired from setInterval — canonical
+  // "external system" setState — so it doesn't trip the in-effect
+  // setState rule either. secondsLeft is derived from now + deadline,
+  // which falls back to null when active/deadline drop without
+  // needing an explicit setState clear.
+  const [now, setNow] = useState(() => Date.now());
   const firedFor = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!active || !deadline) {
-      setSecondsLeft(null);
-      return;
-    }
-    const tick = () => {
-      const ms = new Date(deadline).getTime() - Date.now();
-      setSecondsLeft(Math.max(0, Math.ceil(ms / 1000)));
-    };
-    tick();
-    const id = setInterval(tick, 250);
-    return () => clearInterval(id);
-  }, [deadline, active]);
+  const secondsLeft =
+    active && deadline
+      ? Math.max(0, Math.ceil((new Date(deadline).getTime() - now) / 1000))
+      : null;
 
   useEffect(() => {
     if (!active || !deadline) return;
-    if (secondsLeft === null || secondsLeft > 0) return;
-    if (firedFor.current === deadline) return;
-    firedFor.current = deadline;
-    // Jitter 0–1500ms so two browsers watching the same fight don't
-    // both fire at the exact same millisecond. Whichever lands first
-    // wins; the other gets a 409 because turn_deadline has already
-    // been reset by the timeout endpoint.
-    const wait = Math.floor(Math.random() * 1500);
-    const timer = setTimeout(() => {
-      void fetch(`/api/campaign/${campaignId}/timeout`, { method: "POST" });
-    }, wait);
-    return () => clearTimeout(timer);
-  }, [secondsLeft, deadline, campaignId, active]);
+    const deadlineMs = new Date(deadline).getTime();
+    const tick = () => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= deadlineMs && firedFor.current !== deadline) {
+        firedFor.current = deadline;
+        // Jitter 0–1500ms so two browsers watching the same fight
+        // don't both fire at the exact same millisecond. Whichever
+        // lands first wins; the other gets a 409 because turn_deadline
+        // has already been reset by the timeout endpoint.
+        const wait = Math.floor(Math.random() * 1500);
+        setTimeout(() => {
+          void fetch(`/api/campaign/${campaignId}/timeout`, {
+            method: "POST",
+          });
+        }, wait);
+      }
+    };
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [deadline, active, campaignId]);
 
   if (!active || secondsLeft === null) return null;
   const tone =
@@ -1091,7 +1096,7 @@ function InitiativeStrip({
                 "flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs uppercase tracking-widest",
                 isCurrent
                   ? "border-2 border-zinc-900 bg-card font-bold"
-                  : "border-muted-foreground/20 bg-card/50 text-muted-foreground",
+                  : "border-muted-foreground/20 bg-card/50",
                 dead ? "line-through opacity-50" : "",
               )}
             >
@@ -1103,12 +1108,12 @@ function InitiativeStrip({
               />
               <span className="truncate max-w-[10ch]">{name}</span>
               {typeof slot.roll === "number" ? (
-                <span className="font-mono tabular-nums text-[10px] text-muted-foreground">
+                <span className="font-mono tabular-nums text-[10px]">
                   {slot.roll}
                 </span>
               ) : null}
               {isMe ? (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-[10px]">
                   (You)
                 </span>
               ) : null}
@@ -1135,7 +1140,7 @@ function CombatLogPanel({ turns }: { turns: Turn[] }) {
       <div className="md:absolute md:inset-0 md:overflow-hidden">
         <ScrollArea className="h-full w-full p-3">
           {reversed.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm">
               The arena is silent... for now.
             </p>
           ) : (
