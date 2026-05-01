@@ -1126,7 +1126,7 @@ export function Arena() {
                 ? [
                     {
                       key: "start-campaign",
-                      kind: "neutral" as const,
+                      kind: "primary",
                       icon: CompassIcon,
                       label: creatingCampaign
                         ? "Starting Campaign…"
