@@ -7,6 +7,7 @@ import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
 import { PanelLabel } from "@/components/game/panel-label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { readApiError } from "@/lib/coop/api-error";
 import {
   aggregateRecaps,
   buildEncounterRecaps,
@@ -61,13 +62,17 @@ export function RestScreen({
         { method: "POST" },
       );
       if (!res.ok) {
-        const text = await res.text();
-        setError(`Failed to start next encounter (${res.status}): ${text}`);
+        setError(
+          await readApiError(
+            res,
+            "Couldn't start the next encounter. Try again.",
+          ),
+        );
         return;
       }
       onContinue();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch {
+      setError("Network hiccup. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -81,13 +86,14 @@ export function RestScreen({
         method: "POST",
       });
       if (!res.ok) {
-        const text = await res.text();
-        setError(`Failed to end campaign (${res.status}): ${text}`);
+        setError(
+          await readApiError(res, "Couldn't end the campaign. Try again."),
+        );
         return;
       }
       onContinue();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch {
+      setError("Network hiccup. Check your connection and try again.");
     } finally {
       setBusy(false);
     }

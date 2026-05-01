@@ -102,16 +102,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   // Track player HP locally; flushed below for monsters' counter-
   // attacks and persisted at end. Seeded from current rows, then
-  // patched if the resolver healed the actor.
+  // patched if the resolver healed the actor. The DB write happens
+  // after the action insert below so we don't burn a slot / take a
+  // heal that the action log will never reflect.
   const playerHp: Record<string, number> = Object.fromEntries(
     players.map((p) => [p.id, p.current_hp]),
   );
   if (typeof resolution.currentHpPatch === "number") {
     playerHp[actingPlayer.id] = resolution.currentHpPatch;
-    await supabaseAdmin
-      .from("campaign_players")
-      .update({ current_hp: resolution.currentHpPatch })
-      .eq("id", actingPlayer.id);
   }
 
   // Detect every freshly-killed monster from the resolver's mutation.
@@ -180,18 +178,13 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
   }
 
-  // Persist any snapshot mutations (slot/consumable consumption from
-  // the resolver, plus loot/XP from kill awards). Doing it in one pass
-  // avoids racing the action insert.
-  for (const id of modifiedSnapshots) {
-    const player = players.find((p) => p.id === id);
-    if (!player) continue;
-    await supabaseAdmin
-      .from("campaign_players")
-      .update({ character_snapshot: player.character_snapshot })
-      .eq("id", id);
-  }
-
+  // Insert the action FIRST — that's the row carrying the unique
+  // (campaign_id, turn_number) constraint, so it's the one source of
+  // truth for who owns this turn. If it fails (most commonly: the
+  // turn timer fired and /timeout claimed the same turn_number),
+  // every other DB write below is skipped, so the player doesn't end
+  // up with a consumed slot / new loot / banked XP that the log
+  // never shows.
   const playerActionInsert = await supabaseAdmin
     .from("campaign_actions")
     .insert({
@@ -221,12 +214,21 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           : {}),
       },
     });
-  // Without this check a silent insert failure (RLS, unique-constraint
-  // collision on turn_number, anything supabase-js doesn't throw on)
-  // would leave the player's action invisible while the rest of the
-  // route still advances the turn pointer — the player appears to be
-  // skipped entirely, which is exactly what we hit before adding this.
   if (playerActionInsert.error) {
+    // 23505 = postgres unique_violation. Most commonly fired when the
+    // turn timer expired between this client's pre-flight read and
+    // the insert — /timeout already claimed turn_number N. Friendly
+    // 409 so the UI can show "your turn just expired" instead of a
+    // raw 500.
+    if (playerActionInsert.error.code === "23505") {
+      return NextResponse.json(
+        {
+          error:
+            "Your turn was just resolved by the timer — wait a moment and try again.",
+        },
+        { status: 409 },
+      );
+    }
     return NextResponse.json(
       {
         error: `failed to log player action: ${playerActionInsert.error.message}`,
@@ -235,6 +237,23 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
   nextTurnNumber++;
+
+  // Now safe to persist the side effects — the action row is in the
+  // log so anything we write here will be reflected in the UI.
+  if (typeof resolution.currentHpPatch === "number") {
+    await supabaseAdmin
+      .from("campaign_players")
+      .update({ current_hp: resolution.currentHpPatch })
+      .eq("id", actingPlayer.id);
+  }
+  for (const id of modifiedSnapshots) {
+    const player = players.find((p) => p.id === id);
+    if (!player) continue;
+    await supabaseAdmin
+      .from("campaign_players")
+      .update({ character_snapshot: player.character_snapshot })
+      .eq("id", id);
+  }
 
   // Win check before rotating. In multi-encounter mode the campaign
   // doesn't go straight to "finished" — it pauses in

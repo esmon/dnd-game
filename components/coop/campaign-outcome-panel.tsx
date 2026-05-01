@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { readApiError } from "@/lib/coop/api-error";
 import {
   aggregateRecaps,
   buildEncounterRecaps,
@@ -199,13 +200,14 @@ function PlayAgainBlock({
         method: "POST",
       });
       if (!res.ok) {
-        const text = await res.text();
-        setError(`Failed to vote (${res.status}): ${text}`);
+        setError(
+          await readApiError(res, "Couldn't record your vote. Try again."),
+        );
         return;
       }
       onContinue();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    } catch {
+      setError("Network hiccup. Check your connection and try again.");
     } finally {
       setBusy(false);
     }

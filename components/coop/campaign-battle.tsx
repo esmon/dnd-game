@@ -14,6 +14,7 @@ import {
   SwordIcon,
 } from "lucide-react";
 
+import { readApiError } from "@/lib/coop/api-error";
 import {
   BattleCommands,
   type BattleTile,
@@ -396,19 +397,24 @@ export function CampaignBattle({
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const text = await res.text();
-        dispatch({
-          type: "SUBMIT_ERROR",
-          message: `Action failed (${res.status}): ${text}`,
-        });
+        const message = await readApiError(
+          res,
+          "Couldn't submit your action. Try again in a second.",
+        );
+        dispatch({ type: "SUBMIT_ERROR", message });
+        // 409s are stale-state collisions (turn timer fired, someone
+        // else's action raced ours, etc.) — refetch so the UI shows
+        // the new turn pointer instead of leaving the stale buttons
+        // active.
+        if (res.status === 409) onActionComplete();
         return;
       }
       dispatch({ type: "SUBMIT_DONE" });
       onActionComplete();
-    } catch (err) {
+    } catch {
       dispatch({
         type: "SUBMIT_ERROR",
-        message: err instanceof Error ? err.message : String(err),
+        message: "Network hiccup. Check your connection and try again.",
       });
     }
   }
@@ -427,19 +433,19 @@ export function CampaignBattle({
         method: "POST",
       });
       if (!res.ok) {
-        const text = await res.text();
-        dispatch({
-          type: "SUBMIT_ERROR",
-          message: `Forfeit failed (${res.status}): ${text}`,
-        });
+        const message = await readApiError(
+          res,
+          "Couldn't end the campaign. Try again.",
+        );
+        dispatch({ type: "SUBMIT_ERROR", message });
         return;
       }
       dispatch({ type: "SUBMIT_DONE" });
       onActionComplete();
-    } catch (err) {
+    } catch {
       dispatch({
         type: "SUBMIT_ERROR",
-        message: err instanceof Error ? err.message : String(err),
+        message: "Network hiccup. Check your connection and try again.",
       });
     }
   }
