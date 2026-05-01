@@ -1138,7 +1138,7 @@ export function Arena() {
                 : []),
               {
                 key: "rest",
-                kind: "neutral",
+                kind: "heal",
                 icon: MoonIcon,
                 label: "Rest",
                 onClick: handleRest,
