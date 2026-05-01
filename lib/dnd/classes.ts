@@ -280,3 +280,14 @@ export const CLASSES: readonly DnDClass[] = [
 export function findClass(classId: string): DnDClass | undefined {
   return CLASSES.find((c) => c.id.toLowerCase() === classId.toLowerCase());
 }
+
+// Full casters (Bard / Cleric / Druid / Sorcerer / Warlock / Wizard) —
+// the only six classes where primaryAbility === spellcastingAbility.
+// Drives the BattleCommands tile order: full casters lead with Spell;
+// half-casters (Paladin/Ranger) and pure martials lead with Attack.
+export function prefersSpellsForClass(klass: DnDClass | undefined): boolean {
+  return (
+    !!klass?.spellcastingAbility &&
+    klass.primaryAbility === klass.spellcastingAbility
+  );
+}

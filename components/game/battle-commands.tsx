@@ -13,25 +13,26 @@ import { DisabledTip } from "@/components/game/disabled-tip";
 import { PanelLabel } from "@/components/game/panel-label";
 import { cn } from "@/lib/utils";
 
-// Dragon-Warrior style 2x2 mobile battle panel. Caller supplies the
-// four tile specs so the same component serves solo (Attack / Spell /
+// Dragon-Warrior style 2x2 battle panel. Caller supplies the four
+// tile specs so the same component serves solo (Attack / Spell /
 // Inventory / Run Away) and coop (Attack / Spell / Skip / Forfeit) —
 // only the third and fourth tiles change. Each tile is either a
 // popover (Attack/Spell/Inventory) or a direct action (Run Away/Skip
-// /Forfeit).
+// /Forfeit). Used at every viewport — replaces the flat command list
+// for in-fight panels.
 
-export type MobileTileKind = "attack" | "spell" | "neutral" | "danger";
+export type BattleTileKind = "attack" | "spell" | "neutral" | "danger";
 
-const KIND_CLASS: Record<MobileTileKind, string> = {
+const KIND_CLASS: Record<BattleTileKind, string> = {
   attack: "bg-destructive text-white hover:bg-destructive/90",
   spell: "bg-indigo-600 text-white hover:bg-indigo-600/90",
   neutral: "",
   danger: "bg-red-600 text-white hover:bg-red-600/90",
 };
 
-export type MobileBattleTile = {
+export type BattleTile = {
   key: string;
-  kind: MobileTileKind;
+  kind: BattleTileKind;
   icon: LucideIcon;
   label: string;
   disabled?: boolean;
@@ -52,7 +53,7 @@ function CategoryButton({
   disabledReason = null,
   onClick,
   popover,
-}: Omit<MobileBattleTile, "key">) {
+}: Omit<BattleTile, "key">) {
   const trigger = (
     <Button
       variant={kind === "neutral" ? "outline" : "default"}
@@ -105,12 +106,12 @@ function CategoryPopover({
   );
 }
 
-export function MobileBattleCommands({
+export function BattleCommands({
   className,
   tiles,
 }: {
   className?: string;
-  tiles: MobileBattleTile[];
+  tiles: BattleTile[];
 }) {
   return (
     <div
@@ -120,7 +121,7 @@ export function MobileBattleCommands({
       )}
     >
       <PanelLabel>Commands</PanelLabel>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-1">
         {tiles.map((tile) => (
           <Fragment key={tile.key}>
             <CategoryButton {...tile} />

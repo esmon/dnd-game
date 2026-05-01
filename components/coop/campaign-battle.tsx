@@ -3,6 +3,7 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 
 import {
+  BackpackIcon,
   FlagIcon,
   FlaskConicalIcon,
   FootprintsIcon,
@@ -13,18 +14,18 @@ import {
   SwordIcon,
 } from "lucide-react";
 
-import { CommandButton } from "@/components/game/command-button";
-import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
-import { HealthBar } from "@/components/game/health-bar";
 import {
-  MobileBattleCommands,
-  type MobileBattleTile,
-} from "@/components/game/mobile-battle-commands";
+  BattleCommands,
+  type BattleTile,
+} from "@/components/game/battle-commands";
+import { CommandButton } from "@/components/game/command-button";
+import { type CommandItem } from "@/components/game/command-panel";
+import { HealthBar } from "@/components/game/health-bar";
 import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { PanelLabel } from "@/components/game/panel-label";
 import { TurnLine } from "@/components/game/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { findClass } from "@/lib/dnd/classes";
+import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
 import { findLowestSlot, isAoeSpell } from "@/lib/dnd/spells";
 import { useShakeOnNonce, shakeIntensity } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
@@ -451,10 +452,12 @@ export function CampaignBattle({
     actionToTurn(a, displayedPlayers),
   );
 
-  // Build commands once so the mobile 4-tile panel and desktop flat
-  // CommandPanel render the exact same kit (no chance of drift).
+  // Build commands once so the BattleCommands tiles render the exact
+  // same kit at every viewport (no chance of drift).
+  const viewerPlayer =
+    displayedPlayers.find((p) => p.user_id === userId) ?? null;
   const commands = buildCommands({
-    viewerPlayer: displayedPlayers.find((p) => p.user_id === userId) ?? null,
+    viewerPlayer,
     isMyTurn: isMyTurn && pendingActions.length === 0,
     submitting,
     selectedMonster: displayedMonsters[selectedMonsterIndex] ?? null,
@@ -462,6 +465,17 @@ export function CampaignBattle({
     hasAnyLivingMonster: displayedMonsters.some((m) => m.health > 0),
     submit,
   });
+  const viewerClass = viewerPlayer
+    ? findClass(viewerPlayer.character_snapshot.class)
+    : undefined;
+  const prefersSpells = prefersSpellsForClass(viewerClass);
+  // Skip Turn lives outside the 4-tile grid (no solo analog) — pull
+  // the command item the panel would have rendered so the secondary
+  // button below shares its disabled/onClick wiring.
+  const skipItem = commands.find(
+    (item): item is Extract<CommandItem, { key: string; kind: unknown }> =>
+      !("render" in item) && item.key === "skip",
+  );
 
   // "Encounter 2 · Hard" header so the table knows which fight it's
   // in and what kind of trouble was rolled. Color-codes by difficulty
@@ -534,14 +548,20 @@ export function CampaignBattle({
           />
         </div>
 
-        <MobileBattleCommands
-          className="md:hidden"
-          tiles={buildMobileTiles({
-            commands,
-            forfeit,
-            submitting,
-          })}
-        />
+        <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+          <CombatLogPanel className="hidden md:block" turns={turns} />
+          <BattleCommands
+            tiles={buildBattleTiles({
+              commands,
+              forfeit,
+              submitting,
+              prefersSpells,
+              baseDisabled:
+                !(isMyTurn && pendingActions.length === 0) || submitting,
+              baseDisabledReason: isMyTurn ? null : "Wait for your turn",
+            })}
+          />
+        </div>
 
         <MobileCombatLog
           turns={turns}
@@ -550,23 +570,21 @@ export function CampaignBattle({
             dispatch({ type: "SET_LOG_EXPANDED", expanded })
           }
         />
-
-        <div className="hidden gap-4 md:grid md:grid-cols-[2fr_1fr]">
-          <CombatLogPanel turns={turns} />
-          <CommandPanel commands={commands} />
-        </div>
         {actionError ? (
           <p className="text-center text-sm text-rose-600">{actionError}</p>
         ) : null}
-        <button
-          type="button"
-          onClick={forfeit}
-          disabled={submitting}
-          className="mx-auto hidden items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 md:inline-flex dark:border-zinc-700"
-        >
-          <FlagIcon className="size-3.5 shrink-0" />
-          Forfeit Campaign
-        </button>
+        {skipItem ? (
+          <button
+            type="button"
+            onClick={skipItem.onClick}
+            disabled={skipItem.disabled}
+            title={skipItem.disabledReason ?? undefined}
+            className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-foreground disabled:opacity-50 dark:border-zinc-700"
+          >
+            <FootprintsIcon className="size-3.5 shrink-0" />
+            Skip Turn
+          </button>
+        ) : null}
       </div>
     </main>
   );
@@ -810,64 +828,89 @@ function buildCommands({
   return commands;
 }
 
-// Slice the flat command list into the four tiles the mobile panel
-// expects: Attack (weapons + smite), Spell (spells + scrolls + heal +
-// potions), Skip Turn (existing skip command), Forfeit (calls into
-// forfeit() — the same handler the desktop bottom button uses).
-function buildMobileTiles({
+// Slice the flat command list into the four tiles the battle panel
+// expects: Attack (weapons + smite), Spell (spells + scrolls + heal),
+// Inventory (potions) — matching solo — and Forfeit as the red panic
+// tile. Skip Turn is a coop-only action with no solo analog; the
+// caller renders it as a small text button below the panel.
+function buildBattleTiles({
   commands,
   forfeit,
   submitting,
+  prefersSpells,
+  baseDisabled,
+  baseDisabledReason,
 }: {
   commands: CommandItem[];
   forfeit: () => void;
   submitting: boolean;
-}): MobileBattleTile[] {
+  prefersSpells: boolean;
+  baseDisabled: boolean;
+  baseDisabledReason: string | null;
+}): BattleTile[] {
   const attackKinds = new Set(["weapon", "smite"]);
-  // Coop has no inventory dialog, so consumables (scrolls, potions) and
-  // heal all share the Spell tile rather than getting their own.
-  const spellKinds = new Set(["spell", "scroll", "heal", "potion"]);
+  const spellKinds = new Set(["spell", "scroll", "heal"]);
+  const inventoryKinds = new Set(["potion"]);
 
-  const toNodes = (match: Set<string>) =>
+  // Items contributing to each tile, after the same hide-when-disabled
+  // filter the desktop panel applies. The tile is disabled when the
+  // resulting list is empty so the popover never opens with nothing
+  // inside it (matches solo).
+  const itemsFor = (match: Set<string>) =>
     commands.flatMap((item) => {
       if ("render" in item) return [];
       if (!match.has(item.kind)) return [];
-      // Honor the same hide-on-state-disabled rule the desktop panel
-      // uses, so popovers don't surface buttons that are disabled
-      // purely for "no living target" / "already full HP".
       if (item.disabled && item.hideWhenDisabled) return [];
+      return [item];
+    });
+  const toNodes = (items: ReturnType<typeof itemsFor>) =>
+    items.map((item) => {
       const { key, ...props } = item;
-      return [<CommandButton key={key} {...props} />];
+      return <CommandButton key={key} {...props} />;
     });
 
-  const skipItem = commands.find(
-    (item): item is Extract<CommandItem, { key: string; kind: unknown }> =>
-      !("render" in item) && item.key === "skip",
-  );
+  const attackItems = itemsFor(attackKinds);
+  const spellItems = itemsFor(spellKinds);
+  const inventoryItems = itemsFor(inventoryKinds);
+
+  const attackTile: BattleTile = {
+    key: "attack",
+    kind: "attack",
+    icon: SwordIcon,
+    label: "Attack",
+    disabled: baseDisabled || attackItems.length === 0,
+    disabledReason: baseDisabled
+      ? baseDisabledReason
+      : attackItems.length === 0
+        ? "No weapons available"
+        : null,
+    popover: toNodes(attackItems),
+  };
+  const spellTile: BattleTile = {
+    key: "spell",
+    kind: "spell",
+    icon: SparklesIcon,
+    label: "Spell",
+    disabled: baseDisabled || spellItems.length === 0,
+    disabledReason: baseDisabled
+      ? baseDisabledReason
+      : spellItems.length === 0
+        ? "No spells available"
+        : null,
+    popover: toNodes(spellItems),
+  };
 
   return [
+    ...(prefersSpells ? [spellTile, attackTile] : [attackTile, spellTile]),
     {
-      key: "attack",
-      kind: "attack",
-      icon: SwordIcon,
-      label: "Attack",
-      popover: toNodes(attackKinds),
-    },
-    {
-      key: "spell",
-      kind: "spell",
-      icon: SparklesIcon,
-      label: "Spell",
-      popover: toNodes(spellKinds),
-    },
-    {
-      key: "skip",
+      key: "inventory",
       kind: "neutral",
-      icon: FootprintsIcon,
-      label: "Skip Turn",
-      disabled: skipItem?.disabled ?? true,
-      disabledReason: skipItem?.disabledReason ?? null,
-      onClick: skipItem?.onClick ?? (() => undefined),
+      icon: BackpackIcon,
+      label: "Inventory",
+      disabled: inventoryItems.length === 0,
+      disabledReason:
+        inventoryItems.length === 0 ? "No items available" : null,
+      popover: toNodes(inventoryItems),
     },
     {
       key: "forfeit",
@@ -1239,19 +1282,28 @@ function InitiativeStrip({
   );
 }
 
-function CombatLogPanel({ turns }: { turns: Turn[] }) {
+function CombatLogPanel({
+  turns,
+  className,
+}: {
+  turns: Turn[];
+  className?: string;
+}) {
   // Reverse for newest-first to match the solo log convention.
   const reversed = [...turns].reverse();
-  // Mobile: fixed h-80 so the log doesn't dominate before any actions
-  // land. md+: take whatever height grid stretching gives us (commands
-  // sibling dictates the row), and absolute-position the scroll area
-  // so the log's content never contributes to the panel's intrinsic
-  // size — without that, even overflow-hidden lets the content's
-  // natural height push the grid row taller than commands.
+  // Desktop-only panel now: mobile uses MobileCombatLog (collapsible),
+  // so we just have to fit the grid row whose height the BattleCommands
+  // sibling sets. Absolute-position the scroll area so log content
+  // doesn't push the row taller than the commands.
   return (
-    <div className="relative h-80 w-full rounded-md border-2 border-zinc-900 bg-card md:h-auto md:min-h-0">
+    <div
+      className={cn(
+        "relative h-auto min-h-0 w-full rounded-md border-2 border-zinc-900 bg-card",
+        className,
+      )}
+    >
       <PanelLabel>Logs</PanelLabel>
-      <div className="md:absolute md:inset-0 md:overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden">
         <ScrollArea className="h-full w-full p-3">
           {reversed.length === 0 ? (
             <p className="text-center text-sm">

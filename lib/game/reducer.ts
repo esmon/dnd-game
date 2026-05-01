@@ -43,7 +43,6 @@ export type GameState = {
   inventoryOpen: boolean;
   characterCount: number;
   characterPickerOpen: boolean;
-  attacksExpanded: boolean;
   logExpanded: boolean;
   // Set on LOSE, cleared on START_FIGHT. Drives the "You Lose!" lobby panel
   // so the player gets a clear post-defeat affordance instead of an empty
@@ -73,7 +72,6 @@ export const initialState: GameState = {
   inventoryOpen: false,
   characterCount: 0,
   characterPickerOpen: false,
-  attacksExpanded: false,
   logExpanded: false,
   lastDefeatedBy: null,
   lastPlayerAttack: { nonce: 0, damage: 0 },
@@ -111,7 +109,6 @@ export type Action =
   | { type: "SET_INVENTORY_OPEN"; open: boolean }
   | { type: "SET_CHARACTER_COUNT"; count: number }
   | { type: "SET_CHARACTER_PICKER_OPEN"; open: boolean }
-  | { type: "SET_ATTACKS_EXPANDED"; expanded: boolean }
   | { type: "SET_LOG_EXPANDED"; expanded: boolean }
   | { type: "ADD_LOOT"; weapon: Weapon }
   | { type: "EQUIP_WEAPON"; id: string }
@@ -252,7 +249,6 @@ export function gameReducer(state: GameState, action: Action): GameState {
         status: "fighting",
         monster: null,
         monsterPending: false,
-        attacksExpanded: false,
         lastDefeatedBy: null,
         victory: null,
       };
@@ -413,9 +409,6 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "SET_CHARACTER_PICKER_OPEN":
       return { ...state, characterPickerOpen: action.open };
-
-    case "SET_ATTACKS_EXPANDED":
-      return { ...state, attacksExpanded: action.expanded };
 
     case "SET_LOG_EXPANDED":
       return { ...state, logExpanded: action.expanded };

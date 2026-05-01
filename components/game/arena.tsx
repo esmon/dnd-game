@@ -29,17 +29,15 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { CommandButton } from "@/components/game/command-button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
 import { DefeatPanel } from "@/components/game/defeat-panel";
 import { CombatLog } from "@/components/game/combat-log";
 import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
-import { MobileBattleCommands } from "@/components/game/mobile-battle-commands";
+import {
+  BattleCommands,
+  type BattleTile,
+} from "@/components/game/battle-commands";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
@@ -51,7 +49,7 @@ import {
   classFeatureLabel,
   computeWeaponAttackDamage,
 } from "@/lib/dnd/class-features";
-import { findClass } from "@/lib/dnd/classes";
+import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
 import {
   applyDamageMultiplier,
   averageDamage,
@@ -728,6 +726,7 @@ export function Arena() {
   const pendingAsiLevel = asiPending[0];
 
   const playerClass = findClass(player.classId);
+  const prefersSpells = prefersSpellsForClass(playerClass);
   const canSelfHealInCombat = playerClass?.canSelfHealInCombat ?? false;
   const healMinLevel = playerClass?.healMinLevel ?? 1;
   const healCostsSlot = playerClass?.healCostsSlot ?? false;
@@ -922,12 +921,8 @@ export function Arena() {
 
   attackOptions.sort((a, b) => b.effective - a.effective);
 
-  const TOP_ATTACK_LIMIT = 3;
-  const visibleAttackOptions = attackOptions.slice(0, TOP_ATTACK_LIMIT);
-  const hiddenAttackOptions = attackOptions.slice(TOP_ATTACK_LIMIT);
-
-  // Mobile category splits — already sorted by effective damage since
-  // the parent list was sorted before slicing.
+  // Category splits feed the BattleCommands tiles. Already sorted by
+  // effective damage since the parent list was sorted above.
   const weaponCategoryNodes = attackOptions
     .filter((o) => o.category === "weapon")
     .map((o) => <Fragment key={o.key}>{o.node}</Fragment>);
@@ -939,9 +934,6 @@ export function Arena() {
     (g) => g.representative.kind === "potion",
   );
 
-  // Heal node — built once and reused in the desktop commands stack
-  // and the mobile Spell popover so the action looks identical in both
-  // layouts.
   const healNode = canSelfHealInCombat ? (
     <CommandButton
       kind="heal"
@@ -958,16 +950,16 @@ export function Arena() {
     />
   ) : null;
 
-  // Mobile Spell popover combines castable spells + scrolls (already in
-  // spellCategoryNodes) with the class heal action.
-  const mobileSpellNodes = healNode
+  // Spell tile: castable spells + scrolls (already in spellCategoryNodes)
+  // plus the class heal action when available.
+  const spellTileNodes = healNode
     ? [...spellCategoryNodes, <Fragment key="heal">{healNode}</Fragment>]
     : spellCategoryNodes;
 
-  // Mobile Inventory popover: quick-use potions + a footer button that
-  // opens the full gear/spell management dialog. Always non-empty so the
-  // Inventory tile stays enabled even with no consumables.
-  const mobilePotionNodes = potionGroups.flatMap((group): React.ReactNode[] => {
+  // Inventory tile: quick-use potions + a footer button that opens the
+  // full gear/spell management dialog. Always non-empty so the tile
+  // stays enabled even with no consumables.
+  const potionTileNodes = potionGroups.flatMap((group): React.ReactNode[] => {
     if (group.representative.kind !== "potion") return [];
     const c = group.representative;
     const count = group.ids.length;
@@ -988,8 +980,8 @@ export function Arena() {
       />,
     ];
   });
-  const mobileInventoryNodes: React.ReactNode[] = [
-    ...mobilePotionNodes,
+  const inventoryTileNodes: React.ReactNode[] = [
+    ...potionTileNodes,
     <Button
       key="manage"
       variant="outline"
@@ -999,6 +991,58 @@ export function Arena() {
       <BackpackIcon className="size-4" />
       Manage Gear & Spells
     </Button>,
+  ];
+
+  // Build the in-fight battle tiles up here — the React compiler
+  // refuses an IIFE inside JSX because it can't statically prove the
+  // closure-captured handlers don't read refs during render. A flat
+  // const it trusts.
+  const attackTile: BattleTile = {
+    key: "attack",
+    kind: "attack",
+    icon: SwordIcon,
+    label: "Attack",
+    disabled: actionsDisabled || weaponCategoryNodes.length === 0,
+    disabledReason: actionsDisabled
+      ? fightActionReason
+      : weaponCategoryNodes.length === 0
+        ? "No weapons equipped"
+        : null,
+    popover: weaponCategoryNodes,
+  };
+  const spellTile: BattleTile = {
+    key: "spell",
+    kind: "spell",
+    icon: SparklesIcon,
+    label: "Spell",
+    disabled: actionsDisabled || spellTileNodes.length === 0,
+    disabledReason: actionsDisabled
+      ? fightActionReason
+      : spellTileNodes.length === 0
+        ? "No spells available"
+        : null,
+    popover: spellTileNodes,
+  };
+  const battleTiles: BattleTile[] = [
+    ...(prefersSpells
+      ? [spellTile, attackTile]
+      : [attackTile, spellTile]),
+    {
+      key: "inventory",
+      kind: "neutral",
+      icon: BackpackIcon,
+      label: "Inventory",
+      popover: inventoryTileNodes,
+    },
+    {
+      key: "run-away",
+      kind: "danger",
+      icon: FootprintsIcon,
+      label: "Run Away",
+      disabled: actionsDisabled,
+      disabledReason: fightActionReason,
+      onClick: handleRunAway,
+    },
   ];
 
   return (
@@ -1029,52 +1073,9 @@ export function Arena() {
               </p>
             </div>
           )}
-          <MobileBattleCommands
-            className="col-span-2 md:hidden"
-            tiles={[
-              {
-                key: "attack",
-                kind: "attack",
-                icon: SwordIcon,
-                label: "Attack",
-                disabled: actionsDisabled || weaponCategoryNodes.length === 0,
-                disabledReason: actionsDisabled
-                  ? fightActionReason
-                  : weaponCategoryNodes.length === 0
-                    ? "No weapons equipped"
-                    : null,
-                popover: weaponCategoryNodes,
-              },
-              {
-                key: "spell",
-                kind: "spell",
-                icon: SparklesIcon,
-                label: "Spell",
-                disabled: actionsDisabled || mobileSpellNodes.length === 0,
-                disabledReason: actionsDisabled
-                  ? fightActionReason
-                  : mobileSpellNodes.length === 0
-                    ? "No spells available"
-                    : null,
-                popover: mobileSpellNodes,
-              },
-              {
-                key: "inventory",
-                kind: "neutral",
-                icon: BackpackIcon,
-                label: "Inventory",
-                popover: mobileInventoryNodes,
-              },
-              {
-                key: "run-away",
-                kind: "danger",
-                icon: FootprintsIcon,
-                label: "Run Away",
-                disabled: actionsDisabled,
-                disabledReason: fightActionReason,
-                onClick: handleRunAway,
-              },
-            ]}
+          <BattleCommands
+            className="col-span-2 md:col-span-1"
+            tiles={battleTiles}
           />
           <MobileCombatLog
             className="col-span-2"
@@ -1083,119 +1084,6 @@ export function Arena() {
             onToggle={(expanded) =>
               dispatch({ type: "SET_LOG_EXPANDED", expanded })
             }
-          />
-          <CommandPanel
-            className="hidden md:col-span-1 md:flex"
-            commands={[
-              ...visibleAttackOptions.map(
-                (o): CommandItem => ({ key: o.key, render: o.node }),
-              ),
-              ...(hiddenAttackOptions.length > 0
-                ? [
-                  {
-                    key: "attacks-popover",
-                    render: (
-                      <Popover
-                        open={state.attacksExpanded}
-                        onOpenChange={(open) =>
-                          dispatch({
-                            type: "SET_ATTACKS_EXPANDED",
-                            expanded: open,
-                          })
-                        }
-                      >
-                        <PopoverTrigger
-                          render={
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                            >
-                              Show {hiddenAttackOptions.length} more
-                            </Button>
-                          }
-                        />
-                        <PopoverContent
-                          side="left"
-                          align="start"
-                          className="flex w-64 flex-col gap-2"
-                        >
-                          {hiddenAttackOptions.map((o) => (
-                            <Fragment key={o.key}>{o.node}</Fragment>
-                          ))}
-                        </PopoverContent>
-                      </Popover>
-                    ),
-                  } satisfies CommandItem,
-                ]
-                : []),
-              ...potionGroups.flatMap((group): CommandItem[] => {
-                if (group.representative.kind !== "potion") return [];
-                const c = group.representative;
-                const count = group.ids.length;
-                const useId = group.ids[0];
-                const potionFull = player.health >= player.maxHealth;
-                const potionReason =
-                  fightActionReason ??
-                  (potionFull ? "Already at full HP" : null);
-                return [
-                  {
-                    key: group.key,
-                    kind: "potion",
-                    icon: FlaskConicalIcon,
-                    label: `${c.name}${count > 1 ? ` ×${count}` : ""}`,
-                    subtitle: `Potion · ${c.healDice}`,
-                    onClick: () => handleUsePotion(useId, c.healDice),
-                    disabled: actionsDisabled || potionFull,
-                    disabledReason: potionReason,
-                    // Full HP — pure state, hide. Resource reasons
-                    // (out of fight, asi pending) keep it visible.
-                    hideWhenDisabled: potionFull,
-                  },
-                ];
-              }),
-              ...(canSelfHealInCombat
-                ? [
-                  {
-                    key: "heal",
-                    kind: "heal",
-                    icon: HeartIcon,
-                    label: "Heal",
-                    onClick: handleHeal,
-                    disabled:
-                      actionsDisabled ||
-                      healUnderMinLevel ||
-                      healOutOfSlots ||
-                      player.health >= player.maxHealth,
-                    disabledReason: healReason,
-                    // Hide only when full HP is the sole reason.
-                    // Under-min-level and out-of-slots stay visible
-                    // so the player sees they have HEAL.
-                    hideWhenDisabled:
-                      player.health >= player.maxHealth &&
-                      !healUnderMinLevel &&
-                      !healOutOfSlots,
-                  } satisfies CommandItem,
-                ]
-                : []),
-              {
-                key: "inventory",
-                kind: "neutral",
-                icon: BackpackIcon,
-                label: "Inventory",
-                onClick: () =>
-                  dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
-              },
-              {
-                key: "run-away",
-                kind: "danger",
-                icon: FootprintsIcon,
-                label: "Run Away",
-                onClick: handleRunAway,
-                disabled: actionsDisabled,
-                disabledReason: fightActionReason,
-              }
-            ]}
           />
         </div>
       ) : (
