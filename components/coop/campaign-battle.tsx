@@ -340,8 +340,19 @@ export function CampaignBattle({
   const isEnded =
     campaign.status === "finished" ||
     campaign.status === "between_encounters";
+  // Hold the killing-blow frame on screen for a beat after the last
+  // action reveals — without the delay, an AoE wipe by a teammate
+  // animates in for ~700ms and then the rest screen takes over,
+  // leaving the viewer wondering what happened. Long enough for the
+  // shake + 0/N HP + skull icon to register, short enough not to
+  // feel like the UI's stuck.
+  const ENCOUNTER_END_LINGER_MS = 1500;
   useEffect(() => {
-    if (isEnded && pendingDrained) onAllActionsRevealed?.();
+    if (!isEnded || !pendingDrained) return;
+    const timer = setTimeout(() => {
+      onAllActionsRevealed?.();
+    }, ENCOUNTER_END_LINGER_MS);
+    return () => clearTimeout(timer);
   }, [isEnded, pendingDrained, onAllActionsRevealed]);
 
   // Effective target: the user's last-clicked monster if it's still
@@ -501,9 +512,7 @@ export function CampaignBattle({
   // can reuse the solo log styling (color by kind, crit highlight).
   // Only the displayed slice — pending actions appear as their reveal
   // timer fires.
-  const turns: Turn[] = displayedActions.map((a) =>
-    actionToTurn(a, displayedPlayers),
-  );
+  const turns: Turn[] = displayedActions.map(actionToTurn);
 
   // Build commands once so the BattleCommands tiles render the exact
   // same kit at every viewport (no chance of drift).
@@ -1399,10 +1408,7 @@ function CombatLogPanel({
 // Translate a server-side action row into the local Turn shape that
 // TurnLine knows how to render. Maps actor/target to a readable line
 // and pulls hit/crit/miss flags into the existing color buckets.
-function actionToTurn(
-  action: CampaignAction,
-  _players: CampaignPlayer[],
-): Turn {
+function actionToTurn(action: CampaignAction): Turn {
   const payload = action.payload as Record<string, unknown>;
   const actorName = (payload.actor_name as string) ?? "Someone";
   const targetName = (payload.target_name as string) ?? "—";
