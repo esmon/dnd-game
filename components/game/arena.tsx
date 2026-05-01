@@ -1014,7 +1014,7 @@ export function Arena() {
     key: "spell",
     kind: "spell",
     icon: SparklesIcon,
-    label: "Spell",
+    label: "Spells",
     disabled: actionsDisabled || spellTileNodes.length === 0,
     disabledReason: actionsDisabled
       ? fightActionReason

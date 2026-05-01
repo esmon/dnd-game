@@ -890,7 +890,7 @@ function buildBattleTiles({
     key: "spell",
     kind: "spell",
     icon: SparklesIcon,
-    label: "Spell",
+    label: "Spells",
     disabled: baseDisabled || spellItems.length === 0,
     disabledReason: baseDisabled
       ? baseDisabledReason

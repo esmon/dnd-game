@@ -21,14 +21,12 @@ import { cn } from "@/lib/utils";
 // /Forfeit). Used at every viewport — replaces the flat command list
 // for in-fight panels.
 
+// All tiles render with the same default Button styling (black bg /
+// white text in light mode). The icon + label do the categorization;
+// color was a distraction, especially with four tiles next to each
+// other. `kind` is kept on the type for callers who still want to
+// describe what each tile is.
 export type BattleTileKind = "attack" | "spell" | "neutral" | "danger";
-
-const KIND_CLASS: Record<BattleTileKind, string> = {
-  attack: "bg-destructive text-white hover:bg-destructive/90",
-  spell: "bg-indigo-600 text-white hover:bg-indigo-600/90",
-  neutral: "",
-  danger: "bg-red-600 text-white hover:bg-red-600/90",
-};
 
 export type BattleTile = {
   key: string;
@@ -46,23 +44,18 @@ export type BattleTile = {
 };
 
 function CategoryButton({
-  kind,
   icon: Icon,
   label,
   disabled = false,
   disabledReason = null,
   onClick,
   popover,
-}: Omit<BattleTile, "key">) {
+}: Omit<BattleTile, "key" | "kind">) {
   const trigger = (
     <Button
-      variant={kind === "neutral" ? "outline" : "default"}
       disabled={disabled}
       onClick={onClick}
-      className={cn(
-        "h-auto min-h-12 w-full justify-start py-1.5 text-left leading-tight",
-        KIND_CLASS[kind],
-      )}
+      className="h-auto min-h-12 w-full justify-start py-1.5 text-left leading-tight"
     >
       <Icon className="size-5 shrink-0" />
       {label}
