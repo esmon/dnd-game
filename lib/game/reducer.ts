@@ -806,7 +806,10 @@ export function gameReducer(state: GameState, action: Action): GameState {
             : state.player.spellSlots,
       };
       const text = `${player.name} takes a long rest — HP and spell slots restored.`;
-      return pushTurn({ ...state, player }, true, text, "levelup", "heal");
+      // No `kind` highlight — the "LEVEL UP — " / "LOOT — " prefix
+      // those tags add doesn't make sense for a rest. The heart
+      // icon + text are enough to mark the entry.
+      return pushTurn({ ...state, player }, true, text, undefined, "heal");
     }
 
     case "EQUIP_SPELL": {
