@@ -5,27 +5,22 @@ import { findClass } from "@/lib/dnd/classes";
 import { formatDrvi, playerAC } from "@/lib/dnd/combat";
 import { MAX_LEVEL, xpThresholdForLevel } from "@/lib/dnd/leveling";
 import { RACES } from "@/lib/dnd/races";
-import { shakeIntensity, useShakeOnNonce } from "@/lib/use-shake-on-nonce";
+import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
 import type { Player } from "@/lib/game/types";
 
 export function PlayerPanel({
   player,
   attackNonce = 0,
-  attackDamage = 0,
   className,
 }: {
   player: Player;
   attackNonce?: number;
-  attackDamage?: number;
   className?: string;
 }) {
-  // Shake when the monster lands an attack (incoming hit feedback).
-  // Intensity scales with damage / max HP.
-  const shakeRef = useShakeOnNonce(
-    attackNonce,
-    shakeIntensity(attackDamage, player.maxHealth),
-  );
+  // Shake when the monster lands an attack — fixed kick regardless
+  // of damage so even a 1-HP nibble registers visibly.
+  const shakeRef = useShakeOnNonce(attackNonce);
   const atMax = player.level >= MAX_LEVEL;
   const currentFloor = xpThresholdForLevel(player.level);
   const nextThreshold = atMax ? null : xpThresholdForLevel(player.level + 1);

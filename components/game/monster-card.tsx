@@ -4,7 +4,7 @@ import { HealthBar } from "@/components/game/health-bar";
 import { PanelLabel } from "@/components/game/panel-label";
 import { StatRow } from "@/components/game/stat-row";
 import { formatDrvi } from "@/lib/dnd/combat";
-import { shakeIntensity, useShakeOnNonce } from "@/lib/use-shake-on-nonce";
+import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import type { Monster } from "@/lib/game/types";
 
 function formatCr(cr: number): string {
@@ -17,18 +17,13 @@ function formatCr(cr: number): string {
 export function MonsterCard({
   monster,
   attackNonce = 0,
-  attackDamage = 0,
 }: {
   monster: Monster;
   attackNonce?: number;
-  attackDamage?: number;
 }) {
-  // Shake when the player swings/casts (incoming hit feedback).
-  // Intensity scales with damage / max HP — chip damage = subtle shake.
-  const shakeRef = useShakeOnNonce(
-    attackNonce,
-    shakeIntensity(attackDamage, monster.maxHealth),
-  );
+  // Shake when the player swings/casts — fixed kick regardless of
+  // damage so chip hits still register visibly.
+  const shakeRef = useShakeOnNonce(attackNonce);
 
   const drviParts = formatDrvi(
     monster.damageResistances,

@@ -29,7 +29,7 @@ import { TurnLine } from "@/components/game/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
 import { findLowestSlot, isAoeSpell } from "@/lib/dnd/spells";
-import { useShakeOnNonce, shakeIntensity } from "@/lib/use-shake-on-nonce";
+import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
 import type {
   Campaign,
@@ -1037,15 +1037,7 @@ function PartyMember({
   const hits = actions.filter(
     (a) => a.target_kind === "player" && a.target_player_id === player.id,
   );
-  const lastDamage = hits.length
-    ? Number(
-        (hits[hits.length - 1].payload as Record<string, unknown>).damage ?? 0,
-      )
-    : 0;
-  const ref = useShakeOnNonce(
-    hits.length,
-    shakeIntensity(lastDamage, player.character_snapshot.max_hp),
-  );
+  const ref = useShakeOnNonce(hits.length);
   const snap = player.character_snapshot;
   return (
     <div
@@ -1135,11 +1127,7 @@ function MonsterButton({
   // (payload.targets array). AoE shakes need to fire for every monster
   // a Fireball lands on, not just the first one stamped on the row.
   const hits = collectMonsterHits(actions, index);
-  const lastDamage = hits.length ? hits[hits.length - 1].damage : 0;
-  const ref = useShakeOnNonce<HTMLButtonElement>(
-    hits.length,
-    shakeIntensity(lastDamage, monster.maxHealth),
-  );
+  const ref = useShakeOnNonce<HTMLButtonElement>(hits.length);
   return (
     <button
       ref={ref}
