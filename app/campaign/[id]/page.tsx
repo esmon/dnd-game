@@ -181,16 +181,17 @@ export default function CampaignLobbyPage({
 
   // Subscribe to the campaign's Realtime broadcast channel so any
   // teammate's mutating route (action, join, ready, start, next /
-  // end encounter, forfeit) refetches us in <100ms instead of the
-  // poll cadence. The polling below is now a slow safety net for
-  // missed broadcasts (websocket hiccups, channel auth quirks).
+  // end encounter, forfeit, continue) refetches us in <100ms instead
+  // of the poll cadence. `finished` is included so the defeat-screen
+  // ready-check picks up the other player's vote in real time.
   useEffect(() => {
     if (state.kind !== "ready") return;
     const status = state.data.campaign.status;
     if (
       status !== "waiting" &&
       status !== "active" &&
-      status !== "between_encounters"
+      status !== "between_encounters" &&
+      status !== "finished"
     ) {
       return;
     }
@@ -208,24 +209,28 @@ export default function CampaignLobbyPage({
 
   // Slow polling fallback while the campaign is in motion. Cadence is
   // intentionally relaxed (the broadcast above does the heavy lifting);
-  // this just guarantees we converge after a missed message.
+  // this just guarantees we converge after a missed message. Finished
+  // campaigns poll slowest of all — only the play-again ready-check
+  // changes anything there.
   useEffect(() => {
     if (state.kind !== "ready") return;
     const status = state.data.campaign.status;
     if (
       status !== "waiting" &&
       status !== "active" &&
-      status !== "between_encounters"
+      status !== "between_encounters" &&
+      status !== "finished"
     ) {
       return;
     }
-    const intervalMs = status === "active" ? 5000 : 10000;
+    const intervalMs =
+      status === "active" ? 5000 : status === "finished" ? 15000 : 10000;
     const interval = setInterval(
       refresh,
       intervalMs,
     );
     return () => clearInterval(interval);
-  }, [state]);
+  }, [state, refresh]);
 
   if (authLoading || state.kind === "loading") {
     return <CenteredCard>Loading campaign…</CenteredCard>;
@@ -328,6 +333,7 @@ export default function CampaignLobbyPage({
       players={players}
       actions={actions}
       userId={user.id}
+      onContinue={refresh}
     />
   );
 }

@@ -53,6 +53,10 @@ export interface CampaignPlayer {
   character_snapshot: Character;
   current_hp: number;
   is_ready: boolean;
+  // Per-player "Play Again" vote on the defeat screen. When every
+  // member's flag is true, /continue resets the run and clears all
+  // the flags back to false.
+  continue_ready: boolean;
   joined_at: string;
 }
 

@@ -1,9 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 
 import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   aggregateRecaps,
   buildEncounterRecaps,
@@ -21,16 +22,24 @@ import { cn } from "@/lib/utils";
 // out of the action log payloads (which the server stamped on each
 // kill action) so the recap reads chronologically without needing
 // extra schema.
+//
+// On defeat, also runs a mutual ready-check: each player has their
+// own "Play Again" vote (continue_ready on the player row). When
+// both voted ready, /continue rerolls the encounter and flips the
+// campaign back to active. Until then, the UI shows whose vote we're
+// waiting on so neither player wonders if their click registered.
 export function CampaignOutcomePanel({
   campaign,
   players,
   actions,
   userId,
+  onContinue,
 }: {
   campaign: Campaign;
   players: CampaignPlayer[];
   actions: CampaignAction[];
   userId: string;
+  onContinue: () => void;
 }) {
   const won = campaign.outcome === "won";
 
@@ -141,7 +150,14 @@ export function CampaignOutcomePanel({
                 })}
               </ul>
             </div>
-          ) : null}
+          ) : (
+            <PlayAgainBlock
+              campaignId={campaign.id}
+              players={players}
+              userId={userId}
+              onContinue={onContinue}
+            />
+          )}
 
           <Link href="/" className={cn(buttonVariants(), "w-full")}>
             Back to home
@@ -149,5 +165,98 @@ export function CampaignOutcomePanel({
         </LobbyResultFrame>
       </div>
     </main>
+  );
+}
+
+// Mutual ready-check on defeat. Each player has a "Play Again" button
+// that flips their continue_ready flag; when every member has voted,
+// the same /continue call resets the run and broadcasts the flip
+// back to active.
+function PlayAgainBlock({
+  campaignId,
+  players,
+  userId,
+  onContinue,
+}: {
+  campaignId: string;
+  players: CampaignPlayer[];
+  userId: string;
+  onContinue: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const me = players.find((p) => p.user_id === userId);
+  const myReady = !!me?.continue_ready;
+  const others = players.filter((p) => p.user_id !== userId);
+  const waitingOn = others.filter((p) => !p.continue_ready);
+
+  async function vote() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/campaign/${campaignId}/continue`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        setError(`Failed to vote (${res.status}): ${text}`);
+        return;
+      }
+      onContinue();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const buttonLabel = !myReady
+    ? "Play Again"
+    : waitingOn.length > 0
+      ? `Waiting for ${waitingOn
+          .map((p) => p.character_snapshot.name)
+          .join(", ")}…`
+      : "Restarting…";
+
+  return (
+    <div className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-1.5">
+        {players.map((p) => {
+          const isMe = p.user_id === userId;
+          return (
+            <li
+              key={p.id}
+              className="flex items-center justify-between gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm dark:border-zinc-700"
+            >
+              <span className="font-bold uppercase tracking-widest">
+                {p.character_snapshot.name}
+                {isMe ? <span className="ml-2 text-xs">(You)</span> : null}
+              </span>
+              <span
+                className={cn(
+                  "font-mono text-xs uppercase tracking-widest",
+                  p.continue_ready
+                    ? "text-emerald-600"
+                    : "text-muted-foreground",
+                )}
+              >
+                {p.continue_ready ? "Ready" : "Pending"}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <Button
+        onClick={vote}
+        disabled={busy || myReady}
+        className="w-full"
+      >
+        {buttonLabel}
+      </Button>
+      {error ? (
+        <p className="text-center text-sm text-rose-600">{error}</p>
+      ) : null}
+    </div>
   );
 }
