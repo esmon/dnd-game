@@ -58,11 +58,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // `players` array too so walkMonsterChain runs against the
   // restored state if initiative kicks off with a monster.
   for (const player of players) {
+    const restoredHp = player.character_snapshot.max_hp;
+    // Bump snapshot.current_hp too — deriveDisplayedPlayers in
+    // the battle UI uses it as the encounter-start HP, then layers
+    // this encounter's action log on top. Without the bump, the
+    // snapshot stays frozen at the join-time HP and the next
+    // encounter renders the player as still wounded (or dead) even
+    // though current_hp on the row is full.
     const refreshedSnapshot = {
       ...player.character_snapshot,
       spell_slots: slotsForLevel(player.character_snapshot.level),
+      current_hp: restoredHp,
     };
-    const restoredHp = player.character_snapshot.max_hp;
     const update = await supabaseAdmin
       .from("campaign_players")
       .update({

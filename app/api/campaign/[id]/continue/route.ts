@@ -85,11 +85,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // full HP, full spell slots, consumables stay (physical items the
   // party doesn't magically restock).
   for (const player of refreshed) {
+    const restoredHp = player.character_snapshot.max_hp;
+    // Bump snapshot.current_hp too — deriveDisplayedPlayers reads
+    // this as the encounter-start HP. Same reasoning as
+    // next-encounter; without it, the retry renders the party as
+    // still wounded from the wipe even though current_hp is full.
     const refreshedSnapshot = {
       ...player.character_snapshot,
       spell_slots: slotsForLevel(player.character_snapshot.level),
+      current_hp: restoredHp,
     };
-    const restoredHp = player.character_snapshot.max_hp;
     const update = await supabaseAdmin
       .from("campaign_players")
       .update({
