@@ -1037,7 +1037,7 @@ export function Arena() {
                       key: "heal",
                       kind: "heal",
                       icon: HeartIcon,
-                      label: "HEAL",
+                      label: "Heal",
                       onClick: handleHeal,
                       disabled:
                         actionsDisabled ||
@@ -1059,7 +1059,7 @@ export function Arena() {
                 key: "run-away",
                 kind: "neutral",
                 icon: FootprintsIcon,
-                label: "RUN AWAY",
+                label: "Run Away",
                 onClick: handleRunAway,
                 disabled: actionsDisabled,
                 disabledReason: fightActionReason,
@@ -1068,7 +1068,7 @@ export function Arena() {
                 key: "inventory",
                 kind: "neutral",
                 icon: BackpackIcon,
-                label: "INVENTORY",
+                label: "Inventory",
                 onClick: () =>
                   dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
               },
@@ -1117,7 +1117,7 @@ export function Arena() {
                 key: "fight",
                 kind: "primary",
                 icon: SwordsIcon,
-                label: "FIGHT",
+                label: "Fight",
                 onClick: startFight,
                 disabled: asiPending.length > 0,
                 disabledReason: lobbyActionReason,
@@ -1140,7 +1140,7 @@ export function Arena() {
                 key: "rest",
                 kind: "neutral",
                 icon: MoonIcon,
-                label: "REST",
+                label: "Rest",
                 onClick: handleRest,
                 disabled: asiPending.length > 0 || restPointless,
                 disabledReason: restReason,
@@ -1149,7 +1149,7 @@ export function Arena() {
                 key: "inventory",
                 kind: "neutral",
                 icon: BackpackIcon,
-                label: "INVENTORY",
+                label: "Inventory",
                 onClick: () =>
                   dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
               },

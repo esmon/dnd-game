@@ -739,7 +739,7 @@ function buildCommands({
       key: "heal",
       kind: "heal",
       icon: HeartIcon,
-      label: "HEAL",
+      label: "Heal",
       onClick: () => submit({ kind: "heal" }),
       disabled: baseDisabled || !!reason,
       disabledReason: turnReason ?? reason,
