@@ -536,7 +536,12 @@ export function gameReducer(state: GameState, action: Action): GameState {
     case "FULL_HEAL": {
       if (!state.player) return state;
       const player: Player = { ...state.player, health: state.player.maxHealth };
-      return { ...state, player };
+      // Log it so the bar bumping to max has an on-screen reason —
+      // FULL_HEAL fires every 3rd win and used to be silent, which
+      // read as "HP went up out of nowhere" if the combat log was
+      // collapsed.
+      const text = `${player.name} recovers to full HP on a winning streak!`;
+      return pushTurn({ ...state, player }, true, text, "levelup");
     }
 
     case "APPLY_ASI": {
