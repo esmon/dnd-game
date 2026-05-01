@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { HealthBar } from "@/components/game/health-bar";
 import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
@@ -42,6 +42,32 @@ export function RestScreen({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fold any banked XP into actual level-ups before the rest screen
+  // settles. Idempotent on the server, so each viewer can fire it
+  // without coordination — the broadcast on success refetches every
+  // open client. Backfill for campaigns whose earlier kills predate
+  // the per-kill leveling path in the action route.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/campaign/${campaign.id}/level-up`, {
+          method: "POST",
+        });
+        if (cancelled || !res.ok) return;
+        const data = (await res.json()) as { leveled?: boolean };
+        if (data.leveled) onContinue();
+      } catch {
+        // Best-effort. The action route's per-kill leveling and the
+        // next-encounter restoration cover the steady state; missing
+        // this one call just means a stuck level still shows here.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaign.id, onContinue]);
 
   // Build the same recap shape the final outcome panel uses, then
   // pluck out *this* encounter for the per-fight detail and aggregate

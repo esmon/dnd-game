@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { applyCharacterLevelUps } from "@/lib/coop/leveling";
 import { authorizeCampaign } from "@/lib/coop/auth";
 import type { Character } from "@/lib/db/schema";
 import { rollLoot } from "@/lib/dnd/loot";
@@ -178,6 +179,29 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
   }
 
+  // Run XP-driven level-ups for any player who crossed a threshold.
+  // Bumps level / max_hp / proficiency / learned spells / spell slots
+  // on the snapshot; the snapshot persist below picks up the change.
+  // current_hp on the campaign_players row needs a separate write
+  // since the column is independent of the snapshot's current_hp.
+  const levelUpsByPlayer = new Map<string, number[]>();
+  for (const p of players) {
+    if (!modifiedSnapshots.has(p.id)) continue;
+    const result = applyCharacterLevelUps(p.character_snapshot);
+    if (result.levelsGained.length === 0) continue;
+    const hpGain = result.character.max_hp - p.character_snapshot.max_hp;
+    p.character_snapshot = result.character;
+    if (hpGain > 0) {
+      const newCurrent = Math.min(
+        result.character.max_hp,
+        playerHp[p.id] + hpGain,
+      );
+      playerHp[p.id] = newCurrent;
+      p.current_hp = newCurrent;
+    }
+    levelUpsByPlayer.set(p.id, result.levelsGained);
+  }
+
   // Insert the action FIRST — that's the row carrying the unique
   // (campaign_id, turn_number) constraint, so it's the one source of
   // truth for who owns this turn. If it fails (most commonly: the
@@ -240,6 +264,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   // Now safe to persist the side effects — the action row is in the
   // log so anything we write here will be reflected in the UI.
+  // Players who leveled up just had their current_hp bumped (level-up
+  // adds the rolled HP to the running total); fold that into the
+  // snapshot persist below so the campaign_players column stays in
+  // sync with playerHp.
   if (typeof resolution.currentHpPatch === "number") {
     await supabaseAdmin
       .from("campaign_players")
@@ -249,9 +277,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   for (const id of modifiedSnapshots) {
     const player = players.find((p) => p.id === id);
     if (!player) continue;
+    const update: Record<string, unknown> = {
+      character_snapshot: player.character_snapshot,
+    };
+    if (levelUpsByPlayer.has(id)) {
+      update.current_hp = player.current_hp;
+    }
     await supabaseAdmin
       .from("campaign_players")
-      .update({ character_snapshot: player.character_snapshot })
+      .update(update)
       .eq("id", id);
   }
 
@@ -361,6 +395,16 @@ async function persistVictoryRewards(players: CampaignPlayer[]): Promise<void> {
       .from("characters")
       .update({
         xp: snap.xp,
+        // Level-up state — leveling currently happens on every kill
+        // (action route's XP loop), so any new level / max_hp /
+        // proficiency / learned spells need to flow back to the
+        // character row or solo would still see the pre-campaign
+        // level next time the player loaded their character.
+        level: snap.level,
+        max_hp: snap.max_hp,
+        proficiency_bonus: snap.proficiency_bonus,
+        known_spells: snap.known_spells,
+        equipped_spells: snap.equipped_spells,
         weapons: snap.weapons,
         inventory: snap.inventory,
         consumables: snap.consumables,
