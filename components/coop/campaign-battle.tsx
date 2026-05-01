@@ -362,6 +362,19 @@ export function CampaignBattle({
     currentSlot?.slot.kind === "player" &&
     players[currentSlot.slot.index]?.user_id === userId;
 
+  // Pre-fight log copy: list the monsters so the empty log reads as
+  // an encounter intro rather than dead silence. Falls back to the
+  // existing copy when there's nothing to name.
+  const encounterIntro = ((): string => {
+    const names = displayedMonsters
+      .filter((m) => m.health > 0)
+      .map((m) => m.name);
+    if (names.length === 0) return "The arena is silent... for now.";
+    if (names.length === 1) return `${names[0]} appears.`;
+    if (names.length === 2) return `${names[0]} and ${names[1]} appear.`;
+    return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]} appear.`;
+  })();
+
   // Highlight slot for the InitiativeStrip / PartyRow / MonsterRow.
   // While action reveals are still pacing in, follow the next-to-
   // -reveal action's actor so the highlight tracks what the user is
@@ -588,7 +601,11 @@ export function CampaignBattle({
         </div>
 
         <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
-          <CombatLogPanel className="hidden md:block" turns={turns} />
+          <CombatLogPanel
+            className="hidden md:block"
+            turns={turns}
+            emptyMessage={encounterIntro}
+          />
           <BattleCommands
             tiles={buildBattleTiles({
               commands,
@@ -608,6 +625,7 @@ export function CampaignBattle({
           onToggle={(expanded) =>
             dispatch({ type: "SET_LOG_EXPANDED", expanded })
           }
+          emptyMessage={encounterIntro}
         />
         {actionError ? (
           <p className="text-center text-sm text-rose-600">{actionError}</p>
@@ -1229,21 +1247,29 @@ function TurnTimer({
     return () => clearInterval(id);
   }, [deadline, active, campaignId]);
 
-  if (!active || secondsLeft === null) return null;
-  const tone =
-    secondsLeft <= 5
+  // Reserve the timer's vertical space even when inactive — between
+  // an action submitting and the new turn_deadline arriving, this
+  // component flickers from "shown" → null → "shown" and the layout
+  // below would jump if we returned null. `invisible` keeps it
+  // occupying space without painting.
+  const visible = active && secondsLeft !== null;
+  const display = secondsLeft ?? 0;
+  const tone = !visible
+    ? "invisible"
+    : display <= 5
       ? "text-rose-600"
-      : secondsLeft <= 15
+      : display <= 15
         ? "text-amber-600"
         : "text-muted-foreground";
   return (
     <p
+      aria-hidden={!visible}
       className={cn(
         "font-mono text-xs uppercase tracking-widest tabular-nums",
         tone,
       )}
     >
-      Auto-skip in {secondsLeft}s
+      Auto-skip in {display}s
     </p>
   );
 }
@@ -1324,9 +1350,11 @@ function InitiativeStrip({
 function CombatLogPanel({
   turns,
   className,
+  emptyMessage = "The arena is silent... for now.",
 }: {
   turns: Turn[];
   className?: string;
+  emptyMessage?: string;
 }) {
   // Reverse for newest-first to match the solo log convention.
   const reversed = [...turns].reverse();
@@ -1345,9 +1373,7 @@ function CombatLogPanel({
       <div className="absolute inset-0 overflow-hidden">
         <ScrollArea className="h-full w-full p-3">
           {reversed.length === 0 ? (
-            <p className="text-center text-sm">
-              The arena is silent... for now.
-            </p>
+            <p className="text-center text-sm">{emptyMessage}</p>
           ) : (
             <ul className="space-y-1.5">
               {reversed.map((turn) => (

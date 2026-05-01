@@ -12,11 +12,13 @@ export function MobileCombatLog({
   expanded,
   onToggle,
   className,
+  emptyMessage = "The arena is silent... for now.",
 }: {
   turns: Turn[];
   expanded: boolean;
   onToggle: (expanded: boolean) => void;
   className?: string;
+  emptyMessage?: string;
 }) {
   const visible = expanded ? turns : turns.slice(0, COLLAPSED_COUNT);
   const canExpand = turns.length > COLLAPSED_COUNT;
@@ -30,9 +32,7 @@ export function MobileCombatLog({
     >
       <PanelLabel>Logs</PanelLabel>
       {turns.length === 0 ? (
-        <p className="text-center text-sm">
-          The arena is silent... for now.
-        </p>
+        <p className="text-center text-sm">{emptyMessage}</p>
       ) : expanded ? (
         <ScrollArea className="h-64">
           <ul className="space-y-1.5 pr-2">
