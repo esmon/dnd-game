@@ -17,7 +17,8 @@ export type CommandKind =
   | "potion" // rose — heal consumable
   | "heal" // teal — self-heal action (HEAL)
   | "primary" // emerald — forward action (FIGHT, Play Again, Start Campaign)
-  | "neutral" // outline — utility (REST, INVENTORY, RUN AWAY, navigation)
+  | "danger" // red-600 — panic / escape (Run Away, Forfeit)
+  | "neutral" // outline — utility (REST, INVENTORY, navigation)
   | "dev"; // outline + small + muted — dev-only shortcuts
 
 type Variant = "default" | "outline" | "secondary" | "destructive";
@@ -45,6 +46,9 @@ const KIND_STYLE: Record<
   },
   primary: {
     className: "bg-emerald-500 text-foreground hover:bg-emerald-500/90",
+  },
+  danger: {
+    className: "bg-red-600 text-white hover:bg-red-600/90",
   },
   neutral: { className: "" },
   dev: { variant: "outline", size: "sm", className: "text-xs opacity-60" },

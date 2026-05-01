@@ -13,8 +13,14 @@ import {
   SwordIcon,
 } from "lucide-react";
 
+import { CommandButton } from "@/components/game/command-button";
 import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
 import { HealthBar } from "@/components/game/health-bar";
+import {
+  MobileBattleCommands,
+  type MobileBattleTile,
+} from "@/components/game/mobile-battle-commands";
+import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { PanelLabel } from "@/components/game/panel-label";
 import { TurnLine } from "@/components/game/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,6 +56,9 @@ interface BattleState {
   submitting: boolean;
   actionError: string | null;
   displayedActionCount: number;
+  // Mobile combat log toggle — collapsed shows the two latest entries;
+  // expanded swaps in a scrollable area with the full log.
+  logExpanded: boolean;
 }
 
 type BattleAction =
@@ -57,7 +66,8 @@ type BattleAction =
   | { type: "SUBMIT_START" }
   | { type: "SUBMIT_DONE" }
   | { type: "SUBMIT_ERROR"; message: string }
-  | { type: "REVEAL_NEXT_ACTION" };
+  | { type: "REVEAL_NEXT_ACTION" }
+  | { type: "SET_LOG_EXPANDED"; expanded: boolean };
 
 function initBattleState(
   campaign: Campaign,
@@ -72,6 +82,7 @@ function initBattleState(
     // actions (those that arrive while this component is mounted) get
     // paced.
     displayedActionCount: initialActionCount,
+    logExpanded: false,
   };
 }
 
@@ -90,6 +101,8 @@ function battleReducer(state: BattleState, action: BattleAction): BattleState {
         ...state,
         displayedActionCount: state.displayedActionCount + 1,
       };
+    case "SET_LOG_EXPANDED":
+      return { ...state, logExpanded: action.expanded };
   }
 }
 
@@ -438,6 +451,18 @@ export function CampaignBattle({
     actionToTurn(a, displayedPlayers),
   );
 
+  // Build commands once so the mobile 4-tile panel and desktop flat
+  // CommandPanel render the exact same kit (no chance of drift).
+  const commands = buildCommands({
+    viewerPlayer: displayedPlayers.find((p) => p.user_id === userId) ?? null,
+    isMyTurn: isMyTurn && pendingActions.length === 0,
+    submitting,
+    selectedMonster: displayedMonsters[selectedMonsterIndex] ?? null,
+    selectedMonsterIndex,
+    hasAnyLivingMonster: displayedMonsters.some((m) => m.health > 0),
+    submit,
+  });
+
   // "Encounter 2 · Hard" header so the table knows which fight it's
   // in and what kind of trouble was rolled. Color-codes by difficulty
   // so a quick glance signals the threat level.
@@ -509,22 +534,26 @@ export function CampaignBattle({
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+        <MobileBattleCommands
+          className="md:hidden"
+          tiles={buildMobileTiles({
+            commands,
+            forfeit,
+            submitting,
+          })}
+        />
+
+        <MobileCombatLog
+          turns={turns}
+          expanded={state.logExpanded}
+          onToggle={(expanded) =>
+            dispatch({ type: "SET_LOG_EXPANDED", expanded })
+          }
+        />
+
+        <div className="hidden gap-4 md:grid md:grid-cols-[2fr_1fr]">
           <CombatLogPanel turns={turns} />
-          <CommandPanel
-            commands={buildCommands({
-              viewerPlayer:
-                displayedPlayers.find((p) => p.user_id === userId) ?? null,
-              isMyTurn: isMyTurn && pendingActions.length === 0,
-              submitting,
-              selectedMonster: displayedMonsters[selectedMonsterIndex] ?? null,
-              selectedMonsterIndex,
-              hasAnyLivingMonster: displayedMonsters.some(
-                (m) => m.health > 0,
-              ),
-              submit,
-            })}
-          />
+          <CommandPanel commands={commands} />
         </div>
         {actionError ? (
           <p className="text-center text-sm text-rose-600">{actionError}</p>
@@ -533,7 +562,7 @@ export function CampaignBattle({
           type="button"
           onClick={forfeit}
           disabled={submitting}
-          className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 dark:border-zinc-700"
+          className="mx-auto hidden items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-rose-400 hover:text-rose-600 disabled:opacity-50 md:inline-flex dark:border-zinc-700"
         >
           <FlagIcon className="size-3.5 shrink-0" />
           Forfeit Campaign
@@ -779,6 +808,76 @@ function buildCommands({
   });
 
   return commands;
+}
+
+// Slice the flat command list into the four tiles the mobile panel
+// expects: Attack (weapons + smite), Spell (spells + scrolls + heal +
+// potions), Skip Turn (existing skip command), Forfeit (calls into
+// forfeit() — the same handler the desktop bottom button uses).
+function buildMobileTiles({
+  commands,
+  forfeit,
+  submitting,
+}: {
+  commands: CommandItem[];
+  forfeit: () => void;
+  submitting: boolean;
+}): MobileBattleTile[] {
+  const attackKinds = new Set(["weapon", "smite"]);
+  // Coop has no inventory dialog, so consumables (scrolls, potions) and
+  // heal all share the Spell tile rather than getting their own.
+  const spellKinds = new Set(["spell", "scroll", "heal", "potion"]);
+
+  const toNodes = (match: Set<string>) =>
+    commands.flatMap((item) => {
+      if ("render" in item) return [];
+      if (!match.has(item.kind)) return [];
+      // Honor the same hide-on-state-disabled rule the desktop panel
+      // uses, so popovers don't surface buttons that are disabled
+      // purely for "no living target" / "already full HP".
+      if (item.disabled && item.hideWhenDisabled) return [];
+      const { key, ...props } = item;
+      return [<CommandButton key={key} {...props} />];
+    });
+
+  const skipItem = commands.find(
+    (item): item is Extract<CommandItem, { key: string; kind: unknown }> =>
+      !("render" in item) && item.key === "skip",
+  );
+
+  return [
+    {
+      key: "attack",
+      kind: "attack",
+      icon: SwordIcon,
+      label: "Attack",
+      popover: toNodes(attackKinds),
+    },
+    {
+      key: "spell",
+      kind: "spell",
+      icon: SparklesIcon,
+      label: "Spell",
+      popover: toNodes(spellKinds),
+    },
+    {
+      key: "skip",
+      kind: "neutral",
+      icon: FootprintsIcon,
+      label: "Skip Turn",
+      disabled: skipItem?.disabled ?? true,
+      disabledReason: skipItem?.disabledReason ?? null,
+      onClick: skipItem?.onClick ?? (() => undefined),
+    },
+    {
+      key: "forfeit",
+      kind: "danger",
+      icon: FlagIcon,
+      label: "Forfeit",
+      disabled: submitting,
+      onClick: forfeit,
+    },
+  ];
 }
 
 function PartyRow({

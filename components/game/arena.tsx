@@ -39,6 +39,7 @@ import { DefeatPanel } from "@/components/game/defeat-panel";
 import { CombatLog } from "@/components/game/combat-log";
 import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
+import { MobileBattleCommands } from "@/components/game/mobile-battle-commands";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
@@ -788,8 +789,11 @@ export function Arena() {
   // capture refs (handleAttack/handleSmite/etc all read stateRef.current).
   // JSX props are fine — the compiler trusts them — so we render here and
   // route through CommandItem's `render` branch in the commands array below.
+  // `category` splits the list for the mobile 4-button panel: "weapon"
+  // feeds the Attack popover, "spell" feeds the Spell popover.
   type AttackOption = {
     key: string;
+    category: "weapon" | "spell";
     effective: number;
     node: React.ReactNode;
   };
@@ -803,6 +807,7 @@ export function Arena() {
     const key = `w-${weapon.id}`;
     attackOptions.push({
       key,
+      category: "weapon",
       effective,
       node: (
         <CommandButton
@@ -825,9 +830,10 @@ export function Arena() {
     const effective = smiteOutOfSlots
       ? 0
       : weaponPart * monsterDmgMult(smiteWeapon.damageType) +
-        smiteDiceAvg * monsterDmgMult("radiant");
+      smiteDiceAvg * monsterDmgMult("radiant");
     attackOptions.push({
       key: "smite",
+      category: "weapon",
       effective,
       node: (
         <CommandButton
@@ -866,6 +872,7 @@ export function Arena() {
     const key = `s-${spell.id}`;
     attackOptions.push({
       key,
+      category: "spell",
       effective,
       node: (
         <CommandButton
@@ -897,6 +904,7 @@ export function Arena() {
     const key = `sc-${group.key}`;
     attackOptions.push({
       key,
+      category: "spell",
       effective,
       node: (
         <CommandButton
@@ -918,9 +926,80 @@ export function Arena() {
   const visibleAttackOptions = attackOptions.slice(0, TOP_ATTACK_LIMIT);
   const hiddenAttackOptions = attackOptions.slice(TOP_ATTACK_LIMIT);
 
+  // Mobile category splits — already sorted by effective damage since
+  // the parent list was sorted before slicing.
+  const weaponCategoryNodes = attackOptions
+    .filter((o) => o.category === "weapon")
+    .map((o) => <Fragment key={o.key}>{o.node}</Fragment>);
+  const spellCategoryNodes = attackOptions
+    .filter((o) => o.category === "spell")
+    .map((o) => <Fragment key={o.key}>{o.node}</Fragment>);
+
   const potionGroups = consumableGroups.filter(
     (g) => g.representative.kind === "potion",
   );
+
+  // Heal node — built once and reused in the desktop commands stack
+  // and the mobile Spell popover so the action looks identical in both
+  // layouts.
+  const healNode = canSelfHealInCombat ? (
+    <CommandButton
+      kind="heal"
+      icon={HeartIcon}
+      label="Heal"
+      onClick={handleHeal}
+      disabled={
+        actionsDisabled ||
+        healUnderMinLevel ||
+        healOutOfSlots ||
+        player.health >= player.maxHealth
+      }
+      disabledReason={healReason}
+    />
+  ) : null;
+
+  // Mobile Spell popover combines castable spells + scrolls (already in
+  // spellCategoryNodes) with the class heal action.
+  const mobileSpellNodes = healNode
+    ? [...spellCategoryNodes, <Fragment key="heal">{healNode}</Fragment>]
+    : spellCategoryNodes;
+
+  // Mobile Inventory popover: quick-use potions + a footer button that
+  // opens the full gear/spell management dialog. Always non-empty so the
+  // Inventory tile stays enabled even with no consumables.
+  const mobilePotionNodes = potionGroups.flatMap((group): React.ReactNode[] => {
+    if (group.representative.kind !== "potion") return [];
+    const c = group.representative;
+    const count = group.ids.length;
+    const useId = group.ids[0];
+    const potionFull = player.health >= player.maxHealth;
+    const potionReason =
+      fightActionReason ?? (potionFull ? "Already at full HP" : null);
+    return [
+      <CommandButton
+        key={group.key}
+        kind="potion"
+        icon={FlaskConicalIcon}
+        label={`${c.name}${count > 1 ? ` ×${count}` : ""}`}
+        subtitle={`Potion · ${c.healDice}`}
+        onClick={() => handleUsePotion(useId, c.healDice)}
+        disabled={actionsDisabled || potionFull}
+        disabledReason={potionReason}
+      />,
+    ];
+  });
+  const mobileInventoryNodes: React.ReactNode[] = [
+    ...mobilePotionNodes,
+    <Button
+      key="manage"
+      variant="outline"
+      className="w-full"
+      onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}
+    >
+      <BackpackIcon className="size-4" />
+      Manage Gear & Spells
+    </Button>,
+  ];
 
   return (
     <div className="flex w-full max-w-5xl flex-col gap-6 p-4 md:p-6">
@@ -950,6 +1029,53 @@ export function Arena() {
               </p>
             </div>
           )}
+          <MobileBattleCommands
+            className="col-span-2 md:hidden"
+            tiles={[
+              {
+                key: "attack",
+                kind: "attack",
+                icon: SwordIcon,
+                label: "Attack",
+                disabled: actionsDisabled || weaponCategoryNodes.length === 0,
+                disabledReason: actionsDisabled
+                  ? fightActionReason
+                  : weaponCategoryNodes.length === 0
+                    ? "No weapons equipped"
+                    : null,
+                popover: weaponCategoryNodes,
+              },
+              {
+                key: "spell",
+                kind: "spell",
+                icon: SparklesIcon,
+                label: "Spell",
+                disabled: actionsDisabled || mobileSpellNodes.length === 0,
+                disabledReason: actionsDisabled
+                  ? fightActionReason
+                  : mobileSpellNodes.length === 0
+                    ? "No spells available"
+                    : null,
+                popover: mobileSpellNodes,
+              },
+              {
+                key: "inventory",
+                kind: "neutral",
+                icon: BackpackIcon,
+                label: "Inventory",
+                popover: mobileInventoryNodes,
+              },
+              {
+                key: "run-away",
+                kind: "danger",
+                icon: FootprintsIcon,
+                label: "Run Away",
+                disabled: actionsDisabled,
+                disabledReason: fightActionReason,
+                onClick: handleRunAway,
+              },
+            ]}
+          />
           <MobileCombatLog
             className="col-span-2"
             turns={turns}
@@ -959,49 +1085,49 @@ export function Arena() {
             }
           />
           <CommandPanel
-            className="col-span-2 md:col-span-1"
+            className="hidden md:col-span-1 md:flex"
             commands={[
               ...visibleAttackOptions.map(
                 (o): CommandItem => ({ key: o.key, render: o.node }),
               ),
               ...(hiddenAttackOptions.length > 0
                 ? [
-                    {
-                      key: "attacks-popover",
-                      render: (
-                        <Popover
-                          open={state.attacksExpanded}
-                          onOpenChange={(open) =>
-                            dispatch({
-                              type: "SET_ATTACKS_EXPANDED",
-                              expanded: open,
-                            })
+                  {
+                    key: "attacks-popover",
+                    render: (
+                      <Popover
+                        open={state.attacksExpanded}
+                        onOpenChange={(open) =>
+                          dispatch({
+                            type: "SET_ATTACKS_EXPANDED",
+                            expanded: open,
+                          })
+                        }
+                      >
+                        <PopoverTrigger
+                          render={
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                            >
+                              Show {hiddenAttackOptions.length} more
+                            </Button>
                           }
+                        />
+                        <PopoverContent
+                          side="left"
+                          align="start"
+                          className="flex w-64 flex-col gap-2"
                         >
-                          <PopoverTrigger
-                            render={
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                              >
-                                Show {hiddenAttackOptions.length} more
-                              </Button>
-                            }
-                          />
-                          <PopoverContent
-                            side="left"
-                            align="start"
-                            className="flex w-64 flex-col gap-2"
-                          >
-                            {hiddenAttackOptions.map((o) => (
-                              <Fragment key={o.key}>{o.node}</Fragment>
-                            ))}
-                          </PopoverContent>
-                        </Popover>
-                      ),
-                    } satisfies CommandItem,
-                  ]
+                          {hiddenAttackOptions.map((o) => (
+                            <Fragment key={o.key}>{o.node}</Fragment>
+                          ))}
+                        </PopoverContent>
+                      </Popover>
+                    ),
+                  } satisfies CommandItem,
+                ]
                 : []),
               ...potionGroups.flatMap((group): CommandItem[] => {
                 if (group.representative.kind !== "potion") return [];
@@ -1030,37 +1156,28 @@ export function Arena() {
               }),
               ...(canSelfHealInCombat
                 ? [
-                    {
-                      key: "heal",
-                      kind: "heal",
-                      icon: HeartIcon,
-                      label: "Heal",
-                      onClick: handleHeal,
-                      disabled:
-                        actionsDisabled ||
-                        healUnderMinLevel ||
-                        healOutOfSlots ||
-                        player.health >= player.maxHealth,
-                      disabledReason: healReason,
-                      // Hide only when full HP is the sole reason.
-                      // Under-min-level and out-of-slots stay visible
-                      // so the player sees they have HEAL.
-                      hideWhenDisabled:
-                        player.health >= player.maxHealth &&
-                        !healUnderMinLevel &&
-                        !healOutOfSlots,
-                    } satisfies CommandItem,
-                  ]
+                  {
+                    key: "heal",
+                    kind: "heal",
+                    icon: HeartIcon,
+                    label: "Heal",
+                    onClick: handleHeal,
+                    disabled:
+                      actionsDisabled ||
+                      healUnderMinLevel ||
+                      healOutOfSlots ||
+                      player.health >= player.maxHealth,
+                    disabledReason: healReason,
+                    // Hide only when full HP is the sole reason.
+                    // Under-min-level and out-of-slots stay visible
+                    // so the player sees they have HEAL.
+                    hideWhenDisabled:
+                      player.health >= player.maxHealth &&
+                      !healUnderMinLevel &&
+                      !healOutOfSlots,
+                  } satisfies CommandItem,
+                ]
                 : []),
-              {
-                key: "run-away",
-                kind: "neutral",
-                icon: FootprintsIcon,
-                label: "Run Away",
-                onClick: handleRunAway,
-                disabled: actionsDisabled,
-                disabledReason: fightActionReason,
-              },
               {
                 key: "inventory",
                 kind: "neutral",
@@ -1069,6 +1186,15 @@ export function Arena() {
                 onClick: () =>
                   dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
               },
+              {
+                key: "run-away",
+                kind: "danger",
+                icon: FootprintsIcon,
+                label: "Run Away",
+                onClick: handleRunAway,
+                disabled: actionsDisabled,
+                disabledReason: fightActionReason,
+              }
             ]}
           />
         </div>
@@ -1121,17 +1247,17 @@ export function Arena() {
               },
               ...(user
                 ? [
-                    {
-                      key: "start-campaign",
-                      kind: "primary",
-                      icon: CompassIcon,
-                      label: creatingCampaign
-                        ? "Starting Campaign…"
-                        : "Start A Campaign",
-                      onClick: handleStartCampaign,
-                      disabled: creatingCampaign,
-                    } satisfies CommandItem,
-                  ]
+                  {
+                    key: "start-campaign",
+                    kind: "primary",
+                    icon: CompassIcon,
+                    label: creatingCampaign
+                      ? "Starting Campaign…"
+                      : "Start A Campaign",
+                    onClick: handleStartCampaign,
+                    disabled: creatingCampaign,
+                  } satisfies CommandItem,
+                ]
                 : []),
               {
                 key: "rest",
@@ -1148,14 +1274,6 @@ export function Arena() {
                 hideWhenDisabled: restPointless && asiPending.length === 0,
               },
               {
-                key: "inventory",
-                kind: "neutral",
-                icon: BackpackIcon,
-                label: "Inventory",
-                onClick: () =>
-                  dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
-              },
-              {
                 // Visual divider between in-fight commands (FIGHT / REST /
                 // INVENTORY) and navigation commands (Switch Character /
                 // Create New / Start Campaign / dev). Same hairline as the
@@ -1163,20 +1281,28 @@ export function Arena() {
                 key: "nav-separator",
                 render: <div className="my-1 h-px bg-primary" />,
               },
+              {
+                key: "inventory",
+                kind: "neutral",
+                icon: BackpackIcon,
+                label: "Inventory",
+                onClick: () =>
+                  dispatch({ type: "SET_INVENTORY_OPEN", open: true }),
+              },
               ...(state.characterCount > 1
                 ? [
-                    {
-                      key: "switch-character",
-                      kind: "neutral",
-                      icon: UsersIcon,
-                      label: "Switch Character",
-                      onClick: () =>
-                        dispatch({
-                          type: "SET_CHARACTER_PICKER_OPEN",
-                          open: true,
-                        }),
-                    } satisfies CommandItem,
-                  ]
+                  {
+                    key: "switch-character",
+                    kind: "neutral",
+                    icon: UsersIcon,
+                    label: "Switch Character",
+                    onClick: () =>
+                      dispatch({
+                        type: "SET_CHARACTER_PICKER_OPEN",
+                        open: true,
+                      }),
+                  } satisfies CommandItem,
+                ]
                 : []),
               {
                 key: "create-new",
@@ -1187,23 +1313,23 @@ export function Arena() {
               },
               ...(process.env.NODE_ENV === "development"
                 ? [
-                    {
-                      key: "dev-next-level",
-                      kind: "dev",
-                      icon: ChevronsUpIcon,
-                      label: "[DEV] +1 Level",
-                      onClick: () => {
-                        dispatch({ type: "DEV_NEXT_LEVEL" });
-                        needsPersistRef.current = true;
-                      },
-                      disabled:
-                        player.level >= MAX_LEVEL || asiPending.length > 0,
-                      disabledReason:
-                        player.level >= MAX_LEVEL
-                          ? "Already at max level"
-                          : lobbyActionReason,
-                    } satisfies CommandItem,
-                  ]
+                  {
+                    key: "dev-next-level",
+                    kind: "dev",
+                    icon: ChevronsUpIcon,
+                    label: "[DEV] +1 Level",
+                    onClick: () => {
+                      dispatch({ type: "DEV_NEXT_LEVEL" });
+                      needsPersistRef.current = true;
+                    },
+                    disabled:
+                      player.level >= MAX_LEVEL || asiPending.length > 0,
+                    disabledReason:
+                      player.level >= MAX_LEVEL
+                        ? "Already at max level"
+                        : lobbyActionReason,
+                  } satisfies CommandItem,
+                ]
                 : []),
             ]}
           />

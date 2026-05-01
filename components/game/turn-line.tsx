@@ -56,7 +56,7 @@ export function TurnLine({ turn }: { turn: Turn }) {
   return (
     <li
       className={cn(
-        "flex items-center gap-2 rounded-md border border-border bg-muted/60 px-3 py-1.5 font-mono text-sm",
+        "flex items-center gap-2 rounded-md border-2 border-border bg-muted/60 px-3 py-1.5 font-mono text-sm",
         // Monochrome — icons + weight do the categorization. Crit
         // stays bold so the gold moments still pop without leaning
         // on color.
