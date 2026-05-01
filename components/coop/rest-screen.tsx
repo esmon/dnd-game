@@ -12,6 +12,7 @@ import {
   aggregateRecaps,
   buildEncounterRecaps,
 } from "@/lib/coop/encounter-recap";
+import { MAX_LEVEL, xpProgressInLevel } from "@/lib/dnd/leveling";
 import type {
   Campaign,
   CampaignAction,
@@ -117,8 +118,14 @@ export function RestScreen({
             <div className="flex flex-col gap-2 pt-2">
               {players.map((p) => {
                 const isMe = p.user_id === userId;
-                const max = p.character_snapshot.max_hp;
+                const snap = p.character_snapshot;
+                const max = snap.max_hp;
                 const lootList = lootByPlayer.get(p.id) ?? [];
+                const atMaxLevel = snap.level >= MAX_LEVEL;
+                const xpProgress = xpProgressInLevel(snap.xp, snap.level);
+                const xpLabel = atMaxLevel
+                  ? "MAX"
+                  : `${xpProgress.inLevel}/${xpProgress.needed} XP`;
                 return (
                   <div
                     key={p.id}
@@ -128,18 +135,24 @@ export function RestScreen({
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="truncate text-sm font-bold uppercase tracking-widest">
-                        {p.character_snapshot.name}
+                        {snap.name}
                         {isMe ? (
                           <span className="ml-2 text-xs">
                             (You)
                           </span>
                         ) : null}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          · Lv {snap.level}
+                        </span>
                       </span>
                       <span className="font-mono text-xs tabular-nums">
                         {max}/{max}
                       </span>
                     </div>
                     <HealthBar current={max} max={max} className="h-2" />
+                    <div className="flex text-xs uppercase tracking-widest tabular-nums">
+                      <span>{xpLabel}</span>
+                    </div>
                     {lootList.length > 0 ? (
                       <p className="text-xs">
                         Loot: {lootList.join(", ")}
