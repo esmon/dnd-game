@@ -1229,7 +1229,12 @@ export function Arena() {
       </div>
 
 
-      {!state.victory && pendingAsiLevel !== undefined ? (
+      {/* Wait for the player to Keep/Discard loot before opening the
+          ASI picker — otherwise the dialog blocks the panel they're
+          trying to interact with. RESOLVE_LOOT only nulls
+          `victory.loot`, so the celebration text stays put while the
+          dialog runs on top. */}
+      {!state.victory?.loot && pendingAsiLevel !== undefined ? (
         <LevelUpDialog
           key={pendingAsiLevel}
           level={pendingAsiLevel}
