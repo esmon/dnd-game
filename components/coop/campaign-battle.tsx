@@ -9,6 +9,7 @@ import {
   FootprintsIcon,
   HeartIcon,
   ScrollTextIcon,
+  SkullIcon,
   SparklesIcon,
   SunIcon,
   SwordIcon,
@@ -1154,8 +1155,16 @@ function MonsterButton({
         </span>
       ) : null}
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-bold uppercase tracking-widest">
-          {monster.name}
+        <span className="flex min-w-0 items-center gap-1.5">
+          {dead ? (
+            <SkullIcon
+              className="size-4 shrink-0"
+              aria-label="Defeated"
+            />
+          ) : null}
+          <span className="truncate text-sm font-bold uppercase tracking-widest">
+            {monster.name}
+          </span>
         </span>
         <span className="font-mono text-xs tabular-nums">
           {monster.health}/{monster.maxHealth}
