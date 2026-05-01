@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useReducer, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -35,6 +35,64 @@ type LoadState =
   | { kind: "not-found" }
   | { kind: "error"; message: string };
 
+// Page-level state. Bundles the four flags that previously lived as
+// parallel useState calls so the latching rules (seenActive,
+// actionsRevealed) live in the reducer instead of useEffects that
+// chase the snapshot — both transitions are derivable from the
+// incoming snapshot, so deriving them at the dispatch site avoids
+// the setState-in-useEffect anti-pattern.
+interface PageState {
+  load: LoadState;
+  refreshTick: number;
+  seenActive: boolean;
+  actionsRevealed: boolean;
+}
+
+type PageAction =
+  | { type: "REFRESH" }
+  | { type: "SET_LOAD"; load: LoadState }
+  | { type: "ACTIONS_REVEALED" };
+
+function pageReducer(state: PageState, action: PageAction): PageState {
+  switch (action.type) {
+    case "REFRESH":
+      return { ...state, refreshTick: state.refreshTick + 1 };
+    case "SET_LOAD": {
+      const next: PageState = { ...state, load: action.load };
+      // Latch seenActive the first time we observe an active fight,
+      // so a later flip to finished/between_encounters routes through
+      // the battle screen long enough to play out the killing blow.
+      if (
+        action.load.kind === "ready" &&
+        action.load.data.campaign.status === "active"
+      ) {
+        next.seenActive = true;
+        // Each fresh encounter resets the reveal gate so the next
+        // killing blow can latch it again.
+        const prevEncounter =
+          state.load.kind === "ready" &&
+          state.load.data.campaign.status === "active"
+            ? state.load.data.campaign.encounter_number
+            : null;
+        const nextEncounter = action.load.data.campaign.encounter_number;
+        if (prevEncounter !== nextEncounter) {
+          next.actionsRevealed = false;
+        }
+      }
+      return next;
+    }
+    case "ACTIONS_REVEALED":
+      return { ...state, actionsRevealed: true };
+  }
+}
+
+const INITIAL_PAGE_STATE: PageState = {
+  load: { kind: "loading" },
+  refreshTick: 0,
+  seenActive: false,
+  actionsRevealed: false,
+};
+
 // Lobby + status-mirror page for a campaign. While `waiting`, polls
 // every few seconds to pick up the second player joining; once `active`,
 // shows a placeholder for the not-yet-built combat view (M3).
@@ -52,17 +110,8 @@ export default function CampaignLobbyPage({
   const router = useRouter();
   const { user, loading: authLoading } = useUser();
 
-  const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [refreshTick, setRefreshTick] = useState(0);
-  // Two flags coordinate the active→finished swap:
-  //   - seenActive: did this mount ever observe an active fight? If
-  //     not, the user reloaded into a finished campaign and should go
-  //     straight to the outcome panel — no point replaying.
-  //   - actionsRevealed: has CampaignBattle finished pacing the final
-  //     swing in? Until it has, keep rendering the battle so the
-  //     killing blow's shake/log line gets to play.
-  const [seenActive, setSeenActive] = useState(false);
-  const [actionsRevealed, setActionsRevealed] = useState(false);
+  const [pageState, pageDispatch] = useReducer(pageReducer, INITIAL_PAGE_STATE);
+  const { load: state, refreshTick, seenActive, actionsRevealed } = pageState;
 
   // Send signed-out users through sign-in, returning here after.
   useEffect(() => {
@@ -78,26 +127,32 @@ export default function CampaignLobbyPage({
     try {
       const res = await fetch(`/api/campaign/${campaignId}`);
       if (res.status === 403) {
-        setState({ kind: "needs-join" });
+        pageDispatch({ type: "SET_LOAD", load: { kind: "needs-join" } });
         return;
       }
       if (res.status === 404) {
-        setState({ kind: "not-found" });
+        pageDispatch({ type: "SET_LOAD", load: { kind: "not-found" } });
         return;
       }
       if (!res.ok) {
-        setState({
-          kind: "error",
-          message: `Failed to load (${res.status})`,
+        pageDispatch({
+          type: "SET_LOAD",
+          load: {
+            kind: "error",
+            message: `Failed to load (${res.status})`,
+          },
         });
         return;
       }
       const data = (await res.json()) as Snapshot;
-      setState({ kind: "ready", data });
+      pageDispatch({ type: "SET_LOAD", load: { kind: "ready", data } });
     } catch (err) {
-      setState({
-        kind: "error",
-        message: err instanceof Error ? err.message : String(err),
+      pageDispatch({
+        type: "SET_LOAD",
+        load: {
+          kind: "error",
+          message: err instanceof Error ? err.message : String(err),
+        },
       });
     }
   }, [authLoading, user, campaignId]);
@@ -106,28 +161,12 @@ export default function CampaignLobbyPage({
     void fetchSnapshot();
   }, [fetchSnapshot, refreshTick]);
 
-  // Latch seenActive the moment we observe an active fight, so a later
-  // status flip to "finished" or "between_encounters" routes through
-  // the battle screen long enough for CampaignBattle to play out the
-  // killing blow.
-  useEffect(() => {
-    if (state.kind === "ready" && state.data.campaign.status === "active") {
-      setSeenActive(true);
-    }
-  }, [state]);
-
-  // Each time a fresh encounter spins up the campaign re-enters
-  // "active" — wipe the actionsRevealed gate so the next encounter's
-  // killing blow can latch it again. The initial active flip from
-  // start/route benefits from this too: actionsRevealed defaults to
-  // false on mount, this just keeps it in sync across encounters.
-  const activeEncounterKey =
-    state.kind === "ready" && state.data.campaign.status === "active"
-      ? state.data.campaign.encounter_number
-      : null;
-  useEffect(() => {
-    if (activeEncounterKey !== null) setActionsRevealed(false);
-  }, [activeEncounterKey]);
+  // seenActive + actionsRevealed used to live in their own
+  // useEffects that watched `state` and called setState to latch /
+  // reset the flags. That setState-in-useEffect chain is now folded
+  // into pageReducer's SET_LOAD case — the latching rules fire at
+  // the dispatch site, not on a render-driven effect, so there's no
+  // cascading-render anti-pattern.
 
   // Subscribe to the campaign's Realtime broadcast channel so any
   // teammate's mutating route (action, join, ready, start, next /
@@ -148,7 +187,7 @@ export default function CampaignLobbyPage({
     const channel = supabase
       .channel(`campaign:${campaignId}`)
       .on("broadcast", { event: "updated" }, () => {
-        setRefreshTick((t) => t + 1);
+        pageDispatch({ type: "REFRESH" });
       })
       .subscribe();
     return () => {
@@ -171,7 +210,7 @@ export default function CampaignLobbyPage({
     }
     const intervalMs = status === "active" ? 5000 : 10000;
     const interval = setInterval(
-      () => setRefreshTick((t) => t + 1),
+      () => pageDispatch({ type: "REFRESH" }),
       intervalMs,
     );
     return () => clearInterval(interval);
@@ -201,7 +240,7 @@ export default function CampaignLobbyPage({
     return (
       <CenteredCard>
         <p className="text-rose-600">Error: {state.message}</p>
-        <Button onClick={() => setRefreshTick((t) => t + 1)}>
+        <Button onClick={() => pageDispatch({ type: "REFRESH" })}>
           Retry
         </Button>
       </CenteredCard>
@@ -212,7 +251,7 @@ export default function CampaignLobbyPage({
     return (
       <JoinPrompt
         campaignId={campaignId}
-        onJoined={() => setRefreshTick((t) => t + 1)}
+        onJoined={() => pageDispatch({ type: "REFRESH" })}
       />
     );
   }
@@ -228,8 +267,8 @@ export default function CampaignLobbyPage({
         players={players}
         userId={user.id}
         isCreator={isCreator}
-        onChanged={() => setRefreshTick((t) => t + 1)}
-        onStarted={() => setRefreshTick((t) => t + 1)}
+        onChanged={() => pageDispatch({ type: "REFRESH" })}
+        onStarted={() => pageDispatch({ type: "REFRESH" })}
       />
     );
   }
@@ -253,8 +292,8 @@ export default function CampaignLobbyPage({
         players={players}
         actions={actions}
         userId={user.id}
-        onActionComplete={() => setRefreshTick((t) => t + 1)}
-        onAllActionsRevealed={() => setActionsRevealed(true)}
+        onActionComplete={() => pageDispatch({ type: "REFRESH" })}
+        onAllActionsRevealed={() => pageDispatch({ type: "ACTIONS_REVEALED" })}
       />
     );
   }
@@ -266,7 +305,7 @@ export default function CampaignLobbyPage({
         players={players}
         actions={actions}
         userId={user.id}
-        onContinue={() => setRefreshTick((t) => t + 1)}
+        onContinue={() => pageDispatch({ type: "REFRESH" })}
       />
     );
   }
@@ -281,6 +320,54 @@ export default function CampaignLobbyPage({
     />
   );
 }
+
+// Lobby's local UI state — mirrors the same "≤3 useState; 4+ go to
+// useReducer" rule used elsewhere in the project. Five flags
+// (start submission, ready toggle, picker open, copy confirmation,
+// start error) collapsed into one reducer.
+interface LobbyState {
+  starting: boolean;
+  startError: string | null;
+  copied: boolean;
+  pickerOpen: boolean;
+  togglingReady: boolean;
+}
+
+type LobbyAction =
+  | { type: "PICKER"; open: boolean }
+  | { type: "COPY_FLASH"; copied: boolean }
+  | { type: "READY_BEGIN" }
+  | { type: "READY_END" }
+  | { type: "START_BEGIN" }
+  | { type: "START_END" }
+  | { type: "START_ERROR"; message: string };
+
+function lobbyReducer(state: LobbyState, action: LobbyAction): LobbyState {
+  switch (action.type) {
+    case "PICKER":
+      return { ...state, pickerOpen: action.open };
+    case "COPY_FLASH":
+      return { ...state, copied: action.copied };
+    case "READY_BEGIN":
+      return { ...state, togglingReady: true };
+    case "READY_END":
+      return { ...state, togglingReady: false };
+    case "START_BEGIN":
+      return { ...state, starting: true, startError: null };
+    case "START_END":
+      return { ...state, starting: false };
+    case "START_ERROR":
+      return { ...state, starting: false, startError: action.message };
+  }
+}
+
+const INITIAL_LOBBY_STATE: LobbyState = {
+  starting: false,
+  startError: null,
+  copied: false,
+  pickerOpen: false,
+  togglingReady: false,
+};
 
 function Lobby({
   campaignId,
@@ -299,11 +386,16 @@ function Lobby({
   onChanged: () => void;
   onStarted: () => void;
 }) {
-  const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [togglingReady, setTogglingReady] = useState(false);
+  // 5 useState (start submission, ready toggle, picker open, copy
+  // confirmation, start error) collapsed into a single reducer per
+  // the project's "≤3 useState; 4+ go to useReducer" rule. Keeps
+  // related transitions colocated and easy to scan.
+  const [lobbyState, lobbyDispatch] = useReducer(
+    lobbyReducer,
+    INITIAL_LOBBY_STATE,
+  );
+  const { starting, startError, copied, pickerOpen, togglingReady } =
+    lobbyState;
 
   const inviteUrl =
     typeof window !== "undefined"
@@ -320,8 +412,8 @@ function Lobby({
   async function copyInvite() {
     try {
       await navigator.clipboard.writeText(inviteUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      lobbyDispatch({ type: "COPY_FLASH", copied: true });
+      setTimeout(() => lobbyDispatch({ type: "COPY_FLASH", copied: false }), 1500);
     } catch {
       // Older browsers / iframe contexts may block clipboard. The
       // input below is selectable as a fallback.
@@ -333,7 +425,7 @@ function Lobby({
   // flag for). This avoids ready-spam right before the creator starts.
   async function markReady() {
     if (!myPlayer || myPlayer.is_ready) return;
-    setTogglingReady(true);
+    lobbyDispatch({ type: "READY_BEGIN" });
     try {
       const res = await fetch(`/api/campaign/${campaignId}/player`, {
         method: "PATCH",
@@ -349,27 +441,26 @@ function Lobby({
     } catch (err) {
       console.error("mark ready threw", err);
     } finally {
-      setTogglingReady(false);
+      lobbyDispatch({ type: "READY_END" });
     }
   }
 
   async function handleStart() {
-    setStarting(true);
-    setStartError(null);
+    lobbyDispatch({ type: "START_BEGIN" });
     try {
       const res = await fetch(`/api/campaign/${campaignId}/start`, {
         method: "POST",
       });
       if (!res.ok) {
         const text = await res.text();
-        setStartError(`Failed to start (${res.status}): ${text}`);
+        lobbyDispatch({ type: "START_ERROR", message: `Failed to start (${res.status}): ${text}` });
         return;
       }
       onStarted();
     } catch (err) {
-      setStartError(err instanceof Error ? err.message : String(err));
+      lobbyDispatch({ type: "START_ERROR", message: err instanceof Error ? err.message : String(err) });
     } finally {
-      setStarting(false);
+      lobbyDispatch({ type: "START_END" });
     }
   }
 
@@ -377,7 +468,7 @@ function Lobby({
     <main className="relative flex min-h-screen items-start justify-center p-6">
       <Link
         href="/"
-        className="absolute left-6 top-6 font-mono text-xs uppercase tracking-widest text-muted-foreground underline underline-offset-4 hover:text-foreground"
+        className="absolute left-6 top-6 font-mono text-xs uppercase tracking-widest underline underline-offset-4 hover:text-foreground"
       >
         ← Back to home
       </Link>
@@ -388,7 +479,7 @@ function Lobby({
 
         {isCreator ? (
           <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm">
               Share this link with a friend. They'll need to be signed in to
               join.
             </p>
@@ -422,7 +513,7 @@ function Lobby({
                     <span className="font-bold">
                       {p.character_snapshot.name}
                       {isMe ? (
-                        <span className="ml-2 text-xs uppercase tracking-widest text-muted-foreground">
+                        <span className="ml-2 text-xs uppercase tracking-widest">
                           (You)
                         </span>
                       ) : null}
@@ -432,14 +523,14 @@ function Lobby({
                         </span>
                       ) : null}
                     </span>
-                    <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                    <span className="text-xs uppercase tracking-widest">
                       {p.character_snapshot.race} ·{" "}
                       {p.character_snapshot.class} · Lv{" "}
                       {p.character_snapshot.level}
                     </span>
                   </div>
                   {isMe ? (
-                    <Button size="sm" onClick={() => setPickerOpen(true)}>
+                    <Button size="sm" onClick={() => lobbyDispatch({ type: "PICKER", open: true })}>
                       Change
                     </Button>
                   ) : null}
@@ -449,7 +540,7 @@ function Lobby({
             {Array.from({ length: MAX_PLAYERS - slotsFilled }).map((_, i) => (
               <li
                 key={`empty-${i}`}
-                className="rounded-md border border-dashed border-zinc-300 px-3 py-2 text-sm text-muted-foreground"
+                className="rounded-md border border-dashed border-zinc-300 px-3 py-2 text-sm"
               >
                 Waiting for a player…
               </li>
@@ -467,13 +558,13 @@ function Lobby({
               {starting ? "Starting…" : "Start Campaign"}
             </Button>
             {slotsFilled < MIN_PLAYERS_TO_START ? (
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-center text-xs">
                 Need {MIN_PLAYERS_TO_START - slotsFilled} more player
                 {MIN_PLAYERS_TO_START - slotsFilled === 1 ? "" : "s"} before
                 you can start.
               </p>
             ) : !allJoinersReady ? (
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-center text-xs">
                 Waiting for other players to ready up…
               </p>
             ) : null}
@@ -498,7 +589,7 @@ function Lobby({
                   ? "Ready ✓"
                   : "I'm Ready"}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm">
               {myPlayer?.is_ready
                 ? "Waiting for the campaign creator to start…"
                 : "Tap ready when you've picked your character."}
@@ -508,7 +599,7 @@ function Lobby({
       </div>
       <CharacterPickerDialog
         open={pickerOpen}
-        onOpenChange={setPickerOpen}
+        onOpenChange={(open) => lobbyDispatch({ type: "PICKER", open })}
         currentCharacterId={
           players.find((p) => p.user_id === userId)?.character_snapshot.id ??
           ""
@@ -525,7 +616,7 @@ function Lobby({
               console.error("change character failed", res.status, text);
               return;
             }
-            setPickerOpen(false);
+            lobbyDispatch({ type: "PICKER", open: false });
             onChanged();
           } catch (err) {
             console.error("change character threw", err);
