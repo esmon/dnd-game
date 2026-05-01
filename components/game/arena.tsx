@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -990,7 +997,9 @@ export function Arena() {
                             align="start"
                             className="flex w-64 flex-col gap-2"
                           >
-                            {hiddenAttackOptions.map((o) => o.node)}
+                            {hiddenAttackOptions.map((o) => (
+                              <Fragment key={o.key}>{o.node}</Fragment>
+                            ))}
                           </PopoverContent>
                         </Popover>
                       ),
