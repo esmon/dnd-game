@@ -238,6 +238,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         { ...state, monster: action.monster, monsterPending: false },
         true,
         `You have encountered a ${action.monster.name}!`,
+        "encounter",
       );
 
     case "START_FIGHT":
@@ -397,7 +398,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         asiPending,
         victory: { monsterName, xpGained, levelsGained, loot },
       };
-      next = pushTurn(next, true, winText);
+      next = pushTurn(next, true, winText, "win");
       for (const t of levelUpTexts) {
         next = pushTurn(next, true, t, "levelup");
       }
@@ -542,6 +543,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         },
         false,
         text,
+        "loss",
       );
     }
 

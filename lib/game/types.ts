@@ -118,7 +118,7 @@ export type Turn = {
   id: number;
   isPlayer: boolean;
   text: string;
-  kind?: "levelup" | "loot" | "crit";
+  kind?: "levelup" | "loot" | "crit" | "win" | "loss" | "encounter";
   action?: TurnAction;
 };
 
