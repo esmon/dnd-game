@@ -103,6 +103,7 @@ export type Action =
   | { type: "WIN" }
   | { type: "LOSE" }
   | { type: "FULL_HEAL" }
+  | { type: "LONG_REST" }
   | { type: "APPLY_ASI"; deltas: Partial<AbilityScores> }
   | { type: "DEV_NEXT_LEVEL" }
   | { type: "DISMISS_VICTORY"; keepLoot?: boolean }
@@ -783,6 +784,29 @@ export function gameReducer(state: GameState, action: Action): GameState {
         spellSlots: slotsForLevel(state.player.level),
       };
       return { ...state, player };
+    }
+
+    case "LONG_REST": {
+      // 5e long rest: regain all HP and all expended spell slots.
+      // (We skip Hit Dice tracking — it's a sim-too-far for the
+      // current game loop and Hit Dice never come into play
+      // mechanically.) One log entry covers both restorations so
+      // the user sees a clear "took a long rest" beat instead of
+      // a heal line followed by a silent slot refill.
+      if (!state.player) return state;
+      const klass = CLASSES.find(
+        (c) => c.id.toLowerCase() === state.player!.classId.toLowerCase(),
+      );
+      const player: Player = {
+        ...state.player,
+        health: state.player.maxHealth,
+        spellSlots:
+          klass?.isCaster
+            ? slotsForLevel(state.player.level)
+            : state.player.spellSlots,
+      };
+      const text = `${player.name} takes a long rest — HP and spell slots restored.`;
+      return pushTurn({ ...state, player }, true, text, "levelup", "heal");
     }
 
     case "EQUIP_SPELL": {

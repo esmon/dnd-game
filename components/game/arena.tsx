@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { CommandButton } from "@/components/game/command-button";
 import {
   Popover,
@@ -363,11 +362,9 @@ export function Arena() {
   const handleRest = useCallback(() => {
     const snap = stateRef.current;
     if (!snap.player) return;
-    if (snap.player.health < snap.player.maxHealth) {
-      const amount = randomInt(1, 10);
-      dispatch({ type: "PLAYER_HEAL", amount });
-    }
-    dispatch({ type: "REFILL_SLOTS" });
+    // 5e long rest: full HP + all spell slots back. The reducer
+    // handles both restorations + the log line in one transition.
+    dispatch({ type: "LONG_REST" });
     needsPersistRef.current = true;
   }, []);
 
