@@ -1144,6 +1144,11 @@ export function Arena() {
                 onClick: handleRest,
                 disabled: asiPending.length > 0 || restPointless,
                 disabledReason: restReason,
+                // Pointless rest (already full HP + full slots) is
+                // pure state — hide. ASI-pending is a transient
+                // dialog/process gate worth keeping visible so the
+                // player knows Rest is the recovery action available.
+                hideWhenDisabled: restPointless && asiPending.length === 0,
               },
               {
                 key: "inventory",
