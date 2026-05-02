@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -92,15 +93,22 @@ export function CharacterPickerDialog({
                         {klass?.name ?? c.class}
                       </span>
                     </div>
-                    <Button
-                      size="sm"
-                      variant={isCurrent ? "outline" : "default"}
-                      disabled={isCurrent}
-                      onClick={() => onSelect(c.id)}
-                      className="sm:w-auto"
-                    >
-                      {isCurrent ? "Current" : "Switch"}
-                    </Button>
+                    {isCurrent ? (
+                      <span
+                        aria-label="Current character"
+                        className="flex size-6 shrink-0 items-center justify-center self-end rounded-full bg-emerald-500 text-white sm:self-auto"
+                      >
+                        <CheckIcon className="size-4" />
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => onSelect(c.id)}
+                        className="sm:w-auto"
+                      >
+                        Switch
+                      </Button>
+                    )}
                   </div>
                 );
               })}
