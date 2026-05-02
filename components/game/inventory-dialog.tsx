@@ -271,7 +271,6 @@ export function InventoryDialog({
 
         <DialogFooter>
           <Button
-            variant="outline"
             className="w-full"
             onClick={() => onOpenChange(false)}
           >

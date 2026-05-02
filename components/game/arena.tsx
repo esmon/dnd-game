@@ -984,7 +984,6 @@ export function Arena() {
     ...potionTileNodes,
     <Button
       key="manage"
-      variant="outline"
       className="w-full"
       onClick={() => dispatch({ type: "SET_INVENTORY_OPEN", open: true })}
     >
