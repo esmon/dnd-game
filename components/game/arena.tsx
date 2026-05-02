@@ -1110,13 +1110,6 @@ export function Arena() {
           ) : state.lastDefeatedBy ? (
             <DefeatPanel defeatedBy={state.lastDefeatedBy} />
           ) : null}
-          <MobileCombatLog
-            turns={turns}
-            expanded={state.logExpanded}
-            onToggle={(expanded) =>
-              dispatch({ type: "SET_LOG_EXPANDED", expanded })
-            }
-          />
           <CommandPanel
             className="md:col-start-3"
             commands={[
@@ -1216,6 +1209,13 @@ export function Arena() {
                 ]
                 : []),
             ]}
+          />
+          <MobileCombatLog
+            turns={turns}
+            expanded={state.logExpanded}
+            onToggle={(expanded) =>
+              dispatch({ type: "SET_LOG_EXPANDED", expanded })
+            }
           />
         </div>
       )}
