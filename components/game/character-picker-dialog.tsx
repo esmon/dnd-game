@@ -78,7 +78,7 @@ export function CharacterPickerDialog({
                   <div
                     key={c.id}
                     className={cn(
-                      "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
+                      "flex items-center justify-between gap-2 rounded-md bg-card px-3 py-2",
                       isCurrent
                         ? "border-2 border-zinc-900"
                         : "border border-muted-foreground/20",
@@ -96,16 +96,12 @@ export function CharacterPickerDialog({
                     {isCurrent ? (
                       <span
                         aria-label="Current character"
-                        className="flex size-6 shrink-0 items-center justify-center self-end rounded-full bg-emerald-500 text-white sm:self-auto"
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
                       >
                         <CheckIcon className="size-4" />
                       </span>
                     ) : (
-                      <Button
-                        size="sm"
-                        onClick={() => onSelect(c.id)}
-                        className="sm:w-auto"
-                      >
+                      <Button size="sm" onClick={() => onSelect(c.id)}>
                         Switch
                       </Button>
                     )}
