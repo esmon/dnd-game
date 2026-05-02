@@ -17,7 +17,6 @@ import {
   FlaskConicalIcon,
   FootprintsIcon,
   HeartIcon,
-  MoonIcon,
   ScrollTextIcon,
   SparklesIcon,
   SunIcon,
@@ -30,7 +29,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { CommandButton } from "@/components/game/command-button";
 import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
-import { DefeatPanel } from "@/components/game/defeat-panel";
 import { CombatLog } from "@/components/game/combat-log";
 import { MobileCombatLog } from "@/components/game/mobile-combat-log";
 import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
@@ -38,12 +36,12 @@ import {
   BattleCommands,
   type BattleTile,
 } from "@/components/game/battle-commands";
+import { LobbyOutcomePanel } from "@/components/game/lobby-outcome-panel";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
 import { MonsterCard } from "@/components/game/monster-card";
 import { StatsBar } from "@/components/game/stats-bar";
-import { VictoryPanel } from "@/components/game/victory-panel";
 import { rollDice, randomInt } from "@/lib/game/dice";
 import {
   classFeatureLabel,
@@ -1089,26 +1087,47 @@ export function Arena() {
             player={player}
             attackNonce={state.lastMonsterAttack.nonce}
             className={
-              state.victory || state.lastDefeatedBy
+              state.victory || state.lastDefeatedBy || state.lastFledFrom
                 ? "hidden md:flex"
                 : undefined
             }
           />
           {state.victory ? (
-            <VictoryPanel
-              victory={state.victory}
-              playerName={player.name}
-              onKeep={() => {
-                if (state.victory?.loot) forceSyncRef.current = true;
-                dispatch({ type: "RESOLVE_LOOT", keepLoot: true });
+            <LobbyOutcomePanel
+              outcome={{
+                kind: "victory",
+                victory: state.victory,
+                playerName: player.name,
+                onKeep: () => {
+                  if (state.victory?.loot) forceSyncRef.current = true;
+                  dispatch({ type: "RESOLVE_LOOT", keepLoot: true });
+                },
+                onDiscard: () => {
+                  if (state.victory?.loot) forceSyncRef.current = true;
+                  dispatch({ type: "RESOLVE_LOOT", keepLoot: false });
+                },
               }}
-              onDiscard={() => {
-                if (state.victory?.loot) forceSyncRef.current = true;
-                dispatch({ type: "RESOLVE_LOOT", keepLoot: false });
-              }}
+              onRest={handleRest}
+              restDisabled={asiPending.length > 0 || restPointless}
+              restDisabledReason={restReason}
+              restNeeded={!restPointless}
             />
           ) : state.lastDefeatedBy ? (
-            <DefeatPanel defeatedBy={state.lastDefeatedBy} />
+            <LobbyOutcomePanel
+              outcome={{ kind: "defeat", defeatedBy: state.lastDefeatedBy }}
+              onRest={handleRest}
+              restDisabled={asiPending.length > 0 || restPointless}
+              restDisabledReason={restReason}
+              restNeeded={!restPointless}
+            />
+          ) : state.lastFledFrom ? (
+            <LobbyOutcomePanel
+              outcome={{ kind: "flee", monsterName: state.lastFledFrom }}
+              onRest={handleRest}
+              restDisabled={asiPending.length > 0 || restPointless}
+              restDisabledReason={restReason}
+              restNeeded={!restPointless}
+            />
           ) : null}
           <CommandPanel
             className="md:col-start-3"
@@ -1137,24 +1156,10 @@ export function Arena() {
                 ]
                 : []),
               {
-                key: "rest",
-                kind: "heal",
-                icon: MoonIcon,
-                label: "Rest",
-                onClick: handleRest,
-                disabled: asiPending.length > 0 || restPointless,
-                disabledReason: restReason,
-                // Pointless rest (already full HP + full slots) is
-                // pure state — hide. ASI-pending is a transient
-                // dialog/process gate worth keeping visible so the
-                // player knows Rest is the recovery action available.
-                hideWhenDisabled: restPointless && asiPending.length === 0,
-              },
-              {
-                // Visual divider between in-fight commands (FIGHT / REST /
-                // INVENTORY) and navigation commands (Switch Character /
-                // Create New / Start Campaign / dev). Same hairline as the
-                // Card divider so it reads as a category break.
+                // Visual divider between primary commands (FIGHT / Start
+                // A Campaign) and navigation (Switch Character / Create
+                // New / dev). Rest now lives on the VictoryPanel so it's
+                // the obvious next step after a fight ends.
                 key: "nav-separator",
                 render: <div className="my-1 h-px bg-primary" />,
               },

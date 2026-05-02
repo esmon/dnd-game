@@ -48,6 +48,11 @@ export type GameState = {
   // so the player gets a clear post-defeat affordance instead of an empty
   // gap between PlayerPanel and CommandPanel.
   lastDefeatedBy: string | null;
+  // Set on RUN_AWAY_SUCCESS, cleared on START_FIGHT / WIN. Drives the
+  // flee variant of the lobby outcome panel — same pattern
+  // lastDefeatedBy uses, since neither has a dedicated payload like
+  // `victory` and both narrate "the last fight ended this way."
+  lastFledFrom: string | null;
   // Snapshot of the most recent attack from each side. `nonce` increments
   // on every offensive action so panels know to fire a shake animation
   // (changes on hit and miss). `damage` is 0 on miss, otherwise the actual
@@ -74,6 +79,7 @@ export const initialState: GameState = {
   characterPickerOpen: false,
   logExpanded: false,
   lastDefeatedBy: null,
+  lastFledFrom: null,
   lastPlayerAttack: { nonce: 0, damage: 0 },
   lastMonsterAttack: { nonce: 0, damage: 0 },
 };
@@ -250,6 +256,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         monster: null,
         monsterPending: false,
         lastDefeatedBy: null,
+        lastFledFrom: null,
         victory: null,
       };
 
@@ -337,7 +344,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
     }
 
     case "RUN_AWAY_SUCCESS": {
-      if (!state.player) return state;
+      if (!state.player || !state.monster) return state;
       const text = `${state.player.name} successfully runs away!`;
       return pushTurn(
         {
@@ -345,6 +352,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
           status: "lobby",
           monster: null,
           monsterPending: false,
+          lastFledFrom: state.monster.name,
           stats: { ...state.stats, runaways: state.stats.runaways + 1 },
         },
         true,
