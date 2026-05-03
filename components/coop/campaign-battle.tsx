@@ -554,7 +554,12 @@ export function CampaignBattle({
   return (
     <main className="flex min-h-screen flex-col items-center p-4 md:p-6">
       <div className="flex w-full max-w-5xl flex-col gap-6">
-        <div className="flex flex-col items-center gap-1">
+        {/* Sticky on mobile so a small viewport (e.g. an in-app
+            browser like Pulse) keeps "Your Turn" + the auto-skip
+            timer visible while the player scrolls through party /
+            monster panels. Static at md+ where the layout fits in
+            one screen. */}
+        <div className="sticky top-0 z-10 -mx-4 flex flex-col items-center gap-1 bg-background px-4 pb-2 pt-4 md:static md:m-0 md:p-0">
           <p className="font-mono text-xs uppercase tracking-widest">
             Encounter {campaign.encounter_number}
             {campaign.current_difficulty ? (
@@ -566,7 +571,18 @@ export function CampaignBattle({
               </>
             ) : null}
           </p>
-          <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl">
+          <h1
+            className={cn(
+              "text-center font-mono text-2xl font-bold uppercase tracking-widest md:text-3xl",
+              // Glance-read "it's my turn" cue. Only when the reveal
+              // queue has drained — otherwise we'd flash green while
+              // the player is still watching a teammate's swing
+              // animate in.
+              isMyTurn && pendingActions.length === 0
+                ? "text-emerald-600"
+                : null,
+            )}
+          >
             {turnDescription}
           </h1>
           <TurnTimer
@@ -1317,21 +1333,33 @@ function InitiativeStrip({
             name = m.name;
             dead = m.health <= 0;
           }
+          // The viewer's own active turn fills emerald instead of
+          // the default border treatment so it pops at a glance —
+          // the friend who flagged "I can't tell when it's my turn"
+          // was on a small viewport where the bordered version
+          // didn't read as different enough.
+          const isMyActive = isCurrent && slot.kind === "player" && isMe;
           return (
             <li
               key={`${slot.kind}:${slot.index}`}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs uppercase tracking-widest",
-                isCurrent
-                  ? "border-2 border-zinc-900 bg-card font-bold"
-                  : "border-muted-foreground/20 bg-card/50",
+                isMyActive
+                  ? "border-2 border-emerald-500 bg-emerald-500 font-bold text-white"
+                  : isCurrent
+                    ? "border-2 border-zinc-900 bg-card font-bold"
+                    : "border-muted-foreground/20 bg-card/50",
                 dead ? "line-through opacity-50" : "",
               )}
             >
               <span
                 className={cn(
                   "inline-block size-1.5 rounded-full",
-                  slot.kind === "player" ? "bg-emerald-500" : "bg-rose-500",
+                  isMyActive
+                    ? "bg-white"
+                    : slot.kind === "player"
+                      ? "bg-emerald-500"
+                      : "bg-rose-500",
                 )}
               />
               <span className="truncate max-w-[10ch]">{name}</span>
