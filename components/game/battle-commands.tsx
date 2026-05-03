@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { DisabledTip } from "@/components/game/disabled-tip";
 import { PanelLabel } from "@/components/game/panel-label";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
 // Dragon-Warrior style 2x2 battle panel. Caller supplies the four
@@ -73,11 +74,14 @@ function CategoryButton({
   return <CategoryPopover trigger={trigger} popover={popover} />;
 }
 
-// Controlled wrapper so a tap inside the popover closes it after the
-// action runs. Anchors below the trigger so the action list extends
-// downward into the empty space underneath the BattleCommands panel
-// instead of opening upward over the monster / party / log panels —
-// keeping the targets visible while the player picks an attack.
+// Controlled wrapper so a tap inside the popover closes it after
+// the action runs. Position adapts to viewport: at md+, opens to
+// the left of the trigger with its top edge aligned to the
+// button's top, so the action list flows alongside the
+// BattleCommands column without covering the monster / party / log
+// panels. On mobile, opens below the trigger so the list extends
+// into the empty space under the panel and the targets above stay
+// visible.
 function CategoryPopover({
   trigger,
   popover,
@@ -86,14 +90,17 @@ function CategoryPopover({
   popover: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const side = isDesktop ? "left" : "bottom";
+  const align = isDesktop ? "start" : "center";
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={trigger} />
       <PopoverContent
-        side="bottom"
-        align="center"
+        side={side}
+        align={align}
         // Cap to viewport so a long Spells / Inventory list scrolls
-        // inside the popover instead of bleeding past the bottom of
+        // inside the popover instead of bleeding past the edge of
         // the browser. base-ui's positioner exposes
         // --available-height as the safe space on the chosen side;
         // min() with 80vh as a fallback for cases where the var is
