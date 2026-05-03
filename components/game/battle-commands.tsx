@@ -5,12 +5,18 @@ import { useState, type ReactElement, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { DisabledTip } from "@/components/game/disabled-tip";
 import { PanelLabel } from "@/components/game/panel-label";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 
 // Dragon-Warrior style 2x2 battle panel. Caller supplies the four
@@ -73,9 +79,12 @@ function CategoryButton({
   return <CategoryPopover trigger={trigger} popover={popover} />;
 }
 
-// Controlled wrapper so a tap inside the popover closes it after the
-// action runs — otherwise the popup would float over the just-changed
-// HP bars and the player would have to tap-outside to dismiss it.
+// On desktop, render as a tile-anchored popover. On mobile, swap to
+// a centered Dialog so the action list doesn't cover the
+// monsters/party panels above the BattleCommands panel — there's no
+// good side for a trigger-anchored popover when the trigger sits at
+// the bottom of a small viewport. Both flavors share the open state
+// and auto-close on tap so the result of the action is visible.
 function CategoryPopover({
   trigger,
   popover,
@@ -84,24 +93,41 @@ function CategoryPopover({
   popover: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+
+  if (isDesktop) {
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger render={trigger} />
+        <PopoverContent
+          side="top"
+          align="end"
+          // Cap to viewport so a long Spells / Inventory list scrolls
+          // inside the popover instead of bleeding past the top of the
+          // browser. base-ui's positioner exposes --available-height
+          // as the safe space on the chosen side; min() with 80vh as
+          // a fallback for older browsers / cases where the var is
+          // unset.
+          className="flex w-72 flex-col gap-2 overflow-y-auto max-h-[min(80vh,var(--available-height,80vh))]"
+          onClick={() => setOpen(false)}
+        >
+          {popover}
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={trigger} />
-      <PopoverContent
-        side="top"
-        align="center"
-        // Cap to viewport so a long Spells / Inventory list scrolls
-        // inside the popover instead of bleeding past the top of the
-        // browser. base-ui's positioner exposes --available-height
-        // as the safe space on the chosen side; min() with 80vh as a
-        // fallback for older browsers / cases where the var is
-        // unset.
-        className="flex w-72 flex-col gap-2 overflow-y-auto max-h-[min(80vh,var(--available-height,80vh))]"
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={trigger} />
+      <DialogContent
+        showCloseButton={false}
+        className="flex max-h-[80vh] w-[calc(100%-2rem)] flex-col gap-2 overflow-y-auto p-3 sm:max-w-sm"
         onClick={() => setOpen(false)}
       >
         {popover}
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+    </Dialog>
   );
 }
 
