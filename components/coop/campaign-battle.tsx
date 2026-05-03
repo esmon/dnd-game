@@ -579,7 +579,7 @@ export function CampaignBattle({
               // the player is still watching a teammate's swing
               // animate in.
               isMyTurn && pendingActions.length === 0
-                ? "text-emerald-600"
+                ? "text-blue-600"
                 : null,
             )}
           >
@@ -1055,12 +1055,21 @@ function PartyMember({
   );
   const ref = useShakeOnNonce(hits.length);
   const snap = player.character_snapshot;
+  // Blue border when it's the viewer's own active turn — same hue
+  // the InitiativeStrip's "you" pill uses, so the eye traces the
+  // "this is you, act now" cue from the strip down to the party row
+  // without a color shift.
+  const isMyActive = isCurrent && isMe;
   return (
     <div
       ref={ref}
       className={cn(
         "flex flex-col gap-1 rounded-md border px-3 py-2",
-        isCurrent ? "border-2 border-zinc-900" : "border-muted-foreground/20",
+        isMyActive
+          ? "border-2 border-blue-600"
+          : isCurrent
+            ? "border-2 border-zinc-900"
+            : "border-muted-foreground/20",
         dead ? "opacity-50" : "",
       )}
     >
@@ -1345,7 +1354,7 @@ function InitiativeStrip({
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs uppercase tracking-widest",
                 isMyActive
-                  ? "border-2 border-emerald-500 bg-emerald-500 font-bold text-white"
+                  ? "border-2 border-blue-600 bg-blue-600 font-bold text-white"
                   : isCurrent
                     ? "border-2 border-zinc-900 bg-card font-bold"
                     : "border-muted-foreground/20 bg-card/50",
