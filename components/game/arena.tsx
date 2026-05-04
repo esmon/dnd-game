@@ -47,7 +47,12 @@ import {
   classFeatureLabel,
   computeWeaponAttackDamage,
 } from "@/lib/dnd/class-features";
-import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
+import {
+  findClass,
+  isArmorProficient,
+  isWeaponProficient,
+  prefersSpellsForClass,
+} from "@/lib/dnd/classes";
 import {
   applyDamageMultiplier,
   averageDamage,
@@ -245,8 +250,17 @@ export function Arena() {
         return;
       }
       const ability = weaponAttackAbility(weapon, snap.player.abilityScores);
+      const klass = findClass(snap.player.classId);
+      // 5e: PB on the to-hit roll only applies if the class is
+      // proficient with this weapon's category. A wizard swinging a
+      // greataxe still hits AC, just without the +PB bonus.
+      const proficient = isWeaponProficient(
+        klass,
+        weapon.baseId,
+        weapon.category,
+      );
       const mod =
-        snap.player.proficiencyBonus +
+        (proficient ? snap.player.proficiencyBonus : 0) +
         abilityModifier(snap.player.abilityScores[ability]);
       const attack = rollAttack(mod, snap.monster.ac);
       if (!attack.hit) {
@@ -391,10 +405,20 @@ export function Arena() {
         const remaining = snap.player.spellSlots[String(spellLevel)] ?? 0;
         if (remaining <= 0) return;
       }
+      // 5e RAW: armor you aren't proficient with blocks somatic /
+      // verbal components. The Spells tile in BattleCommands gates
+      // off this same condition so the user shouldn't get here, but
+      // bail defensively.
+      const klass = findClass(snap.player.classId);
+      if (
+        snap.player.equippedArmor &&
+        !isArmorProficient(klass, snap.player.equippedArmor.category)
+      ) {
+        return;
+      }
       // Treat all damage spells as spell-attack-roll spells (deviation from
       // RAW: Fireball etc. should be DEX saves, but we collapse the two for
       // a single combat path).
-      const klass = findClass(snap.player.classId);
       const ability = klass?.spellcastingAbility ?? "int";
       const mod =
         snap.player.proficiencyBonus +
@@ -462,8 +486,14 @@ export function Arena() {
         snap.player.spellSlots[String(smiteSlotLevel)] ?? 0;
       if (remaining <= 0) return;
       const ability = weaponAttackAbility(weapon, snap.player.abilityScores);
+      const klass = findClass(snap.player.classId);
+      const proficient = isWeaponProficient(
+        klass,
+        weapon.baseId,
+        weapon.category,
+      );
       const mod =
-        snap.player.proficiencyBonus +
+        (proficient ? snap.player.proficiencyBonus : 0) +
         abilityModifier(snap.player.abilityScores[ability]);
       const attack = rollAttack(mod, snap.monster.ac);
       if (!attack.hit) {
@@ -554,6 +584,12 @@ export function Arena() {
         return;
       }
       const klass = findClass(snap.player.classId);
+      if (
+        snap.player.equippedArmor &&
+        !isArmorProficient(klass, snap.player.equippedArmor.category)
+      ) {
+        return;
+      }
       // Non-casters reading a scroll fall back to INT, matching SRD ruling.
       const ability = klass?.spellcastingAbility ?? "int";
       const mod =
@@ -711,6 +747,17 @@ export function Arena() {
   const lobbyActionReason: string | null =
     asiPending.length > 0 ? "Resolve level-up first" : null;
 
+  // 5e RAW: armor you aren't proficient with blocks somatic / verbal
+  // components — both spell and scroll actions surface this as a
+  // single user-facing reason. Returns the blocking armor name when
+  // gated, null when the player is fine to cast.
+  const playerKlass = findClass(player.classId);
+  const armorSpellBlock: string | null =
+    player.equippedArmor &&
+    !isArmorProficient(playerKlass, player.equippedArmor.category)
+      ? `Can't cast — not proficient with ${player.equippedArmor.name}`
+      : null;
+
   // REST is heal + refill spell slots. Pointless only when HP is already
   // full AND every slot is already at the level's max (or no slots, for
   // non-casters whose spellSlots is just {}).
@@ -807,6 +854,17 @@ export function Arena() {
       (baseAvg + weaponFlatBonus + weaponBonusDiceAvg) * weaponMultiplier;
     const effective = totalAvg * monsterDmgMult(weapon.damageType);
     const key = `w-${weapon.id}`;
+    // Weapon stays usable; the to-hit roll just drops PB at attack
+    // resolution time. Surface the tag in the subtitle so the
+    // player sees why their swings are missing more often.
+    const weaponProficient = isWeaponProficient(
+      playerKlass,
+      weapon.baseId,
+      weapon.category,
+    );
+    const subtitle = weaponProficient
+      ? weapon.damage
+      : `${weapon.damage} · non-proficient`;
     attackOptions.push({
       key,
       category: "weapon",
@@ -816,7 +874,7 @@ export function Arena() {
           kind="weapon"
           icon={SwordIcon}
           label={weapon.name}
-          subtitle={weapon.damage}
+          subtitle={subtitle}
           onClick={() => handleAttack(weapon)}
           disabled={actionsDisabled}
           disabledReason={fightActionReason}
@@ -1017,12 +1075,17 @@ export function Arena() {
     kind: "spell",
     icon: SparklesIcon,
     label: "Spells",
-    disabled: actionsDisabled || spellTileNodes.length === 0,
+    disabled:
+      actionsDisabled ||
+      armorSpellBlock !== null ||
+      spellTileNodes.length === 0,
     disabledReason: actionsDisabled
       ? fightActionReason
-      : spellTileNodes.length === 0
-        ? "No spells available"
-        : null,
+      : armorSpellBlock
+        ? armorSpellBlock
+        : spellTileNodes.length === 0
+          ? "No spells available"
+          : null,
     popover: spellTileNodes,
   };
   const battleTiles: BattleTile[] = [

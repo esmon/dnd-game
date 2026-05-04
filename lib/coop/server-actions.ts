@@ -15,7 +15,11 @@ import {
   weaponAttackAbility,
 } from "@/lib/dnd/combat";
 import { computeWeaponAttackDamage } from "@/lib/dnd/class-features";
-import { findClass } from "@/lib/dnd/classes";
+import {
+  findClass,
+  isArmorProficient,
+  isWeaponProficient,
+} from "@/lib/dnd/classes";
 import { abilityModifier } from "@/lib/dnd/derive";
 import { findLowestSlot, spellsByBaseId } from "@/lib/dnd/spells";
 import { rollDice } from "@/lib/game/dice";
@@ -171,6 +175,23 @@ function findPotion(snapshot: Character, potionId: string): Potion | null {
   );
 }
 
+// 5e RAW: a caster wearing armor they aren't proficient with can't
+// cast spells. Returns a Resolution-shaped error when blocked, null
+// when the player is fine to cast (no armor, proficient armor, or
+// pre-armor snapshot with the field unset). Shared by resolveSpell
+// and resolveScroll.
+function checkArmorProficiencyForSpell(snapshot: Character): Resolution | null {
+  const armor = snapshot.equipped_armor;
+  if (!armor) return null;
+  const klass = findClass(snapshot.class);
+  if (isArmorProficient(klass, armor.category)) return null;
+  return {
+    ok: false,
+    status: 409,
+    error: `Can't cast — not proficient with ${armor.name}`,
+  };
+}
+
 function consumeConsumable(
   consumables: Consumable[],
   id: string,
@@ -205,9 +226,15 @@ export function resolveAttack(
     weapon,
     player.character_snapshot.ability_scores,
   );
+  // PB on the to-hit roll only if the class is proficient with this
+  // weapon's category. Falls back to weaponsByBaseId in
+  // isWeaponProficient when the snapshot is missing weapon.category
+  // (rows minted before that field landed).
+  const klass = findClass(player.character_snapshot.class);
+  const proficient = isWeaponProficient(klass, weapon.baseId, weapon.category);
   const attackMod =
     abilityModifier(player.character_snapshot.ability_scores[ability]) +
-    player.character_snapshot.proficiency_bonus;
+    (proficient ? player.character_snapshot.proficiency_bonus : 0);
   const attack = rollAttack(attackMod, target.ac);
 
   let damage = 0;
@@ -273,6 +300,12 @@ export function resolveSpell(
   if (!spell) {
     return { ok: false, status: 400, error: "spell not found / not equipped" };
   }
+  // 5e RAW: you can't cast spells while wearing armor you aren't
+  // proficient with — somatic / verbal components fail through the
+  // restricted gear. Same gate applies to scrolls (resolveScroll
+  // below).
+  const armorErr = checkArmorProficiencyForSpell(player.character_snapshot);
+  if (armorErr) return armorErr;
 
   // AoE spells: skip the target index check, hit every alive monster
   // with one damage roll, then apply each monster's per-type
@@ -439,6 +472,10 @@ export function resolveScroll(
   if (!scroll) {
     return { ok: false, status: 400, error: "scroll not found" };
   }
+  // Same RAW gate as resolveSpell — non-proficient armor blocks
+  // somatic / verbal components, scrolls included.
+  const armorErr = checkArmorProficiencyForSpell(player.character_snapshot);
+  if (armorErr) return armorErr;
   const targetErr = validateMonsterTarget(body.targetMonsterIndex, monsters);
   if (targetErr) return targetErr;
   const target = monsters[body.targetMonsterIndex];
@@ -663,8 +700,10 @@ export function resolveSmite(
   }
 
   const ability = weaponAttackAbility(weapon, snap.ability_scores);
+  const proficient = isWeaponProficient(klass, weapon.baseId, weapon.category);
   const attackMod =
-    abilityModifier(snap.ability_scores[ability]) + snap.proficiency_bonus;
+    abilityModifier(snap.ability_scores[ability]) +
+    (proficient ? snap.proficiency_bonus : 0);
   const attack = rollAttack(attackMod, target.ac);
 
   if (!attack.hit) {
