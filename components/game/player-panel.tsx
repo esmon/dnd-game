@@ -50,7 +50,7 @@ export function PlayerPanel({
     player.equippedShield?.name,
   ].filter((n): n is string => typeof n === "string" && n.length > 0);
   const acValue =
-    armorBits.length > 0 ? `${ac} (${armorBits.join(" · ")})` : String(ac);
+    armorBits.length > 0 ? `${ac} (${armorBits.join(" + ")})` : String(ac);
   const drviParts = formatDrvi(
     race?.damageResistances,
     race?.damageVulnerabilities,
