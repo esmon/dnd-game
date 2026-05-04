@@ -30,11 +30,14 @@ function lootDisplay(loot: NonNullable<VictoryInfo["loot"]>): {
     return { name: loot.name, detail: loot.healDice };
   }
   if ("acBase" in loot) {
-    // Armor / shield drop: show the AC contribution (or "+2" for
-    // shields, which have acBase=0 and add a flat bonus through
-    // playerAC instead of contributing through acBase directly).
+    // Armor / shield drop: show the AC contribution. Shields add
+    // the base +2 inside playerAC; magic shields stack their bonus
+    // into acBase, so the visible total is 2 + acBase. Body armor
+    // already has its magic bonus baked into acBase by mintArmor.
     const detail =
-      loot.category === "shield" ? "+2 AC" : `AC ${loot.acBase}`;
+      loot.category === "shield"
+        ? `+${2 + loot.acBase} AC`
+        : `AC ${loot.acBase}`;
     return { name: loot.name, detail };
   }
   return { name: loot.name, detail: loot.damage };

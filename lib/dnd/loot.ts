@@ -2,6 +2,7 @@ import type { Armor, Potion, Scroll, Weapon } from "@/lib/game/types";
 import {
   armorByTier,
   mintArmor,
+  type ArmorBonus,
   type ArmorDef,
 } from "@/lib/dnd/armor";
 import {
@@ -98,27 +99,49 @@ function rollScroll(cr: number): Scroll | null {
   };
 }
 
-// Pick an armor definition matching the CR band. Lower CRs mostly
-// drop light armor; higher CRs unlock medium / heavy / Plate. The
-// shield is in tier 1 so it's available throughout — at higher CR
-// the random pick within the tier set still reaches it.
-function pickArmor(cr: number): ArmorDef | null {
+// Pick an armor definition + magic bonus matching the CR band.
+// Mirrors pickByCr for weapons: lower CRs drop mundane light armor,
+// higher CRs unlock heavy + lean toward +1/+2/+3 enchantments. The
+// bonus stack is what keeps gear feeling like an upgrade past the
+// hard AC ceiling on Plate.
+function pickArmorRoll(
+  cr: number,
+): { def: ArmorDef; bonus: ArmorBonus } | null {
   let tiers: readonly Tier[];
-  if (cr <= 0.25) tiers = [1];
-  else if (cr <= 1) tiers = [1, 2];
-  else if (cr <= 4) tiers = [2, 3];
-  else if (cr <= 9) tiers = [3, 4];
-  else tiers = [4];
+  let bonus: ArmorBonus;
+  if (cr <= 0.25) {
+    tiers = [1];
+    bonus = 0;
+  } else if (cr <= 1) {
+    tiers = [1, 2];
+    bonus = Math.random() < 0.1 ? 1 : 0;
+  } else if (cr <= 4) {
+    tiers = [2, 3];
+    bonus = Math.random() < 0.4 ? 1 : 0;
+  } else if (cr <= 9) {
+    tiers = [3, 4];
+    const r = Math.random();
+    if (r < 0.15) bonus = 2;
+    else if (r < 0.75) bonus = 1;
+    else bonus = 0;
+  } else {
+    tiers = [4];
+    const r = Math.random();
+    if (r < 0.4) bonus = 1;
+    else if (r < 0.8) bonus = 2;
+    else bonus = 3;
+  }
   const pool: ArmorDef[] = [];
   for (const t of tiers) pool.push(...armorByTier[t]);
   if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+  const def = pool[Math.floor(Math.random() * pool.length)];
+  return { def, bonus };
 }
 
 function rollArmor(cr: number): Armor | null {
-  const def = pickArmor(cr);
-  if (!def) return null;
-  return mintArmor(def);
+  const roll = pickArmorRoll(cr);
+  if (!roll) return null;
+  return mintArmor(roll.def, roll.bonus);
 }
 
 function rollPotion(cr: number): Potion {

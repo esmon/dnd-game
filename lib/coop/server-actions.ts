@@ -184,7 +184,7 @@ function checkArmorProficiencyForSpell(snapshot: Character): Resolution | null {
   const armor = snapshot.equipped_armor;
   if (!armor) return null;
   const klass = findClass(snapshot.class);
-  if (isArmorProficient(klass, armor.category)) return null;
+  if (isArmorProficient(klass, armor)) return null;
   return {
     ok: false,
     status: 409,

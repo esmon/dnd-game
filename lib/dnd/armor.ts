@@ -1,5 +1,7 @@
 import type { Armor, ArmorCategory } from "@/lib/game/types";
 
+export type ArmorBonus = 0 | 1 | 2 | 3;
+
 export type ArmorDef = {
   baseId: string;
   name: string;
@@ -17,6 +19,11 @@ export type ArmorDef = {
   // Loot drop tier — same scale as weapons. Higher tier drops
   // happen at higher CR encounters via the loot pool weighting.
   tier: 1 | 2 | 3 | 4;
+  // Magic = "wondrous" armor (Mage Armor, Bracers of Defense,
+  // Robe of the Archmagi) — bypasses class armor proficiency at
+  // isArmorProficient so casters can equip without losing
+  // spellcasting. Mundane armor leaves this undefined / false.
+  magic?: boolean;
 };
 
 // Curated 5e armor set — two pieces per category plus a shield.
@@ -38,6 +45,16 @@ export const ARMOR: readonly ArmorDef[] = [
   // Shield: applies a flat +2 in playerAC; acBase is intentionally 0
   // since the bonus is composed at AC time, not on the row.
   { baseId: "shield", name: "Shield", category: "shield", acBase: 0, tier: 1 },
+
+  // Caster items. Modeled as light armor with `magic: true` so the
+  // proficiency check skips them — a wizard equipping Mage Armor
+  // doesn't lose spellcasting. AC values borrow from the 5e items
+  // they evoke without trying to be RAW (Bracers of Defense in PHB
+  // is technically an unarmored bonus; here it's just a wearable
+  // light "armor" that any class can use).
+  { baseId: "mage-armor", name: "Mage Armor", category: "light", acBase: 13, tier: 2, magic: true },
+  { baseId: "bracers-of-defense", name: "Bracers of Defense", category: "light", acBase: 14, tier: 3, magic: true },
+  { baseId: "robe-of-the-archmagi", name: "Robe of the Archmagi", category: "light", acBase: 15, tier: 4, magic: true },
 ];
 
 export const armorByBaseId: Record<string, ArmorDef> = ARMOR.reduce(
@@ -55,19 +72,23 @@ export const armorByTier: Record<1 | 2 | 3 | 4, readonly ArmorDef[]> = {
   4: ARMOR.filter((a) => a.tier === 4),
 };
 
-// Mint a wearable Armor from a definition. Mirrors mintWeapon's
-// shape so the loot pool can call either path with the same idea
-// (catalog def → unique row with a fresh id).
-export function mintArmor(def: ArmorDef): Armor {
+// Mint a wearable Armor from a definition. Bonus is baked into
+// acBase (mirrors how mintWeapon bakes weapon bonus into damage
+// notation) so playerAC reads the single field at AC time. Name
+// gets the "+1" / "+2" / "+3" suffix when bonus > 0 — Inventory
+// dialog renders that directly.
+export function mintArmor(def: ArmorDef, bonus: ArmorBonus = 0): Armor {
   return {
     id: crypto.randomUUID(),
     baseId: def.baseId,
-    name: def.name,
+    name: bonus > 0 ? `${def.name} +${bonus}` : def.name,
     category: def.category,
-    acBase: def.acBase,
+    acBase: def.acBase + bonus,
     dexCap: def.dexCap,
     stealthDisadvantage: def.stealthDisadvantage,
     strRequirement: def.strRequirement,
+    bonus,
+    magic: def.magic ? true : undefined,
   };
 }
 

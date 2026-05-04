@@ -62,7 +62,10 @@ export function playerAC(
   const conMod = abilityModifier(scores.con);
   const wisMod = abilityModifier(scores.wis);
   const id = klass?.id.toLowerCase() ?? "";
-  const shieldBonus = equippedShield ? 2 : 0;
+  // Base shields contribute the PHB +2; magic shields stack their
+  // enchantment bonus into acBase (so a Shield +1 row has acBase=1
+  // and contributes +3 here, etc.).
+  const shieldBonus = equippedShield ? 2 + equippedShield.acBase : 0;
 
   if (equippedArmor && equippedArmor.category !== "shield") {
     // Wearing body armor — class Unarmored Defense doesn't apply.

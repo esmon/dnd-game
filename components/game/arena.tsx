@@ -412,7 +412,7 @@ export function Arena() {
       const klass = findClass(snap.player.classId);
       if (
         snap.player.equippedArmor &&
-        !isArmorProficient(klass, snap.player.equippedArmor.category)
+        !isArmorProficient(klass, snap.player.equippedArmor)
       ) {
         return;
       }
@@ -586,7 +586,7 @@ export function Arena() {
       const klass = findClass(snap.player.classId);
       if (
         snap.player.equippedArmor &&
-        !isArmorProficient(klass, snap.player.equippedArmor.category)
+        !isArmorProficient(klass, snap.player.equippedArmor)
       ) {
         return;
       }
@@ -784,7 +784,7 @@ export function Arena() {
   const playerKlass = findClass(player.classId);
   const armorSpellBlock: string | null =
     player.equippedArmor &&
-    !isArmorProficient(playerKlass, player.equippedArmor.category)
+    !isArmorProficient(playerKlass, player.equippedArmor)
       ? `Can't cast — not proficient with ${player.equippedArmor.name}`
       : null;
 

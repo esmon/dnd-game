@@ -31,9 +31,10 @@ export type Armor = {
   baseId: string;
   name: string;
   category: ArmorCategory;
-  // Base AC. For shields this is 0 (the +2 bonus is applied by the
-  // AC formula when both armor + shield are equipped). For body
-  // armor this is the PHB AC value (e.g. Chain Mail = 16).
+  // Base AC. Bonus is already baked in at mint time so callers
+  // (playerAC) can read this single field. For shields the value
+  // is the bonus only (a base Shield is acBase=0, its +2 to AC is
+  // applied in playerAC); a Shield +1 stores acBase=1.
   acBase: number;
   // DEX cap added to AC. Light armor has no cap (undefined), medium
   // armor caps at 2, heavy armor blocks DEX entirely (0). Shields
@@ -44,6 +45,14 @@ export type Armor = {
   // 10ft speed penalty (we don't model speed yet, but plumbing the
   // field now keeps the catalog faithful).
   strRequirement?: number;
+  // Magic enchantment tier mirroring weapon bonuses. Stored
+  // separately from acBase so the UI can display "Plate +2" while
+  // playerAC just reads the already-bumped acBase.
+  bonus?: 0 | 1 | 2 | 3;
+  // True for "wondrous" armor that's universally proficient — a
+  // wizard can equip Mage Armor without triggering the
+  // not-proficient spellcasting block. Used by isArmorProficient.
+  magic?: boolean;
 };
 
 export type AbilityScores = {

@@ -399,12 +399,22 @@ export function isWeaponProficient(
 // armor gives disadvantage on STR/DEX checks/saves and blocks
 // spellcasting. We model the spellcasting block in the action
 // resolvers; the AC formula itself doesn't change.
+//
+// "Magic" armor (Mage Armor, Bracers of Defense, Robe of the
+// Archmagi) bypasses the proficiency requirement so casters can
+// equip them without losing spellcasting. Pass the armor row when
+// available; passing only the category falls back to the standard
+// proficiency-list check.
 export function isArmorProficient(
   klass: DnDClass | undefined,
-  armorCategory: ArmorCategory,
+  armorOrCategory: ArmorCategory | { category: ArmorCategory; magic?: boolean },
 ): boolean {
   if (!klass) return false;
-  return klass.armorProficiencies.includes(armorCategory);
+  const isRow =
+    typeof armorOrCategory === "object" && armorOrCategory !== null;
+  if (isRow && armorOrCategory.magic) return true;
+  const category = isRow ? armorOrCategory.category : armorOrCategory;
+  return klass.armorProficiencies.includes(category);
 }
 
 export function findClass(classId: string): DnDClass | undefined {

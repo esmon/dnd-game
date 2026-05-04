@@ -395,9 +395,13 @@ function ArmorTab({
           const isEquipped =
             equippedArmor?.id === a.id || equippedShield?.id === a.id;
           const isShield = a.category === "shield";
-          const proficient = isArmorProficient(klass ?? undefined, a.category);
+          const proficient = isArmorProficient(klass ?? undefined, a);
+          // Shields contribute base +2 in playerAC; magic shields
+          // store the extra in acBase. So total shield AC is
+          // 2 + acBase. Body armor's acBase already includes the
+          // magic bonus from mintArmor (no math needed here).
           const detail = isShield
-            ? "+2 AC · Shield"
+            ? `+${2 + a.acBase} AC · Shield`
             : `AC ${a.acBase} · ${a.category}`;
           const equipHandler = isShield ? onEquipShield : onEquipArmor;
           const unequipHandler = isShield ? onUnequipShield : onUnequipArmor;
