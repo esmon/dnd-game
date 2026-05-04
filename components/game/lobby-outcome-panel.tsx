@@ -60,13 +60,30 @@ export function LobbyOutcomePanel({
   restDisabled,
   restDisabledReason,
   restNeeded,
+  hpDamaged = false,
+  slotsSpent = false,
 }: {
   outcome: LobbyOutcome;
   onRest: () => void;
   restDisabled: boolean;
   restDisabledReason: string | null;
   restNeeded: boolean;
+  // Contextual flags so the suggestion text matches reality. After
+  // FULL_HEAL (every 3rd win streak) HP is at max but slots can
+  // still be down, in which case the old "You took damage" copy was
+  // misleading. Defaults to false so existing call sites that
+  // haven't wired these up degrade to the generic phrasing.
+  hpDamaged?: boolean;
+  slotsSpent?: boolean;
 }) {
+  const restMessage =
+    hpDamaged && slotsSpent
+      ? "You took damage and spent spell slots. Rest before your next fight."
+      : slotsSpent
+        ? "You spent spell slots this fight. Rest before your next fight."
+        : hpDamaged
+          ? "You took damage in this fight. Rest before your next one."
+          : "Take a moment to rest before your next fight.";
   const tone =
     outcome.kind === "victory"
       ? "text-emerald-600"
@@ -147,9 +164,7 @@ export function LobbyOutcomePanel({
 
       {restNeeded ? (
         <>
-          <p className="text-center text-xs">
-            You took damage in this fight. Rest before your next one.
-          </p>
+          <p className="text-center text-xs">{restMessage}</p>
           <CommandButton
             kind="heal"
             icon={MoonIcon}

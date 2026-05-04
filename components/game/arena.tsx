@@ -790,15 +790,19 @@ export function Arena() {
 
   // REST is heal + refill spell slots. Pointless only when HP is already
   // full AND every slot is already at the level's max (or no slots, for
-  // non-casters whose spellSlots is just {}).
-  const restPointless = (() => {
-    if (player.health < player.maxHealth) return false;
+  // non-casters whose spellSlots is just {}). Split the two checks
+  // so the outcome panel can pick the right "why rest" copy — after
+  // FULL_HEAL on a 3rd-win streak HP is full but slots can still be
+  // down, and saying "you took damage" is wrong.
+  const hpDamaged = player.health < player.maxHealth;
+  const slotsSpent = (() => {
     const max = slotsForLevel(player.level);
     for (const lvl of Object.keys(player.spellSlots)) {
-      if ((player.spellSlots[lvl] ?? 0) < (max[lvl] ?? 0)) return false;
+      if ((player.spellSlots[lvl] ?? 0) < (max[lvl] ?? 0)) return true;
     }
-    return true;
+    return false;
   })();
+  const restPointless = !hpDamaged && !slotsSpent;
   const restReason: string | null =
     lobbyActionReason ??
     (restPointless ? "Already at full HP and full slots" : null);
@@ -1209,6 +1213,8 @@ export function Arena() {
               restDisabled={asiPending.length > 0 || restPointless}
               restDisabledReason={restReason}
               restNeeded={!restPointless}
+              hpDamaged={hpDamaged}
+              slotsSpent={slotsSpent}
             />
           ) : state.lastDefeatedBy ? (
             <LobbyOutcomePanel
@@ -1217,6 +1223,8 @@ export function Arena() {
               restDisabled={asiPending.length > 0 || restPointless}
               restDisabledReason={restReason}
               restNeeded={!restPointless}
+              hpDamaged={hpDamaged}
+              slotsSpent={slotsSpent}
             />
           ) : state.lastFledFrom ? (
             <LobbyOutcomePanel
@@ -1225,6 +1233,8 @@ export function Arena() {
               restDisabled={asiPending.length > 0 || restPointless}
               restDisabledReason={restReason}
               restNeeded={!restPointless}
+              hpDamaged={hpDamaged}
+              slotsSpent={slotsSpent}
             />
           ) : null}
           <CommandPanel
