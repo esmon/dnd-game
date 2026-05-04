@@ -188,7 +188,12 @@ export function Arena() {
       const snap = stateRef.current;
       if (!snap.monster || !snap.player) return;
       const klass = findClass(snap.player.classId) ?? null;
-      const targetAC = playerAC(klass, snap.player.abilityScores);
+      const targetAC = playerAC(
+        klass,
+        snap.player.abilityScores,
+        snap.player.equippedArmor ?? null,
+        snap.player.equippedShield ?? null,
+      );
       const attack = rollAttack(snap.monster.attackBonus, targetAC);
       if (!attack.hit) {
         dispatch({

@@ -36,7 +36,12 @@ export function PlayerPanel({
       : 100;
   const race = RACES.find((r) => r.id === player.raceId);
   const klass = findClass(player.classId);
-  const ac = playerAC(klass ?? null, player.abilityScores);
+  const ac = playerAC(
+    klass ?? null,
+    player.abilityScores,
+    player.equippedArmor ?? null,
+    player.equippedShield ?? null,
+  );
   const drviParts = formatDrvi(
     race?.damageResistances,
     race?.damageVulnerabilities,

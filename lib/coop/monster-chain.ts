@@ -98,6 +98,8 @@ export async function walkMonsterChain(args: {
     const targetAC = playerAC(
       klass,
       targetPlayer.character_snapshot.ability_scores,
+      targetPlayer.character_snapshot.equipped_armor ?? null,
+      targetPlayer.character_snapshot.equipped_shield ?? null,
     );
     const attack = rollAttack(monster.attackBonus, targetAC);
     let damage = 0;

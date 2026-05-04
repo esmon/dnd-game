@@ -1,5 +1,5 @@
 import type { AbilityScores } from "@/lib/db/schema";
-import type { Weapon } from "@/lib/game/types";
+import type { Armor, Weapon } from "@/lib/game/types";
 import type { DnDClass } from "@/lib/dnd/classes";
 import { abilityModifier } from "@/lib/dnd/derive";
 import { weaponsByBaseId } from "@/lib/dnd/weapons";
@@ -37,20 +37,57 @@ export function weaponAttackAbility(
   return "str";
 }
 
-// Unarmored AC. Barbarian/Monk get class-specific Unarmored Defense overrides.
+// Player AC. Layers, in PHB order:
+//
+//   1. Body armor (light / medium / heavy) wins over class Unarmored
+//      Defense — wearing armor turns those features off in 5e.
+//      Light: acBase + DEX. Medium: acBase + min(DEX, dexCap=2).
+//      Heavy: acBase + min(DEX, dexCap=0). The dexCap on the row is
+//      authoritative; the defaults are just a safety net for rows
+//      that pre-date the field.
+//   2. No body armor → Barbarian / Monk Unarmored Defense if the
+//      class qualifies. Barbarian still gets the bonus while wielding
+//      a shield (RAW); Monk loses Unarmored Defense the moment a
+//      shield is wielded.
+//   3. Otherwise the bare 10 + DEX baseline.
+//   4. Shield adds a flat +2 on top of whatever the body-armor /
+//      Unarmored Defense layer produced.
 export function playerAC(
   klass: DnDClass | null,
   scores: AbilityScores,
+  equippedArmor?: Armor | null,
+  equippedShield?: Armor | null,
 ): number {
   const dexMod = abilityModifier(scores.dex);
+  const conMod = abilityModifier(scores.con);
+  const wisMod = abilityModifier(scores.wis);
   const id = klass?.id.toLowerCase() ?? "";
+  const shieldBonus = equippedShield ? 2 : 0;
+
+  if (equippedArmor && equippedArmor.category !== "shield") {
+    // Wearing body armor — class Unarmored Defense doesn't apply.
+    const dexAddition =
+      equippedArmor.category === "light"
+        ? dexMod
+        : Math.min(
+            dexMod,
+            equippedArmor.dexCap ??
+              (equippedArmor.category === "medium" ? 2 : 0),
+          );
+    return equippedArmor.acBase + dexAddition + shieldBonus;
+  }
+
+  // No body armor: try class Unarmored Defense, then bare AC.
   if (id === "barbarian") {
-    return 10 + dexMod + abilityModifier(scores.con);
+    // Barb Unarmored Defense works with shield.
+    return 10 + dexMod + conMod + shieldBonus;
   }
   if (id === "monk") {
-    return 10 + dexMod + abilityModifier(scores.wis);
+    // Monk Unarmored Defense requires no shield AND no armor.
+    if (!equippedShield) return 10 + dexMod + wisMod;
+    return 10 + dexMod + shieldBonus;
   }
-  return 10 + dexMod;
+  return 10 + dexMod + shieldBonus;
 }
 
 export type DamageMultiplier = {
