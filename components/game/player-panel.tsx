@@ -42,6 +42,15 @@ export function PlayerPanel({
     player.equippedArmor ?? null,
     player.equippedShield ?? null,
   );
+  // Inline the equipped armor + shield names next to the AC number
+  // so the player can see what's contributing without a separate
+  // row — keeps the panel from outgrowing the monster card.
+  const armorBits = [
+    player.equippedArmor?.name,
+    player.equippedShield?.name,
+  ].filter((n): n is string => typeof n === "string" && n.length > 0);
+  const acValue =
+    armorBits.length > 0 ? `${ac} (${armorBits.join(" · ")})` : String(ac);
   const drviParts = formatDrvi(
     race?.damageResistances,
     race?.damageVulnerabilities,
@@ -77,7 +86,7 @@ export function PlayerPanel({
         max={player.maxHealth}
         className="h-2"
       />
-      <StatRow label="AC" value={String(ac)} />
+      <StatRow label="AC" value={acValue} />
       <StatRow label="LV" value={String(player.level)} />
       <StatRow
         label="XP"
