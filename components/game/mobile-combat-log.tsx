@@ -50,7 +50,6 @@ export function MobileCombatLog({
       )}
       {canExpand ? (
         <Button
-          variant="outline"
           size="sm"
           className="w-full"
           onClick={() => onToggle(!expanded)}
