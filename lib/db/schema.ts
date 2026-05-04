@@ -1,5 +1,6 @@
 import type {
   AbilityScores,
+  Armor,
   Consumable,
   Player,
   Spell,
@@ -34,6 +35,11 @@ export interface Character {
   equipped_spells: Spell[];
   spell_slots: Record<string, number>;
   consumables: Consumable[];
+  // 5e armor + shield slots. Optional / null because the columns
+  // were added after the initial schema; legacy rows return null
+  // and the AC formula treats that as "wearing nothing."
+  equipped_armor?: Armor | null;
+  equipped_shield?: Armor | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -62,6 +68,8 @@ export type CharacterUpdate = {
   equipped_spells?: Spell[];
   spell_slots?: Record<string, number>;
   consumables?: Consumable[];
+  equipped_armor?: Armor | null;
+  equipped_shield?: Armor | null;
 };
 
 export function characterToPlayer(c: Character): Player {
@@ -84,5 +92,7 @@ export function characterToPlayer(c: Character): Player {
     equippedSpells: c.equipped_spells ?? [],
     spellSlots: c.spell_slots ?? {},
     consumables: c.consumables ?? [],
+    equippedArmor: c.equipped_armor ?? null,
+    equippedShield: c.equipped_shield ?? null,
   };
 }

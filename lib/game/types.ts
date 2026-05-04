@@ -2,6 +2,14 @@ export type GameStatus = "lobby" | "fighting";
 
 export type DamageType = "slashing" | "piercing" | "bludgeoning";
 
+// 5e weapon proficiency tier. "simple" = anyone-can-use (most casters
+// at minimum); "martial" = requires class proficiency or you lose
+// the proficiency bonus on attacks. Optional on the runtime type so
+// older snapshots created before this field landed continue to load
+// — mintWeapon always stamps it now, and lookup via weaponsByBaseId
+// is the fallback when reading legacy data.
+export type WeaponCategory = "simple" | "martial";
+
 export type Weapon = {
   id: string;
   baseId: string;
@@ -9,6 +17,33 @@ export type Weapon = {
   damage: string; // dice notation including bonus, e.g. "1d8+1"
   bonus: number; // 0 mundane | 1 | 2 | 3
   damageType: DamageType;
+  category?: WeaponCategory;
+};
+
+// 5e armor categories. Shields are technically not "armor" in PHB
+// but they share the same proficiency framework, so we model them
+// as an Armor row with category=shield to keep one type instead of
+// two.
+export type ArmorCategory = "light" | "medium" | "heavy" | "shield";
+
+export type Armor = {
+  id: string;
+  baseId: string;
+  name: string;
+  category: ArmorCategory;
+  // Base AC. For shields this is 0 (the +2 bonus is applied by the
+  // AC formula when both armor + shield are equipped). For body
+  // armor this is the PHB AC value (e.g. Chain Mail = 16).
+  acBase: number;
+  // DEX cap added to AC. Light armor has no cap (undefined), medium
+  // armor caps at 2, heavy armor blocks DEX entirely (0). Shields
+  // don't apply DEX themselves.
+  dexCap?: number;
+  stealthDisadvantage?: boolean;
+  // Heavy armor strength requirement. Worn under STR threshold =>
+  // 10ft speed penalty (we don't model speed yet, but plumbing the
+  // field now keeps the catalog faithful).
+  strRequirement?: number;
 };
 
 export type AbilityScores = {
@@ -79,6 +114,11 @@ export type Player = {
   equippedSpells: Spell[];
   spellSlots: Record<string, number>;
   consumables: Consumable[];
+  // 5e armor + shield slots. Optional because pre-armor character
+  // snapshots are still in the wild; the AC formula treats undefined
+  // / null as "wearing nothing" → unarmored AC fallback.
+  equippedArmor?: Armor | null;
+  equippedShield?: Armor | null;
 };
 
 export type Monster = {
