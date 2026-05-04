@@ -28,6 +28,7 @@ import { PanelLabel } from "@/components/game/panel-label";
 import { TurnLine } from "@/components/game/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
+import { playerAC } from "@/lib/dnd/combat";
 import { findLowestSlot, isAoeSpell } from "@/lib/dnd/spells";
 import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
@@ -1090,7 +1091,13 @@ function PartyMember({
         className="h-2"
       />
       <p className="text-[10px] uppercase tracking-widest">
-        {snap.race} · {snap.class} · Lv: {snap.level}
+        {snap.race} · {snap.class} · Lv: {snap.level} · AC:{" "}
+        {playerAC(
+          findClass(snap.class) ?? null,
+          snap.ability_scores,
+          snap.equipped_armor ?? null,
+          snap.equipped_shield ?? null,
+        )}
       </p>
     </div>
   );
