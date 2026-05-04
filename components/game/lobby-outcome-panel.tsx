@@ -164,6 +164,13 @@ export function LobbyOutcomePanel({
 
       {restNeeded ? (
         <>
+          {/* Separator only when there's a loot block above to
+              divide from. Same hairline the lobby command panel
+              uses between in-fight and navigation actions, so the
+              two-section split reads visually consistent. */}
+          {outcome.kind === "victory" && loot ? (
+            <div className="my-1 h-px bg-primary" />
+          ) : null}
           <p className="text-center text-xs">{restMessage}</p>
           <CommandButton
             kind="heal"
