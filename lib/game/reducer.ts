@@ -593,12 +593,22 @@ export function gameReducer(state: GameState, action: Action): GameState {
 
     case "FULL_HEAL": {
       if (!state.player) return state;
-      const player: Player = { ...state.player, health: state.player.maxHealth };
-      // Log it so the bar bumping to max has an on-screen reason —
-      // FULL_HEAL fires every 3rd win and used to be silent, which
-      // read as "HP went up out of nowhere" if the combat log was
-      // collapsed.
-      const text = `${player.name} recovers to full HP on a winning streak!`;
+      const klass = CLASSES.find(
+        (c) => c.id.toLowerCase() === state.player!.classId.toLowerCase(),
+      );
+      // 3rd-win streak bonus — refill HP AND spell slots. Slot
+      // restoration is new: keeping it HP-only meant a caster on a
+      // streak still saw the Rest button after every "full heal,"
+      // because their slots were silently down. Restoring both is
+      // the simpler UX and matches what the log line implies.
+      const player: Player = {
+        ...state.player,
+        health: state.player.maxHealth,
+        spellSlots: klass?.isCaster
+          ? slotsForLevel(state.player.level)
+          : state.player.spellSlots,
+      };
+      const text = `${player.name} fully recovers on a winning streak!`;
       return pushTurn({ ...state, player }, true, text, "levelup");
     }
 
