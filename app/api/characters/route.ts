@@ -235,6 +235,8 @@ export async function POST(request: NextRequest) {
     equipped_spells: equippedSpells,
     spell_slots: spellSlots,
     consumables,
+    equipped_armor: body.equipped_armor ?? null,
+    equipped_shield: body.equipped_shield ?? null,
     avatar_url: body.avatar_url ?? null,
   };
 

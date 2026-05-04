@@ -22,6 +22,7 @@ import { ReviewStep } from "@/components/create/review-step";
 import { RACES } from "@/lib/dnd/races";
 import { findClass } from "@/lib/dnd/classes";
 import { BACKGROUNDS } from "@/lib/dnd/backgrounds";
+import { mintArmorByBaseId, mintArmor, armorByBaseId } from "@/lib/dnd/armor";
 import { mintWeapon, weaponsByBaseId } from "@/lib/dnd/weapons";
 import {
   mintSpell,
@@ -162,6 +163,14 @@ export default function CreatePage() {
     for (const [k, v] of Object.entries(allSlots)) {
       if (accessibleLevels.has(k)) filteredSlots[k] = v;
     }
+    // Auto-equip the class's starting armor / shield if the kit
+    // calls for it. Wizard / Sorcerer / Monk have no starting armor
+    // and stay unarmored — playerAC handles that case via Unarmored
+    // Defense overrides for Monks (and the bare 10+DEX baseline).
+    const starterArmor = mintArmorByBaseId(klass.startingArmor);
+    const starterShield = klass.startingShield
+      ? mintArmor(armorByBaseId["shield"])
+      : null;
     const payload: NewCharacter = {
       session_id: "",
       name: trimmedName,
@@ -183,6 +192,8 @@ export default function CreatePage() {
       equipped_spells: starterSpells,
       spell_slots: filteredSlots,
       consumables: [],
+      equipped_armor: starterArmor,
+      equipped_shield: starterShield,
       avatar_url: null,
     };
 
