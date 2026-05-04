@@ -72,9 +72,11 @@ export function MonsterCard({
         value={`${monster.damageDice} ${monster.damageType}`}
       />
       {drviParts.length > 0 ? (
-        <p className="mt-2 text-center text-[10px] tracking-wide">
-          {drviParts.join(" · ")}
-        </p>
+        <div className="mt-2 flex flex-col gap-0.5 text-center text-[10px] tracking-wide">
+          {drviParts.map((part, i) => (
+            <p key={i}>{part}</p>
+          ))}
+        </div>
       ) : null}
     </div>
   );
