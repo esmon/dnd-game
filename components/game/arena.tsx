@@ -1164,7 +1164,7 @@ export function Arena() {
               attackNonce={state.lastPlayerAttack.nonce}
             />
           ) : (
-            <div className="flex min-h-[200px] items-center justify-center rounded-xl border bg-card p-6">
+            <div className="flex min-h-[200px] items-center justify-center rounded-md border-2 border-zinc-900 bg-card font-mono p-6">
               <p className="text-sm">
                 A new challenger approaches...
               </p>
