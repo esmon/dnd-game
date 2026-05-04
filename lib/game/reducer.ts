@@ -12,6 +12,7 @@ import { rollLoot } from "@/lib/dnd/loot";
 import { mintSpell, slotsForLevel, spellsByBaseId } from "@/lib/dnd/spells";
 import type {
   AbilityScores,
+  Armor,
   Consumable,
   GameStats,
   GameStatus,
@@ -24,6 +25,17 @@ import type {
   VictoryInfo,
   Weapon,
 } from "./types";
+
+// Discriminator: Armor is the only loot category with `acBase` —
+// Weapon doesn't have it, Scroll / Potion both have `kind`. Lets
+// the loot resolver branch without adding a `kind` field to the
+// Armor type (which would force a backfill on the rows we already
+// shipped).
+function isArmorLoot(
+  loot: Weapon | Armor | Scroll | Potion,
+): loot is Armor {
+  return "acBase" in loot;
+}
 
 export const EQUIP_CAP = 2;
 export const EQUIPPED_SPELL_CAP = 5;
@@ -120,6 +132,15 @@ export type Action =
   | { type: "EQUIP_WEAPON"; id: string }
   | { type: "UNEQUIP_WEAPON"; id: string }
   | { type: "DISCARD_WEAPON"; id: string }
+  // Equipping armor swaps it with the currently-worn piece (one
+  // body slot in 5e); the unworn one returns to the armor inventory
+  // so the player can swap back. Shields are a separate slot.
+  | { type: "EQUIP_ARMOR"; id: string }
+  | { type: "UNEQUIP_ARMOR" }
+  | { type: "DISCARD_ARMOR"; id: string }
+  | { type: "EQUIP_SHIELD"; id: string }
+  | { type: "UNEQUIP_SHIELD" }
+  | { type: "DISCARD_SHIELD"; id: string }
   | {
       type: "CAST_SPELL";
       spellId: string;
@@ -442,6 +463,17 @@ export function gameReducer(state: GameState, action: Action): GameState {
           };
           return pushTurn(next, true, text, "loot");
         }
+        if (isArmorLoot(loot)) {
+          const next: GameState = {
+            ...state,
+            victory: null,
+            player: {
+              ...state.player,
+              armorInventory: [...(state.player.armorInventory ?? []), loot],
+            },
+          };
+          return pushTurn(next, true, text, "loot");
+        }
         const weapon: Weapon = loot;
         const next: GameState = {
           ...state,
@@ -479,6 +511,17 @@ export function gameReducer(state: GameState, action: Action): GameState {
             player: {
               ...state.player,
               consumables: [...state.player.consumables, consumable],
+            },
+          };
+          return pushTurn(next, true, text, "loot");
+        }
+        if (isArmorLoot(loot)) {
+          const next: GameState = {
+            ...state,
+            victory: victoryWithoutLoot,
+            player: {
+              ...state.player,
+              armorInventory: [...(state.player.armorInventory ?? []), loot],
             },
           };
           return pushTurn(next, true, text, "loot");
@@ -633,6 +676,94 @@ export function gameReducer(state: GameState, action: Action): GameState {
         ...state.player,
         weapons: state.player.weapons.filter((w) => w.id !== action.id),
         inventory: state.player.inventory.filter((w) => w.id !== action.id),
+      };
+      return { ...state, player };
+    }
+
+    case "EQUIP_ARMOR": {
+      if (!state.player) return state;
+      const inventory = state.player.armorInventory ?? [];
+      const target = inventory.find((a) => a.id === action.id);
+      if (!target) return state;
+      // 5e has one body slot. Equipping a new piece returns the
+      // current one to inventory so the player can swap back.
+      const previous = state.player.equippedArmor ?? null;
+      const nextInventory = inventory.filter((a) => a.id !== action.id);
+      if (previous) nextInventory.push(previous);
+      const player: Player = {
+        ...state.player,
+        equippedArmor: target,
+        armorInventory: nextInventory,
+      };
+      return { ...state, player };
+    }
+
+    case "UNEQUIP_ARMOR": {
+      if (!state.player) return state;
+      const current = state.player.equippedArmor;
+      if (!current) return state;
+      const player: Player = {
+        ...state.player,
+        equippedArmor: null,
+        armorInventory: [...(state.player.armorInventory ?? []), current],
+      };
+      return { ...state, player };
+    }
+
+    case "DISCARD_ARMOR": {
+      if (!state.player) return state;
+      const player: Player = {
+        ...state.player,
+        equippedArmor:
+          state.player.equippedArmor?.id === action.id
+            ? null
+            : (state.player.equippedArmor ?? null),
+        armorInventory: (state.player.armorInventory ?? []).filter(
+          (a) => a.id !== action.id,
+        ),
+      };
+      return { ...state, player };
+    }
+
+    case "EQUIP_SHIELD": {
+      if (!state.player) return state;
+      const inventory = state.player.armorInventory ?? [];
+      const target = inventory.find((a) => a.id === action.id);
+      if (!target || target.category !== "shield") return state;
+      const previous = state.player.equippedShield ?? null;
+      const nextInventory = inventory.filter((a) => a.id !== action.id);
+      if (previous) nextInventory.push(previous);
+      const player: Player = {
+        ...state.player,
+        equippedShield: target,
+        armorInventory: nextInventory,
+      };
+      return { ...state, player };
+    }
+
+    case "UNEQUIP_SHIELD": {
+      if (!state.player) return state;
+      const current = state.player.equippedShield;
+      if (!current) return state;
+      const player: Player = {
+        ...state.player,
+        equippedShield: null,
+        armorInventory: [...(state.player.armorInventory ?? []), current],
+      };
+      return { ...state, player };
+    }
+
+    case "DISCARD_SHIELD": {
+      if (!state.player) return state;
+      const player: Player = {
+        ...state.player,
+        equippedShield:
+          state.player.equippedShield?.id === action.id
+            ? null
+            : (state.player.equippedShield ?? null),
+        armorInventory: (state.player.armorInventory ?? []).filter(
+          (a) => a.id !== action.id,
+        ),
       };
       return { ...state, player };
     }

@@ -1,4 +1,9 @@
-import type { Potion, Scroll, Weapon } from "@/lib/game/types";
+import type { Armor, Potion, Scroll, Weapon } from "@/lib/game/types";
+import {
+  armorByTier,
+  mintArmor,
+  type ArmorDef,
+} from "@/lib/dnd/armor";
 import {
   mintWeapon,
   weaponsByTier,
@@ -93,6 +98,29 @@ function rollScroll(cr: number): Scroll | null {
   };
 }
 
+// Pick an armor definition matching the CR band. Lower CRs mostly
+// drop light armor; higher CRs unlock medium / heavy / Plate. The
+// shield is in tier 1 so it's available throughout — at higher CR
+// the random pick within the tier set still reaches it.
+function pickArmor(cr: number): ArmorDef | null {
+  let tiers: readonly Tier[];
+  if (cr <= 0.25) tiers = [1];
+  else if (cr <= 1) tiers = [1, 2];
+  else if (cr <= 4) tiers = [2, 3];
+  else if (cr <= 9) tiers = [3, 4];
+  else tiers = [4];
+  const pool: ArmorDef[] = [];
+  for (const t of tiers) pool.push(...armorByTier[t]);
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function rollArmor(cr: number): Armor | null {
+  const def = pickArmor(cr);
+  if (!def) return null;
+  return mintArmor(def);
+}
+
 function rollPotion(cr: number): Potion {
   const def = potionForCr(cr);
   return {
@@ -108,13 +136,23 @@ function rollPotion(cr: number): Potion {
 export function rollLoot(monster: {
   challengeRating: number;
   xp: number;
-}): Weapon | Scroll | Potion | null {
+}): Weapon | Scroll | Potion | Armor | null {
   if (Math.random() >= DROP_CHANCE) return null;
   const cr = monster.challengeRating;
   const r = Math.random();
-  if (r < 0.6) {
+  // Bands: 0–0.5 weapon, 0.5–0.7 armor, 0.7–0.85 scroll, 0.85–1 potion.
+  // Armor is the rarest equipable category; gear matters less per
+  // drop than weapons (you swap one piece, not a whole table) so
+  // 20% strikes a balance between "feels possible" and "doesn't
+  // flood the inventory."
+  if (r < 0.5) {
     const w = rollWeapon(cr);
     if (w) return w;
+    return rollArmor(cr) ?? rollScroll(cr) ?? rollPotion(cr);
+  }
+  if (r < 0.7) {
+    const a = rollArmor(cr);
+    if (a) return a;
     return rollScroll(cr) ?? rollPotion(cr);
   }
   if (r < 0.85) {

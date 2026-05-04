@@ -119,6 +119,8 @@ export type Player = {
   // / null as "wearing nothing" → unarmored AC fallback.
   equippedArmor?: Armor | null;
   equippedShield?: Armor | null;
+  // Unequipped armor + shield drops carried between fights.
+  armorInventory?: Armor[];
 };
 
 export type Monster = {
@@ -172,7 +174,7 @@ export type VictoryInfo = {
   monsterName: string;
   xpGained: number;
   levelsGained: number[];
-  loot: Weapon | Scroll | Potion | null;
+  loot: Weapon | Scroll | Potion | Armor | null;
 };
 
 export type MonsterIndex = {

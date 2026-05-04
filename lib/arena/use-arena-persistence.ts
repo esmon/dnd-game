@@ -58,6 +58,9 @@ export function useArenaPersistence({
       equipped_spells: player.equippedSpells,
       spell_slots: player.spellSlots,
       consumables: player.consumables,
+      equipped_armor: player.equippedArmor ?? null,
+      equipped_shield: player.equippedShield ?? null,
+      armor_inventory: player.armorInventory ?? [],
     };
   }, []);
 
@@ -76,6 +79,9 @@ export function useArenaPersistence({
       equipped_spells: player.equippedSpells,
       spell_slots: player.spellSlots,
       consumables: player.consumables,
+      equipped_armor: player.equippedArmor ?? null,
+      equipped_shield: player.equippedShield ?? null,
+      armor_inventory: player.armorInventory ?? [],
       // Stamp the DB version this cache was written against so the
       // bootstrap can detect external writes (other device, coop,
       // etc.) and discard a stale cache.

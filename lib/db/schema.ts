@@ -40,6 +40,9 @@ export interface Character {
   // and the AC formula treats that as "wearing nothing."
   equipped_armor?: Armor | null;
   equipped_shield?: Armor | null;
+  // Unequipped armor + shield drops kept around between fights.
+  // Same shape pattern as `inventory` (weapons) and `consumables`.
+  armor_inventory?: Armor[];
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -70,6 +73,7 @@ export type CharacterUpdate = {
   consumables?: Consumable[];
   equipped_armor?: Armor | null;
   equipped_shield?: Armor | null;
+  armor_inventory?: Armor[];
 };
 
 export function characterToPlayer(c: Character): Player {
@@ -94,5 +98,6 @@ export function characterToPlayer(c: Character): Player {
     consumables: c.consumables ?? [],
     equippedArmor: c.equipped_armor ?? null,
     equippedShield: c.equipped_shield ?? null,
+    armorInventory: c.armor_inventory ?? [],
   };
 }

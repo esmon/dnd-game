@@ -142,14 +142,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     let lootForLog: { name: string; kind: string } | null = null;
     const loot = rollLoot(killed);
     if (loot) {
-      const isWeapon = !("kind" in loot);
-      if (isWeapon) {
-        actingPlayer.character_snapshot = {
-          ...actingPlayer.character_snapshot,
-          inventory: [...actingPlayer.character_snapshot.inventory, loot],
-        };
-        lootForLog = { name: loot.name, kind: "weapon" };
-      } else {
+      // Three slot categories on the snapshot: weapons (inventory),
+      // consumables (scrolls / potions, which carry a kind tag), and
+      // armor (only field with acBase). Discriminate structurally to
+      // keep loot agnostic of any future "kind: armor" backfill.
+      if ("kind" in loot) {
         actingPlayer.character_snapshot = {
           ...actingPlayer.character_snapshot,
           consumables: [...actingPlayer.character_snapshot.consumables, loot],
@@ -158,6 +155,21 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           name: loot.kind === "scroll" ? `Scroll of ${loot.spellName}` : loot.name,
           kind: loot.kind,
         };
+      } else if ("acBase" in loot) {
+        actingPlayer.character_snapshot = {
+          ...actingPlayer.character_snapshot,
+          armor_inventory: [
+            ...(actingPlayer.character_snapshot.armor_inventory ?? []),
+            loot,
+          ],
+        };
+        lootForLog = { name: loot.name, kind: "armor" };
+      } else {
+        actingPlayer.character_snapshot = {
+          ...actingPlayer.character_snapshot,
+          inventory: [...actingPlayer.character_snapshot.inventory, loot],
+        };
+        lootForLog = { name: loot.name, kind: "weapon" };
       }
       modifiedSnapshots.add(actingPlayer.id);
     }
@@ -409,6 +421,11 @@ async function persistVictoryRewards(players: CampaignPlayer[]): Promise<void> {
         inventory: snap.inventory,
         consumables: snap.consumables,
         spell_slots: snap.spell_slots,
+        // Armor stays where it was on the snapshot so a piece picked
+        // up mid-campaign carries back to solo / future campaigns.
+        equipped_armor: snap.equipped_armor ?? null,
+        equipped_shield: snap.equipped_shield ?? null,
+        armor_inventory: snap.armor_inventory ?? [],
         current_hp: snap.max_hp,
       } satisfies Partial<Character>)
       .eq("id", snap.id);

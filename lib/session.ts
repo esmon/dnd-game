@@ -1,5 +1,6 @@
 import type {
   AbilityScores,
+  Armor,
   Consumable,
   Spell,
   Weapon,
@@ -22,6 +23,9 @@ export type CachedPlayerState = {
   equipped_spells: Spell[];
   spell_slots: Record<string, number>;
   consumables: Consumable[];
+  equipped_armor: Armor | null;
+  equipped_shield: Armor | null;
+  armor_inventory: Armor[];
   // Client-clock timestamp the cache was written. Kept for debugging;
   // we don't use it for invalidation because client clocks drift.
   updatedAt: number;

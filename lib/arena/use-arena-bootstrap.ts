@@ -209,6 +209,12 @@ async function applyMigrations(
             cache.equipped_spells ?? result.equipped_spells ?? [],
           spell_slots: cache.spell_slots ?? result.spell_slots ?? {},
           consumables: cache.consumables ?? result.consumables ?? [],
+          equipped_armor:
+            cache.equipped_armor ?? result.equipped_armor ?? null,
+          equipped_shield:
+            cache.equipped_shield ?? result.equipped_shield ?? null,
+          armor_inventory:
+            cache.armor_inventory ?? result.armor_inventory ?? [],
         };
       } else {
         // External writer has touched the row since this cache was

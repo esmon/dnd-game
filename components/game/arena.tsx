@@ -708,6 +708,36 @@ export function Arena() {
     needsPersistRef.current = true;
   }, []);
 
+  const handleEquipArmor = useCallback((id: string) => {
+    dispatch({ type: "EQUIP_ARMOR", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleUnequipArmor = useCallback(() => {
+    dispatch({ type: "UNEQUIP_ARMOR" });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleDiscardArmor = useCallback((id: string) => {
+    dispatch({ type: "DISCARD_ARMOR", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleEquipShield = useCallback((id: string) => {
+    dispatch({ type: "EQUIP_SHIELD", id });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleUnequipShield = useCallback(() => {
+    dispatch({ type: "UNEQUIP_SHIELD" });
+    needsPersistRef.current = true;
+  }, []);
+
+  const handleDiscardShield = useCallback((id: string) => {
+    dispatch({ type: "DISCARD_SHIELD", id });
+    needsPersistRef.current = true;
+  }, []);
+
   const handleSelectCharacter = useCallback((id: string) => {
     setActiveCharacterId(id);
     // Cleanest reset for everything (game state, refs, fetched indices) is a
@@ -1326,12 +1356,22 @@ export function Arena() {
         equippedSpellIds={player.equippedSpells.map((s) => s.id)}
         spellCap={EQUIPPED_SPELL_CAP}
         consumables={player.consumables}
+        klass={playerKlass ?? null}
+        armorInventory={player.armorInventory ?? []}
+        equippedArmor={player.equippedArmor ?? null}
+        equippedShield={player.equippedShield ?? null}
         onEquip={handleEquip}
         onUnequip={handleUnequip}
         onDiscard={handleDiscard}
         onEquipSpell={handleEquipSpell}
         onUnequipSpell={handleUnequipSpell}
         onDiscardConsumable={handleDiscardConsumable}
+        onEquipArmor={handleEquipArmor}
+        onUnequipArmor={handleUnequipArmor}
+        onDiscardArmor={handleDiscardArmor}
+        onEquipShield={handleEquipShield}
+        onUnequipShield={handleUnequipShield}
+        onDiscardShield={handleDiscardShield}
       />
 
       <CharacterPickerDialog
