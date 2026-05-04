@@ -1457,6 +1457,26 @@ function actionToTurn(action: CampaignAction): Turn {
   const noteSuffix = note ? ` (${note})` : "";
   const typeSuffix = damageType ? ` ${damageType}` : "";
 
+  // Loot tail for kill-bearing actions. AoE spells stamp each
+  // kill's loot under payload.kills[]; single-target hits use the
+  // legacy payload.loot field. Either way the names get appended
+  // so a teammate's mid-fight Plate drop reads in the combat log
+  // instead of waiting for the rest screen.
+  const lootTail = ((): string => {
+    const kills = payload.kills;
+    if (Array.isArray(kills)) {
+      const names = (kills as Array<Record<string, unknown>>)
+        .map((k) => (k.loot as { name?: string } | null)?.name)
+        .filter((n): n is string => typeof n === "string" && n.length > 0);
+      if (names.length > 0) return ` — picks up ${names.join(", ")}`;
+    }
+    const loot = payload.loot as { name?: string } | null;
+    if (loot && typeof loot.name === "string" && loot.name.length > 0) {
+      return ` — picks up ${loot.name}`;
+    }
+    return "";
+  })();
+
   let text: string;
   switch (action.kind) {
     case "skip":
@@ -1467,8 +1487,8 @@ function actionToTurn(action: CampaignAction): Turn {
         text = `${actorName} attacks ${targetName} — MISS (d20 ${payload.d20})`;
       } else {
         text = crit
-          ? `CRIT — ${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`
-          : `${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
+          ? `CRIT — ${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}${lootTail}`
+          : `${actorName} attacks ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}${lootTail}`;
       }
       break;
     case "spell": {
@@ -1478,13 +1498,13 @@ function actionToTurn(action: CampaignAction): Turn {
         const summary = (targets as Array<Record<string, unknown>>)
           .map((t) => `${t.name} (${t.damage}hp)`)
           .join(", ");
-        text = `${actorName} casts ${spellName}${typeSuffix} — ${summary}`;
+        text = `${actorName} casts ${spellName}${typeSuffix} — ${summary}${lootTail}`;
       } else if (missed) {
         text = `${actorName} casts ${spellName} at ${targetName} — MISS (d20 ${payload.d20})`;
       } else {
         text = crit
-          ? `CRIT — ${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`
-          : `${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
+          ? `CRIT — ${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}${lootTail}`
+          : `${actorName} casts ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}${lootTail}`;
       }
       break;
     }
@@ -1493,8 +1513,8 @@ function actionToTurn(action: CampaignAction): Turn {
         text = `${actorName} reads Scroll of ${spellName} at ${targetName} — MISS (d20 ${payload.d20})`;
       } else {
         text = crit
-          ? `CRIT — ${actorName} reads Scroll of ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`
-          : `${actorName} reads Scroll of ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}`;
+          ? `CRIT — ${actorName} reads Scroll of ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}${lootTail}`
+          : `${actorName} reads Scroll of ${spellName} at ${targetName} for ${damage}hp${typeSuffix}${noteSuffix}${lootTail}`;
       }
       break;
     case "heal":
@@ -1512,8 +1532,8 @@ function actionToTurn(action: CampaignAction): Turn {
       } else {
         const smiteSuffix = ` (L${slotLevel} smite +${smiteDamage} radiant)`;
         text = crit
-          ? `CRIT — ${actorName} smites ${targetName} with ${weaponName} for ${damage}hp${smiteSuffix}`
-          : `${actorName} smites ${targetName} with ${weaponName} for ${damage}hp${smiteSuffix}`;
+          ? `CRIT — ${actorName} smites ${targetName} with ${weaponName} for ${damage}hp${smiteSuffix}${lootTail}`
+          : `${actorName} smites ${targetName} with ${weaponName} for ${damage}hp${smiteSuffix}${lootTail}`;
       }
       break;
     }
