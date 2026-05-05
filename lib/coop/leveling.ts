@@ -77,5 +77,11 @@ export function applyCharacterLevelUps(character: Character): LevelUpResult {
   if (klass.isCaster) {
     c = { ...c, spell_slots: slotsForLevel(c.level) };
   }
+  // Leveling up implicitly long-rests the player — bump current_hp
+  // to max instead of just adding the per-level gain. Same reasoning
+  // as solo applyLevelUps; the coop action route reads
+  // result.character.max_hp to update playerHp / DB current_hp, so
+  // this flows through to the displayed HP in-fight.
+  c = { ...c, current_hp: c.max_hp };
   return { character: c, levelsGained, spellsLearned };
 }

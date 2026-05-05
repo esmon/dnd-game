@@ -239,6 +239,11 @@ function applyLevelUps(
   if (klass.isCaster && p.level !== player.level) {
     p = { ...p, spellSlots: slotsForLevel(p.level) };
   }
+  // Leveling up implicitly long-rests the player — bump HP all the
+  // way to max instead of just adding the per-level gain. Avoids the
+  // post-fight UX where Rest still beckoned even after the player
+  // dinged a level (the gain alone wasn't enough to reach full HP).
+  p = { ...p, health: p.maxHealth };
   return { player: p, asiPending: newAsi, texts };
 }
 
