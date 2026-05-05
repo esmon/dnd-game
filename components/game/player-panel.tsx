@@ -65,10 +65,7 @@ export function PlayerPanel({
         className,
       )}
     >
-      <PanelLabel>Player</PanelLabel>
-      <p className="truncate text-center text-sm font-bold uppercase tracking-widest">
-        {player.name}
-      </p>
+      <PanelLabel>{player.name}</PanelLabel>
       {race || klass ? (
         <p className="mb-2 text-center text-xs uppercase tracking-widest">
           <span className="block md:inline">
