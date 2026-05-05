@@ -150,6 +150,7 @@ export function InventoryDialog({
                           </span>
                           <span className="font-mono text-xs tabular-nums">
                             {w.damage}
+                            {w.twoHanded ? " · 2H" : null}
                           </span>
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-1">

@@ -18,6 +18,11 @@ export type Weapon = {
   bonus: number; // 0 mundane | 1 | 2 | 3
   damageType: DamageType;
   category?: WeaponCategory;
+  // Two-handed (PHB): occupies both hands, can't be wielded
+  // alongside a shield. The reducer blocks the shield + two-handed
+  // combo at equip time. Optional so older snapshots that pre-date
+  // the field still load (lookup falls back to weaponsByBaseId).
+  twoHanded?: boolean;
 };
 
 // 5e armor categories. Shields are technically not "armor" in PHB

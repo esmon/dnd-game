@@ -100,39 +100,51 @@ function rollScroll(cr: number): Scroll | null {
 }
 
 // Pick an armor definition + magic bonus matching the CR band.
-// Mirrors pickByCr for weapons: lower CRs drop mundane light armor,
-// higher CRs unlock heavy + lean toward +1/+2/+3 enchantments. The
-// bonus stack is what keeps gear feeling like an upgrade past the
-// hard AC ceiling on Plate.
+// Body and shield are split: body armor follows the CR-banded tier
+// pool (low CR → light, high CR → unlocks Plate); shields are
+// rolled separately (~20% of armor drops) so they remain available
+// at every CR — they live in tier 1 but every class benefits from
+// a shield, and excluding them at high CR meant a Plate-wearing
+// fighter could never find a Shield +1 / +2 to upgrade.
 function pickArmorRoll(
   cr: number,
 ): { def: ArmorDef; bonus: ArmorBonus } | null {
-  let tiers: readonly Tier[];
   let bonus: ArmorBonus;
-  if (cr <= 0.25) {
-    tiers = [1];
-    bonus = 0;
-  } else if (cr <= 1) {
-    tiers = [1, 2];
-    bonus = Math.random() < 0.1 ? 1 : 0;
-  } else if (cr <= 4) {
-    tiers = [2, 3];
-    bonus = Math.random() < 0.4 ? 1 : 0;
-  } else if (cr <= 9) {
-    tiers = [3, 4];
+  if (cr <= 0.25) bonus = 0;
+  else if (cr <= 1) bonus = Math.random() < 0.1 ? 1 : 0;
+  else if (cr <= 4) bonus = Math.random() < 0.4 ? 1 : 0;
+  else if (cr <= 9) {
     const r = Math.random();
     if (r < 0.15) bonus = 2;
     else if (r < 0.75) bonus = 1;
     else bonus = 0;
   } else {
-    tiers = [4];
     const r = Math.random();
     if (r < 0.4) bonus = 1;
     else if (r < 0.8) bonus = 2;
     else bonus = 3;
   }
+
+  // 20% of the time, drop a shield (always-available); otherwise
+  // roll body armor from the CR-banded tier pool.
+  const isShieldRoll = Math.random() < 0.2;
+  if (isShieldRoll) {
+    const def = armorByTier[1].find((a) => a.category === "shield");
+    if (def) return { def, bonus };
+  }
+
+  let bodyTiers: readonly Tier[];
+  if (cr <= 0.25) bodyTiers = [1];
+  else if (cr <= 1) bodyTiers = [1, 2];
+  else if (cr <= 4) bodyTiers = [2, 3];
+  else if (cr <= 9) bodyTiers = [3, 4];
+  else bodyTiers = [4];
   const pool: ArmorDef[] = [];
-  for (const t of tiers) pool.push(...armorByTier[t]);
+  for (const t of bodyTiers) {
+    for (const a of armorByTier[t]) {
+      if (a.category !== "shield") pool.push(a);
+    }
+  }
   if (pool.length === 0) return null;
   const def = pool[Math.floor(Math.random() * pool.length)];
   return { def, bonus };

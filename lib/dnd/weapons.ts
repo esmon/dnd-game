@@ -12,6 +12,9 @@ export type WeaponDef = {
   // canonical. Looked up at attack time to decide whether the
   // class's proficiency bonus applies.
   category: WeaponCategory;
+  // Two-handed (PHB) — occupies both hands. The reducer blocks
+  // shield + two-handed combos at equip time.
+  twoHanded?: boolean;
 };
 
 // SRD weapon catalog. Damage types follow PHB; War Pick is piercing per PHB
@@ -48,16 +51,16 @@ export const WEAPONS: readonly WeaponDef[] = [
   { baseId: "rapier", name: "Rapier", damage: "1d8", damageType: "piercing", finesse: true, tier: 3, category: "martial" },
   { baseId: "war-pick", name: "War Pick", damage: "1d8", damageType: "piercing", tier: 3, category: "martial" },
   { baseId: "warhammer", name: "Warhammer", damage: "1d8", damageType: "bludgeoning", tier: 3, category: "martial" },
-  { baseId: "longbow", name: "Longbow", damage: "1d8", damageType: "piercing", ranged: true, tier: 3, category: "martial" },
+  { baseId: "longbow", name: "Longbow", damage: "1d8", damageType: "piercing", ranged: true, tier: 3, category: "martial", twoHanded: true },
 
-  { baseId: "glaive", name: "Glaive", damage: "1d10", damageType: "slashing", tier: 4, category: "martial" },
-  { baseId: "halberd", name: "Halberd", damage: "1d10", damageType: "slashing", tier: 4, category: "martial" },
-  { baseId: "pike", name: "Pike", damage: "1d10", damageType: "piercing", tier: 4, category: "martial" },
-  { baseId: "heavy-crossbow", name: "Heavy Crossbow", damage: "1d10", damageType: "piercing", ranged: true, tier: 4, category: "martial" },
-  { baseId: "lance", name: "Lance", damage: "1d12", damageType: "piercing", tier: 4, category: "martial" },
-  { baseId: "greataxe", name: "Greataxe", damage: "1d12", damageType: "slashing", tier: 4, category: "martial" },
-  { baseId: "greatsword", name: "Greatsword", damage: "2d6", damageType: "slashing", tier: 4, category: "martial" },
-  { baseId: "maul", name: "Maul", damage: "2d6", damageType: "bludgeoning", tier: 4, category: "martial" },
+  { baseId: "glaive", name: "Glaive", damage: "1d10", damageType: "slashing", tier: 4, category: "martial", twoHanded: true },
+  { baseId: "halberd", name: "Halberd", damage: "1d10", damageType: "slashing", tier: 4, category: "martial", twoHanded: true },
+  { baseId: "pike", name: "Pike", damage: "1d10", damageType: "piercing", tier: 4, category: "martial", twoHanded: true },
+  { baseId: "heavy-crossbow", name: "Heavy Crossbow", damage: "1d10", damageType: "piercing", ranged: true, tier: 4, category: "martial", twoHanded: true },
+  { baseId: "lance", name: "Lance", damage: "1d12", damageType: "piercing", tier: 4, category: "martial", twoHanded: true },
+  { baseId: "greataxe", name: "Greataxe", damage: "1d12", damageType: "slashing", tier: 4, category: "martial", twoHanded: true },
+  { baseId: "greatsword", name: "Greatsword", damage: "2d6", damageType: "slashing", tier: 4, category: "martial", twoHanded: true },
+  { baseId: "maul", name: "Maul", damage: "2d6", damageType: "bludgeoning", tier: 4, category: "martial", twoHanded: true },
 ];
 
 export const weaponsByBaseId: Record<string, WeaponDef> = WEAPONS.reduce(
@@ -101,5 +104,6 @@ export function mintWeapon(def: WeaponDef, bonus: WeaponBonus): Weapon {
     bonus,
     damageType,
     category: def.category,
+    twoHanded: def.twoHanded,
   };
 }

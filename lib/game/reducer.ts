@@ -10,6 +10,7 @@ import {
 } from "@/lib/dnd/leveling";
 import { rollLoot } from "@/lib/dnd/loot";
 import { mintSpell, slotsForLevel, spellsByBaseId } from "@/lib/dnd/spells";
+import { weaponsByBaseId } from "@/lib/dnd/weapons";
 import type {
   AbilityScores,
   Armor,
@@ -663,6 +664,13 @@ export function gameReducer(state: GameState, action: Action): GameState {
       if (state.player.weapons.some((w) => w.id === action.id)) return state;
       const target = state.player.inventory.find((w) => w.id === action.id);
       if (!target) return state;
+      // Two-handed weapons occupy both hands — can't be wielded
+      // alongside a shield. Player has to unequip the shield first.
+      const targetTwoHanded =
+        target.twoHanded ??
+        weaponsByBaseId[target.baseId]?.twoHanded ??
+        false;
+      if (targetTwoHanded && state.player.equippedShield) return state;
       const player: Player = {
         ...state.player,
         weapons: [...state.player.weapons, target],
@@ -740,6 +748,14 @@ export function gameReducer(state: GameState, action: Action): GameState {
       const inventory = state.player.armorInventory ?? [];
       const target = inventory.find((a) => a.id === action.id);
       if (!target || target.category !== "shield") return state;
+      // Shield + two-handed weapon is the same illegal combo as the
+      // EQUIP_WEAPON gate, just from the other side. Player has to
+      // unequip the two-handed weapon first.
+      const hasTwoHandedWeapon = state.player.weapons.some(
+        (w) =>
+          w.twoHanded ?? weaponsByBaseId[w.baseId]?.twoHanded ?? false,
+      );
+      if (hasTwoHandedWeapon) return state;
       const previous = state.player.equippedShield ?? null;
       const nextInventory = inventory.filter((a) => a.id !== action.id);
       if (previous) nextInventory.push(previous);
