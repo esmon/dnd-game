@@ -79,6 +79,7 @@ import {
 } from "@/lib/game/reducer";
 import { useArenaBootstrap } from "@/lib/arena/use-arena-bootstrap";
 import { useArenaPersistence } from "@/lib/arena/use-arena-persistence";
+import { useHideAuthButton } from "@/lib/ui/auth-button-visibility";
 import { useUser } from "@/lib/auth/use-user";
 import { groupConsumables } from "@/lib/game/consumables";
 import { pickRandomMonsterIndex } from "@/lib/game/dnd5e";
@@ -744,6 +745,11 @@ export function Arena() {
     // full page reload — bootstrap will pick up the new active character.
     window.location.reload();
   }, []);
+
+  // Hide the global AuthButton while in a fight so it doesn't crowd
+  // the small-viewport battle UI. The hook is called unconditionally;
+  // the boolean controls whether the effect actually hides.
+  useHideAuthButton(state.status === "fighting");
 
   if (state.loading || !state.player) {
     return (

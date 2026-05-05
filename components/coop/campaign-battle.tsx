@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { readApiError } from "@/lib/coop/api-error";
+import { useHideAuthButton } from "@/lib/ui/auth-button-visibility";
 import {
   BattleCommands,
   type BattleTile,
@@ -293,6 +294,10 @@ export function CampaignBattle({
     initBattleState(campaign, initialEncounterCount),
   );
   const { submitting, actionError } = state;
+
+  // Hide the global AuthButton while CampaignBattle is mounted so
+  // the floating top-right control doesn't crowd the battle UI.
+  useHideAuthButton(true);
 
   // Per-encounter view: action log spans the whole campaign across
   // multiple fights, but each encounter renders independently — past

@@ -11,15 +11,19 @@ import {
 } from "@/components/ui/popover";
 import { useUser } from "@/lib/auth/use-user";
 import { createClient } from "@/lib/supabase/client";
+import { useAuthButtonHidden } from "@/lib/ui/auth-button-visibility";
 
 // Top-right floating auth control. Anonymous users see "Sign In"; signed-in
 // users see their email and a popover with Sign Out. Hidden during the
-// initial loading flicker so the wrong state doesn't briefly render.
+// initial loading flicker so the wrong state doesn't briefly render. Also
+// hidden mid-battle (solo arena's "fighting" state, coop's CampaignBattle)
+// so the floating button doesn't crowd the small-viewport battle UI.
 export function AuthButton() {
   const router = useRouter();
   const { user, loading } = useUser();
+  const hidden = useAuthButtonHidden();
 
-  if (loading) return null;
+  if (loading || hidden) return null;
 
   if (!user) {
     return (
