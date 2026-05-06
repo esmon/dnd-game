@@ -11,10 +11,32 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { armorByBaseId } from "@/lib/dnd/armor";
 import { isArmorProficient } from "@/lib/dnd/classes";
 import type { DnDClass } from "@/lib/dnd/classes";
+import { weaponsByBaseId } from "@/lib/dnd/weapons";
 import { cn } from "@/lib/utils";
 import type { Armor, Consumable, Spell, Weapon } from "@/lib/game/types";
+
+// Best-kit-first sort helpers. Catalog-driven so a +0 Plate ranks
+// above a +3 Leather (tier wins) but a Plate +2 beats a Plate +0
+// (bonus is the tiebreak). Weapons mirror the same shape.
+function weaponSortKey(w: Weapon): number {
+  const tier = weaponsByBaseId[w.baseId]?.tier ?? 0;
+  return tier * 10 + (w.bonus ?? 0);
+}
+
+function armorSortKey(a: Armor): number {
+  const tier = armorByBaseId[a.baseId]?.tier ?? 0;
+  return tier * 10 + (a.bonus ?? 0);
+}
+
+// Spells: cantrips (level 0) at top, then leveled spells in
+// descending order (9 → 1). Within the same level, alphabetical.
+function spellSortKey(s: Spell): [number, string] {
+  if (s.level === 0) return [Number.MAX_SAFE_INTEGER, s.name];
+  return [s.level, s.name];
+}
 
 type Tab = "weapons" | "spells" | "consumables" | "armor";
 
@@ -132,7 +154,9 @@ export function InventoryDialog({
             ) : (
               <ScrollArea className="max-h-[60vh] pr-2">
                 <div className="flex flex-col gap-2">
-                  {inventory.map((w) => {
+                  {[...inventory]
+                    .sort((a, b) => weaponSortKey(b) - weaponSortKey(a))
+                    .map((w) => {
                     const isEquipped = equippedSet.has(w.id);
                     return (
                       <div
@@ -202,7 +226,14 @@ export function InventoryDialog({
             ) : (
               <ScrollArea className="max-h-[60vh] pr-2">
                 <div className="flex flex-col gap-2">
-                  {knownSpells.map((s) => {
+                  {[...knownSpells]
+                    .sort((a, b) => {
+                      const [la, na] = spellSortKey(a);
+                      const [lb, nb] = spellSortKey(b);
+                      if (la !== lb) return lb - la;
+                      return na.localeCompare(nb);
+                    })
+                    .map((s) => {
                     const isEquipped = equippedSpellSet.has(s.id);
                     return (
                       <div
@@ -384,6 +415,10 @@ function ArmorTab({
   const all = [...armorInventory];
   if (equippedArmor) all.push(equippedArmor);
   if (equippedShield) all.push(equippedShield);
+  // Best-kit-first: tier desc, magic bonus desc within tier. Same
+  // ranking the Weapons tab uses, so a +2 Half Plate beats a +0
+  // Plate (tier ties → bonus tiebreak; here tier wins outright).
+  all.sort((a, b) => armorSortKey(b) - armorSortKey(a));
   if (all.length === 0) {
     return (
       <p className="py-6 text-center text-sm">No armor or shields.</p>
