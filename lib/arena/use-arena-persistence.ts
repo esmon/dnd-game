@@ -6,7 +6,7 @@ import type { User } from "@supabase/supabase-js";
 
 import type { CharacterUpdate } from "@/lib/db/schema";
 import type { GameState } from "@/lib/game/reducer";
-import type { Player } from "@/lib/game/types";
+import type { GameStats, Player } from "@/lib/game/types";
 import {
   cachePlayerState,
   clearPlayerStateCache,
@@ -44,27 +44,33 @@ export function useArenaPersistence({
   forceSyncRef: MutableRefObject<boolean>;
   user: User | null | undefined;
 }) {
-  const playerToUpdate = useCallback((player: Player): CharacterUpdate => {
-    return {
-      current_hp: player.health,
-      xp: player.xp,
-      level: player.level,
-      max_hp: player.maxHealth,
-      proficiency_bonus: player.proficiencyBonus,
-      ability_scores: player.abilityScores,
-      weapons: player.weapons,
-      inventory: player.inventory,
-      known_spells: player.knownSpells,
-      equipped_spells: player.equippedSpells,
-      spell_slots: player.spellSlots,
-      consumables: player.consumables,
-      equipped_armor: player.equippedArmor ?? null,
-      equipped_shield: player.equippedShield ?? null,
-      armor_inventory: player.armorInventory ?? [],
-    };
-  }, []);
+  const playerToUpdate = useCallback(
+    (player: Player, stats: GameStats): CharacterUpdate => {
+      return {
+        current_hp: player.health,
+        xp: player.xp,
+        level: player.level,
+        max_hp: player.maxHealth,
+        proficiency_bonus: player.proficiencyBonus,
+        ability_scores: player.abilityScores,
+        weapons: player.weapons,
+        inventory: player.inventory,
+        known_spells: player.knownSpells,
+        equipped_spells: player.equippedSpells,
+        spell_slots: player.spellSlots,
+        consumables: player.consumables,
+        equipped_armor: player.equippedArmor ?? null,
+        equipped_shield: player.equippedShield ?? null,
+        armor_inventory: player.armorInventory ?? [],
+        wins: stats.wins,
+        losses: stats.losses,
+        runaways: stats.runaways,
+      };
+    },
+    [],
+  );
 
-  const cacheLocally = useCallback((player: Player) => {
+  const cacheLocally = useCallback((player: Player, stats: GameStats) => {
     if (!player.id) return;
     cachePlayerState(player.id, {
       current_hp: player.health,
@@ -82,6 +88,9 @@ export function useArenaPersistence({
       equipped_armor: player.equippedArmor ?? null,
       equipped_shield: player.equippedShield ?? null,
       armor_inventory: player.armorInventory ?? [],
+      wins: stats.wins,
+      losses: stats.losses,
+      runaways: stats.runaways,
       // Stamp the DB version this cache was written against so the
       // bootstrap can detect external writes (other device, coop,
       // etc.) and discard a stale cache.
@@ -90,9 +99,13 @@ export function useArenaPersistence({
   }, []);
 
   const syncToSupabase = useCallback(
-    async (player: Player, opts?: { keepalive?: boolean }) => {
+    async (
+      player: Player,
+      stats: GameStats,
+      opts?: { keepalive?: boolean },
+    ) => {
       if (!player.id) return;
-      const update = playerToUpdate(player);
+      const update = playerToUpdate(player, stats);
       try {
         const res = await fetchWithSession(`/api/character/${player.id}`, {
           method: "PATCH",
@@ -138,13 +151,14 @@ export function useArenaPersistence({
     needsPersistRef.current = false;
 
     const player = state.player;
+    const stats = state.stats;
 
     if (!user) {
-      updateLocalCharacterMutable(playerToUpdate(player));
+      updateLocalCharacterMutable(playerToUpdate(player, stats));
       return;
     }
 
-    cacheLocally(player);
+    cacheLocally(player, stats);
 
     const last = lastSyncedRef.current;
     const playerId = player.id;
@@ -153,13 +167,14 @@ export function useArenaPersistence({
       (!last || last.id !== playerId || last.level !== player.level);
     if (levelChanged || forceSyncRef.current) {
       forceSyncRef.current = false;
-      void syncToSupabase(player);
+      void syncToSupabase(player, stats);
     }
   }, [
     state.victory,
     state.asiPending.length,
     state.status,
     state.player,
+    state.stats,
     cacheLocally,
     syncToSupabase,
     playerToUpdate,
@@ -174,8 +189,9 @@ export function useArenaPersistence({
   useEffect(() => {
     if (!user) return;
     const flush = () => {
-      const p = stateRef.current.player;
-      if (p?.id) void syncToSupabase(p, { keepalive: true });
+      const snap = stateRef.current;
+      const p = snap.player;
+      if (p?.id) void syncToSupabase(p, snap.stats, { keepalive: true });
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();

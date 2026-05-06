@@ -43,6 +43,12 @@ export interface Character {
   // Unequipped armor + shield drops kept around between fights.
   // Same shape pattern as `inventory` (weapons) and `consumables`.
   armor_inventory?: Armor[];
+  // Per-character battle counters (the StatsBar). Optional because
+  // the columns landed after the initial schema; characterToPlayer
+  // defaults each to 0 when the row predates the migration.
+  wins?: number;
+  losses?: number;
+  runaways?: number;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -74,6 +80,9 @@ export type CharacterUpdate = {
   equipped_armor?: Armor | null;
   equipped_shield?: Armor | null;
   armor_inventory?: Armor[];
+  wins?: number;
+  losses?: number;
+  runaways?: number;
 };
 
 export function characterToPlayer(c: Character): Player {
@@ -99,5 +108,10 @@ export function characterToPlayer(c: Character): Player {
     equippedArmor: c.equipped_armor ?? null,
     equippedShield: c.equipped_shield ?? null,
     armorInventory: c.armor_inventory ?? [],
+    stats: {
+      wins: c.wins ?? 0,
+      losses: c.losses ?? 0,
+      runaways: c.runaways ?? 0,
+    },
   };
 }

@@ -26,6 +26,9 @@ export type CachedPlayerState = {
   equipped_armor: Armor | null;
   equipped_shield: Armor | null;
   armor_inventory: Armor[];
+  wins: number;
+  losses: number;
+  runaways: number;
   // Client-clock timestamp the cache was written. Kept for debugging;
   // we don't use it for invalidation because client clocks drift.
   updatedAt: number;

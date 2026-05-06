@@ -215,6 +215,9 @@ async function applyMigrations(
             cache.equipped_shield ?? result.equipped_shield ?? null,
           armor_inventory:
             cache.armor_inventory ?? result.armor_inventory ?? [],
+          wins: cache.wins ?? result.wins ?? 0,
+          losses: cache.losses ?? result.losses ?? 0,
+          runaways: cache.runaways ?? result.runaways ?? 0,
         };
       } else {
         // External writer has touched the row since this cache was

@@ -135,6 +135,10 @@ export type Player = {
   equippedShield?: Armor | null;
   // Unequipped armor + shield drops carried between fights.
   armorInventory?: Armor[];
+  // Per-character battle counters. Optional because pre-stats
+  // characters might still be in cache; the reducer's BOOTSTRAP_DONE
+  // case falls back to 0/0/0 when this is undefined.
+  stats?: GameStats;
 };
 
 export type Monster = {

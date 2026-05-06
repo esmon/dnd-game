@@ -237,6 +237,9 @@ export async function POST(request: NextRequest) {
     consumables,
     equipped_armor: body.equipped_armor ?? null,
     equipped_shield: body.equipped_shield ?? null,
+    wins: typeof body.wins === "number" ? body.wins : 0,
+    losses: typeof body.losses === "number" ? body.losses : 0,
+    runaways: typeof body.runaways === "number" ? body.runaways : 0,
     avatar_url: body.avatar_url ?? null,
   };
 

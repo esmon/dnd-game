@@ -253,12 +253,20 @@ export function gameReducer(state: GameState, action: Action): GameState {
       return {
         ...state,
         player: action.player,
+        // Seed the StatsBar from the persisted character row. Older
+        // snapshots without stats default through to 0/0/0 here so
+        // the bar still renders cleanly.
+        stats: action.player.stats ?? state.stats,
         monsterIndices: action.indices,
         loading: false,
       };
 
     case "SET_PLAYER":
-      return { ...state, player: action.player };
+      return {
+        ...state,
+        player: action.player,
+        stats: action.player.stats ?? state.stats,
+      };
 
     case "SET_MONSTER_INDICES":
       return { ...state, monsterIndices: action.indices };

@@ -251,6 +251,18 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
   if (body.spell_slots !== undefined) update.spell_slots = body.spell_slots;
   if (body.consumables !== undefined) update.consumables = body.consumables;
+  if (body.equipped_armor !== undefined) {
+    update.equipped_armor = body.equipped_armor;
+  }
+  if (body.equipped_shield !== undefined) {
+    update.equipped_shield = body.equipped_shield;
+  }
+  if (body.armor_inventory !== undefined) {
+    update.armor_inventory = body.armor_inventory;
+  }
+  if (typeof body.wins === "number") update.wins = body.wins;
+  if (typeof body.losses === "number") update.losses = body.losses;
+  if (typeof body.runaways === "number") update.runaways = body.runaways;
 
   const { data, error } = await supabaseAdmin
     .from("characters")
