@@ -57,6 +57,11 @@ export type GameState = {
   characterCount: number;
   characterPickerOpen: boolean;
   logExpanded: boolean;
+  // Win streak — kept separate from stats.wins (the lifetime
+  // counter) so a loss can reset the streak without zeroing the
+  // total. Drives the every-3rd-win FULL_HEAL bonus. Runtime-only;
+  // not persisted to the character row.
+  winStreak: number;
   // Set on LOSE, cleared on START_FIGHT. Drives the "You Lose!" lobby panel
   // so the player gets a clear post-defeat affordance instead of an empty
   // gap between PlayerPanel and CommandPanel.
@@ -81,6 +86,7 @@ export const initialState: GameState = {
   monster: null,
   turns: [],
   stats: { wins: 0, losses: 0, runaways: 0 },
+  winStreak: 0,
   monsterIndices: [],
   loading: true,
   monsterPending: false,
@@ -389,6 +395,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
           monsterPending: false,
           lastFledFrom: state.monster.name,
           stats: { ...state.stats, runaways: state.stats.runaways + 1 },
+          winStreak: 0,
         },
         true,
         text,
@@ -434,6 +441,7 @@ export function gameReducer(state: GameState, action: Action): GameState {
         monster: null,
         monsterPending: false,
         stats: { ...state.stats, wins },
+        winStreak: state.winStreak + 1,
         asiPending,
         victory: { monsterName, xpGained, levelsGained, loot },
       };
@@ -595,8 +603,8 @@ export function gameReducer(state: GameState, action: Action): GameState {
           stats: {
             ...state.stats,
             losses: state.stats.losses + 1,
-            wins: 0,
           },
+          winStreak: 0,
           lastDefeatedBy: state.monster.name,
         },
         false,

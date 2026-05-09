@@ -307,8 +307,8 @@ export function Arena() {
       });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
-        const newWins = snap.stats.wins + 1;
-        if (newWins > 0 && newWins % 3 === 0) {
+        const newStreak = snap.winStreak + 1;
+        if (newStreak > 0 && newStreak % 3 === 0) {
           dispatch({ type: "FULL_HEAL" });
         }
         // Persist runs from a useEffect once asiPending drains; flag here
@@ -459,8 +459,8 @@ export function Arena() {
       });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
-        const newWins = snap.stats.wins + 1;
-        if (newWins > 0 && newWins % 3 === 0) {
+        const newStreak = snap.winStreak + 1;
+        if (newStreak > 0 && newStreak % 3 === 0) {
           dispatch({ type: "FULL_HEAL" });
         }
         needsPersistRef.current = true;
@@ -560,8 +560,8 @@ export function Arena() {
       });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
-        const newWins = snap.stats.wins + 1;
-        if (newWins > 0 && newWins % 3 === 0) {
+        const newStreak = snap.winStreak + 1;
+        if (newStreak > 0 && newStreak % 3 === 0) {
           dispatch({ type: "FULL_HEAL" });
         }
         needsPersistRef.current = true;
@@ -630,8 +630,8 @@ export function Arena() {
       });
       if (newMonsterHealth <= 0) {
         dispatch({ type: "WIN" });
-        const newWins = snap.stats.wins + 1;
-        if (newWins > 0 && newWins % 3 === 0) {
+        const newStreak = snap.winStreak + 1;
+        if (newStreak > 0 && newStreak % 3 === 0) {
           dispatch({ type: "FULL_HEAL" });
         }
         needsPersistRef.current = true;
