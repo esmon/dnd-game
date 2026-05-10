@@ -15,7 +15,7 @@ import {
   needsDamageTypeBackfill,
 } from "@/lib/game/migrations";
 import type { Action } from "@/lib/game/reducer";
-import type { MonsterIndex, Weapon } from "@/lib/game/types";
+import type { GameStats, MonsterIndex, Weapon } from "@/lib/game/types";
 import {
   clearActiveCharacterId,
   clearPlayerStateCache,
@@ -51,7 +51,11 @@ export function useArenaBootstrap({
 }: {
   dispatch: React.Dispatch<Action>;
   indexLevelRef: MutableRefObject<number | null>;
-  lastSyncedRef: MutableRefObject<{ id: string; level: number } | null>;
+  lastSyncedRef: MutableRefObject<{
+    id: string;
+    level: number;
+    stats: GameStats;
+  } | null>;
   user: User | null | undefined;
 }) {
   const router = useRouter();
@@ -101,7 +105,11 @@ export function useArenaBootstrap({
 
         if (cancelled) return;
         indexLevelRef.current = player.level;
-        lastSyncedRef.current = { id: character.id, level: player.level };
+        lastSyncedRef.current = {
+          id: character.id,
+          level: player.level,
+          stats: player.stats ?? { wins: 0, losses: 0, runaways: 0 },
+        };
         dispatch({ type: "BOOTSTRAP_DONE", player, indices });
         dispatch({ type: "SET_CHARACTER_COUNT", count });
       } catch (err) {

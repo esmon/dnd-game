@@ -84,7 +84,7 @@ import { useUser } from "@/lib/auth/use-user";
 import { groupConsumables } from "@/lib/game/consumables";
 import { pickRandomMonsterIndex } from "@/lib/game/dnd5e";
 import type { AbilityScores } from "@/lib/db/schema";
-import type { Monster, MonsterIndex, Weapon } from "@/lib/game/types";
+import type { GameStats, Monster, MonsterIndex, Weapon } from "@/lib/game/types";
 import { setActiveCharacterId } from "@/lib/session";
 
 export function Arena() {
@@ -103,9 +103,15 @@ export function Arena() {
   // Set to true when a persist is pending. Persistence is deferred until the
   // ASI queue is empty so we save with finalized ability scores.
   const needsPersistRef = useRef(false);
-  // Last (id, level) we wrote to Supabase. Used to decide when to sync —
-  // we only push to Supabase on level changes; otherwise we just cache.
-  const lastSyncedRef = useRef<{ id: string; level: number } | null>(null);
+  // Last (id, level, stats) we wrote to Supabase. Used to decide when to
+  // sync — we push on level changes and on any stats change so wins /
+  // losses / runaways can't sit only in the local cache and get lost when
+  // an external write invalidates it.
+  const lastSyncedRef = useRef<{
+    id: string;
+    level: number;
+    stats: GameStats;
+  } | null>(null);
   // One-shot flag: force the next persist effect to also push to Supabase
   // (used after loot keep/discard so inventory decisions never sit unsynced).
   const forceSyncRef = useRef(false);

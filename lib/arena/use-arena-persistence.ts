@@ -40,7 +40,11 @@ export function useArenaPersistence({
   state: GameState;
   stateRef: MutableRefObject<GameState>;
   needsPersistRef: MutableRefObject<boolean>;
-  lastSyncedRef: MutableRefObject<{ id: string; level: number } | null>;
+  lastSyncedRef: MutableRefObject<{
+    id: string;
+    level: number;
+    stats: GameStats;
+  } | null>;
   forceSyncRef: MutableRefObject<boolean>;
   user: User | null | undefined;
 }) {
@@ -129,7 +133,11 @@ export function useArenaPersistence({
           // Body parse failed — non-blocking, the cache will just
           // miss its stamp this round and refetch will re-sync.
         }
-        lastSyncedRef.current = { id: player.id, level: player.level };
+        lastSyncedRef.current = {
+          id: player.id,
+          level: player.level,
+          stats,
+        };
         clearPlayerStateCache(player.id);
       } catch (err) {
         console.error("character patch failed", err);
@@ -165,7 +173,17 @@ export function useArenaPersistence({
     const levelChanged =
       !!playerId &&
       (!last || last.id !== playerId || last.level !== player.level);
-    if (levelChanged || forceSyncRef.current) {
+    // Stats (wins/losses/runaways) sit only in the cache between syncs;
+    // an external write to the row will drop the cache and lose them.
+    // Sync on every change so the row is the source of truth.
+    const statsChanged =
+      !!playerId &&
+      (!last ||
+        last.id !== playerId ||
+        last.stats.wins !== stats.wins ||
+        last.stats.losses !== stats.losses ||
+        last.stats.runaways !== stats.runaways);
+    if (levelChanged || statsChanged || forceSyncRef.current) {
       forceSyncRef.current = false;
       void syncToSupabase(player, stats);
     }
