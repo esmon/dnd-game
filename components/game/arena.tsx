@@ -1213,11 +1213,17 @@ export function Arena() {
                 victory: state.victory,
                 playerName: player.name,
                 onKeep: () => {
-                  if (state.victory?.loot) forceSyncRef.current = true;
+                  if (state.victory?.loot) {
+                    forceSyncRef.current = true;
+                    needsPersistRef.current = true;
+                  }
                   dispatch({ type: "RESOLVE_LOOT", keepLoot: true });
                 },
                 onDiscard: () => {
-                  if (state.victory?.loot) forceSyncRef.current = true;
+                  if (state.victory?.loot) {
+                    forceSyncRef.current = true;
+                    needsPersistRef.current = true;
+                  }
                   dispatch({ type: "RESOLVE_LOOT", keepLoot: false });
                 },
               }}

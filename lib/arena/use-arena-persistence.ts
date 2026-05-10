@@ -150,9 +150,15 @@ export function useArenaPersistence({
   // lobby. Anonymous: write the merged Character to localStorage.
   // Signed-in: cache fields, then PATCH Supabase if level changed or a
   // force-sync was requested.
+  //
+  // No `state.victory` gate: the victory celebration can sit on screen
+  // for a while, and we want the wins increment + new XP / level to
+  // persist immediately. Loot is held in `state.victory.loot` (not
+  // player.inventory) until RESOLVE_LOOT, so persisting here writes the
+  // current player state without the unclaimed drop — that's fine, the
+  // loot resolution dispatches its own follow-up persist.
   useEffect(() => {
     if (!needsPersistRef.current) return;
-    if (state.victory) return;
     if (state.asiPending.length > 0) return;
     if (state.status !== "lobby") return;
     if (!state.player) return;
@@ -188,7 +194,6 @@ export function useArenaPersistence({
       void syncToSupabase(player, stats);
     }
   }, [
-    state.victory,
     state.asiPending.length,
     state.status,
     state.player,
