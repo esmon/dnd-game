@@ -26,6 +26,12 @@ function weaponSortKey(w: Weapon): number {
   return tier * 10 + (w.bonus ?? 0);
 }
 
+// Matches the reducer's EQUIP_WEAPON / EQUIP_SHIELD two-handed check
+// so the UI mirrors the dispatch outcome instead of silently no-oping.
+function isTwoHandedWeapon(w: Weapon): boolean {
+  return w.twoHanded ?? weaponsByBaseId[w.baseId]?.twoHanded ?? false;
+}
+
 function armorSortKey(a: Armor): number {
   const tier = armorByBaseId[a.baseId]?.tier ?? 0;
   return tier * 10 + (a.bonus ?? 0);
@@ -116,6 +122,12 @@ export function InventoryDialog({
   const equippedSpellCount = equippedSpellIds.length;
   const atSpellCap = equippedSpellCount >= spellCap;
 
+  // Mirrors the reducer gate on EQUIP_SHIELD so the shield row can
+  // disable + explain instead of silently no-oping the dispatch.
+  const hasTwoHandedWeaponEquipped = inventory.some(
+    (w) => equippedSet.has(w.id) && isTwoHandedWeapon(w),
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
@@ -158,6 +170,9 @@ export function InventoryDialog({
                     .sort((a, b) => weaponSortKey(b) - weaponSortKey(a))
                     .map((w) => {
                     const isEquipped = equippedSet.has(w.id);
+                    const isTwoH = isTwoHandedWeapon(w);
+                    const blockedByShield =
+                      isTwoH && !!equippedShield && !isEquipped;
                     return (
                       <div
                         key={w.id}
@@ -174,14 +189,19 @@ export function InventoryDialog({
                           </span>
                           <span className="font-mono text-xs tabular-nums">
                             {w.damage}
-                            {w.twoHanded ? " · 2H" : null}
+                            {isTwoH ? " · 2H" : null}
                           </span>
+                          {blockedByShield ? (
+                            <span className="font-mono text-xs text-rose-600">
+                              Two-handed — unequip shield first
+                            </span>
+                          ) : null}
                         </div>
                         <div className="flex shrink-0 flex-wrap gap-1">
                           <Button
                             size="sm"
                             variant="default"
-                            disabled={isEquipped || atCap}
+                            disabled={isEquipped || atCap || blockedByShield}
                             onClick={() => onEquip(w.id)}
                             className="flex-1 sm:flex-none"
                           >
@@ -336,6 +356,7 @@ export function InventoryDialog({
             armorInventory={armorInventory}
             equippedArmor={equippedArmor}
             equippedShield={equippedShield}
+            hasTwoHandedWeaponEquipped={hasTwoHandedWeaponEquipped}
             onEquipArmor={onEquipArmor}
             onUnequipArmor={onUnequipArmor}
             onDiscardArmor={onDiscardArmor}
@@ -394,6 +415,7 @@ function ArmorTab({
   armorInventory,
   equippedArmor,
   equippedShield,
+  hasTwoHandedWeaponEquipped,
   onEquipArmor,
   onUnequipArmor,
   onDiscardArmor,
@@ -405,6 +427,7 @@ function ArmorTab({
   armorInventory: Armor[];
   equippedArmor: Armor | null;
   equippedShield: Armor | null;
+  hasTwoHandedWeaponEquipped: boolean;
   onEquipArmor?: (id: string) => void;
   onUnequipArmor?: () => void;
   onDiscardArmor?: (id: string) => void;
@@ -432,6 +455,8 @@ function ArmorTab({
             equippedArmor?.id === a.id || equippedShield?.id === a.id;
           const isShield = a.category === "shield";
           const proficient = isArmorProficient(klass ?? undefined, a);
+          const blockedByTwoH =
+            isShield && hasTwoHandedWeaponEquipped && !isEquipped;
           // Shields contribute base +2 in playerAC; magic shields
           // store the extra in acBase. So total shield AC is
           // 2 + acBase. Body armor's acBase already includes the
@@ -464,13 +489,18 @@ function ArmorTab({
                     Not proficient — blocks spellcasting
                   </span>
                 ) : null}
+                {blockedByTwoH ? (
+                  <span className="font-mono text-xs text-rose-600">
+                    Two-handed weapon equipped — unequip it first
+                  </span>
+                ) : null}
               </div>
               <div className="flex shrink-0 flex-wrap gap-1">
                 {equipHandler ? (
                   <Button
                     size="sm"
                     variant="default"
-                    disabled={isEquipped}
+                    disabled={isEquipped || blockedByTwoH}
                     onClick={() => equipHandler(a.id)}
                     className="flex-1 sm:flex-none"
                   >
