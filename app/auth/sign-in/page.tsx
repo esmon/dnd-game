@@ -32,6 +32,13 @@ function SignInForm() {
     ? CALLBACK_ERRORS[callbackError] ?? `Sign-in failed (${callbackError}).`
     : null;
 
+  // Set by /campaign/[id] when an unauthenticated user opens a shared
+  // invite. Drives both the copy ("Sign in to play co-op") and the
+  // post-magic-link landing so the user ends up back at the campaign
+  // they were trying to join, not at /.
+  const next = searchParams.get("next");
+  const isCoopInvite = !!next && next.startsWith("/campaign/");
+
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +49,12 @@ function SignInForm() {
     setStatus("sending");
     setError(null);
     const supabase = createClient();
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    if (next) callbackUrl.searchParams.set("next", next);
     const { error: err } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: callbackUrl.toString(),
       },
     });
     if (err) {
@@ -61,10 +70,12 @@ function SignInForm() {
       <div className="flex w-full max-w-sm flex-col gap-4 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
         <div className="flex flex-col gap-1 text-center">
           <h1 className="text-xl font-bold uppercase tracking-widest">
-            Sign In
+            {isCoopInvite ? "Sign In To Play Co-op" : "Sign In"}
           </h1>
           <p>
-            Save your characters and access them from any device.
+            {isCoopInvite
+              ? "Co-op campaigns require an account so your party can find you. We'll send you back to the invite after."
+              : "Save your characters and access them from any device."}
           </p>
         </div>
         {callbackErrorMessage && status === "idle" ? (
