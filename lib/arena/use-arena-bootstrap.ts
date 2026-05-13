@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { useRouter } from "next/navigation";
 
 import type { User } from "@supabase/supabase-js";
@@ -59,8 +59,20 @@ export function useArenaBootstrap({
   user: User | null | undefined;
 }) {
   const router = useRouter();
+  // One-shot guard. Without it, every `user` reference change re-runs
+  // the bootstrap and clobbers in-memory state. Supabase's
+  // onAuthStateChange fires TOKEN_REFRESHED on tab resume (common on
+  // mobile after a long background), creating a new User object;
+  // re-dispatching BOOTSTRAP_DONE then overwrites the mid-fight player
+  // with the freshly-fetched row (whose HP / slots reflect the last
+  // lobby persist, i.e. full) while state.monster / state.status sit
+  // untouched — fight resumes with a fully-healed player against a
+  // bloodied monster. Sign-in path full-reloads the page (via the
+  // claim flow), which remounts and resets this ref naturally.
+  const bootstrappedRef = useRef(false);
   useEffect(() => {
     if (user === undefined) return; // still resolving auth; wait
+    if (bootstrappedRef.current) return;
     let cancelled = false;
     (async () => {
       try {
@@ -110,6 +122,7 @@ export function useArenaBootstrap({
           level: player.level,
           stats: player.stats ?? { wins: 0, losses: 0, runaways: 0 },
         };
+        bootstrappedRef.current = true;
         dispatch({ type: "BOOTSTRAP_DONE", player, indices });
         dispatch({ type: "SET_CHARACTER_COUNT", count });
       } catch (err) {
