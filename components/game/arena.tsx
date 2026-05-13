@@ -1262,7 +1262,7 @@ export function Arena() {
                 key: "fight",
                 kind: "primary",
                 icon: SwordsIcon,
-                label: "Fight",
+                label: "Fight Solo",
                 onClick: startFight,
                 disabled: asiPending.length > 0,
                 disabledReason: lobbyActionReason,
@@ -1274,16 +1274,16 @@ export function Arena() {
                     kind: "primary",
                     icon: CompassIcon,
                     label: creatingCampaign
-                      ? "Starting Campaign…"
-                      : "Start A Campaign",
+                      ? "Starting Co-op…"
+                      : "Fight Co-op",
                     onClick: handleStartCampaign,
                     disabled: creatingCampaign,
                   } satisfies CommandItem,
                 ]
                 : []),
               {
-                // Visual divider between primary commands (FIGHT / Start
-                // A Campaign) and navigation (Switch Character / Create
+                // Visual divider between primary commands (Fight Solo /
+                // Fight Co-op) and navigation (Switch Character / Create
                 // New / dev). Rest now lives on the VictoryPanel so it's
                 // the obvious next step after a fight ends.
                 key: "nav-separator",
