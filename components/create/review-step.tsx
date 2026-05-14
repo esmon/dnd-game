@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
+
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { CharacterAvatar } from "@/components/game/character-avatar";
 import { ALIGNMENTS, type Alignment } from "@/lib/dnd/alignments";
 import type { Background } from "@/lib/dnd/backgrounds";
 import type { DnDClass } from "@/lib/dnd/classes";
@@ -27,8 +31,15 @@ type Props = {
   background: Background;
   finalAbilities: AbilityScores;
   maxHp: number;
+  // Signed-in only — anonymous users have no Supabase row to attach
+  // the upload to, so we hide the avatar slot for them. Null = use
+  // initials. Staged here on the Review step; the create page does
+  // the actual upload after the character row exists.
+  avatarFile: File | null;
+  avatarUploadEnabled: boolean;
   onNameChange: (n: string) => void;
   onAlignmentChange: (a: Alignment) => void;
+  onAvatarFileChange: (file: File | null) => void;
 };
 
 function formatMod(m: number): string {
@@ -43,9 +54,25 @@ export function ReviewStep({
   background,
   finalAbilities,
   maxHp,
+  avatarFile,
+  avatarUploadEnabled,
   onNameChange,
   onAlignmentChange,
+  onAvatarFileChange,
 }: Props) {
+  // Preview the staged file before it's uploaded. ObjectURL is
+  // revoked on cleanup so we don't leak blob refs when the user
+  // swaps files (or unmounts mid-creation).
+  const previewUrl = useMemo(
+    () => (avatarFile ? URL.createObjectURL(avatarFile) : null),
+    [avatarFile],
+  );
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -58,6 +85,46 @@ export function ReviewStep({
           onChange={(e) => onNameChange(e.target.value)}
         />
       </div>
+
+      {avatarUploadEnabled ? (
+        <div className="flex flex-col gap-2">
+          <Label>Avatar (optional)</Label>
+          <div className="flex items-center gap-3">
+            <CharacterAvatar src={previewUrl} name={name || "?"} size="lg" />
+            <div className="flex flex-col gap-2">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    onAvatarFileChange(f);
+                    e.target.value = "";
+                  }}
+                />
+                <span className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground">
+                  {avatarFile ? "Choose different image" : "Choose image"}
+                </span>
+              </label>
+              {avatarFile ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onAvatarFileChange(null)}
+                >
+                  Remove
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  PNG / JPG / WebP · max 2 MB
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <Label>Alignment</Label>

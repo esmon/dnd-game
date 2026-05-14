@@ -13,6 +13,11 @@ export type CreateState = {
   abilities: AbilityAssignments;
   name: string;
   alignment: Alignment | null;
+  // Staged on the Review step; uploaded after the character row is
+  // created (we need an id to scope the storage path). Null = use
+  // initials. Signed-in only — anonymous users have no row to attach
+  // the file to and see initials instead.
+  avatarFile: File | null;
   submitting: boolean;
   error: string | null;
 };
@@ -34,6 +39,7 @@ export const initialCreateState: CreateState = {
   abilities: initialAbilities,
   name: "",
   alignment: null,
+  avatarFile: null,
   submitting: false,
   error: null,
 };
@@ -45,6 +51,7 @@ export type CreateAction =
   | { type: "SET_ABILITY"; ability: keyof AbilityAssignments; value: number | null }
   | { type: "SET_NAME"; name: string }
   | { type: "SET_ALIGNMENT"; alignment: Alignment }
+  | { type: "SET_AVATAR_FILE"; file: File | null }
   | { type: "NEXT_STEP" }
   | { type: "PREV_STEP" }
   | { type: "SUBMIT_START" }
@@ -79,6 +86,8 @@ export function createReducer(
       return { ...state, name: action.name };
     case "SET_ALIGNMENT":
       return { ...state, alignment: action.alignment };
+    case "SET_AVATAR_FILE":
+      return { ...state, avatarFile: action.file };
     case "NEXT_STEP":
       return { ...state, step: clampStep(state.step + 1) };
     case "PREV_STEP":

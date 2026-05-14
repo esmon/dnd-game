@@ -83,9 +83,10 @@ import { useHideAuthButton } from "@/lib/ui/auth-button-visibility";
 import { useUser } from "@/lib/auth/use-user";
 import { groupConsumables } from "@/lib/game/consumables";
 import { pickRandomMonsterIndex } from "@/lib/game/dnd5e";
-import type { AbilityScores } from "@/lib/db/schema";
+import { characterToPlayer } from "@/lib/db/schema";
+import type { AbilityScores, Character } from "@/lib/db/schema";
 import type { GameStats, Monster, MonsterIndex, Weapon } from "@/lib/game/types";
-import { setActiveCharacterId } from "@/lib/session";
+import { fetchWithSession, setActiveCharacterId } from "@/lib/session";
 
 export function Arena() {
   const router = useRouter();
@@ -752,6 +753,30 @@ export function Arena() {
     window.location.reload();
   }, []);
 
+  // Avatar swap. The /api/character/[id]/avatar route handles
+  // bucket upload + the row patch in one shot, returning the
+  // updated Character — we just rebuild Player from it and dispatch.
+  // Signed-in only, so we guard on player.id (anonymous local
+  // characters have an id too, but no Supabase row, so the API
+  // would 403 with no userId on the request).
+  const handleUploadAvatar = useCallback(async (file: File) => {
+    const snap = stateRef.current;
+    const playerId = snap.player?.id;
+    if (!playerId) return;
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetchWithSession(
+      `/api/character/${playerId}/avatar`,
+      { method: "POST", body: form },
+    );
+    if (!res.ok) {
+      console.error("avatar upload failed", res.status);
+      return;
+    }
+    const row = (await res.json()) as Character;
+    dispatch({ type: "SET_PLAYER", player: characterToPlayer(row) });
+  }, []);
+
   // Hide the global AuthButton while in a fight so it doesn't crowd
   // the small-viewport battle UI. The hook is called unconditionally;
   // the boolean controls whether the effect actually hides.
@@ -1205,6 +1230,10 @@ export function Arena() {
                 ? "hidden md:flex"
                 : undefined
             }
+            // Anonymous (no `user`) characters have no Supabase row,
+            // so we keep the slot read-only for them — the route
+            // would 403 anyway.
+            onAvatarUpload={user ? handleUploadAvatar : undefined}
           />
           {state.victory ? (
             <LobbyOutcomePanel

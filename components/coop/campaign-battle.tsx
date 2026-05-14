@@ -21,6 +21,7 @@ import {
   BattleCommands,
   type BattleTile,
 } from "@/components/game/battle-commands";
+import { CharacterAvatar } from "@/components/game/character-avatar";
 import { CommandButton } from "@/components/game/command-button";
 import { type CommandItem } from "@/components/game/command-panel";
 import { HealthBar } from "@/components/game/health-bar";
@@ -1070,7 +1071,7 @@ function PartyMember({
     <div
       ref={ref}
       className={cn(
-        "flex flex-col gap-1 rounded-md border px-3 py-2",
+        "flex items-center gap-2 rounded-md border px-3 py-2",
         isMyActive
           ? "border-2 border-blue-600"
           : isCurrent
@@ -1079,31 +1080,39 @@ function PartyMember({
         dead ? "opacity-50" : "",
       )}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-sm font-bold uppercase tracking-widest">
-          {snap.name}
-          {isMe ? (
-            <span className="ml-2 text-xs">(You)</span>
-          ) : null}
-        </span>
-        <span className="font-mono text-xs tabular-nums">
-          {player.current_hp}/{snap.max_hp}
-        </span>
-      </div>
-      <HealthBar
-        current={player.current_hp}
-        max={snap.max_hp}
-        className="h-2"
+      <CharacterAvatar
+        src={snap.avatar_url ?? null}
+        name={snap.name}
+        size="sm"
+        className="shrink-0"
       />
-      <p className="text-[10px] uppercase tracking-widest">
-        {snap.race} · {snap.class} · Lv: {snap.level} · AC:{" "}
-        {playerAC(
-          findClass(snap.class) ?? null,
-          snap.ability_scores,
-          snap.equipped_armor ?? null,
-          snap.equipped_shield ?? null,
-        )}
-      </p>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-sm font-bold uppercase tracking-widest">
+            {snap.name}
+            {isMe ? (
+              <span className="ml-2 text-xs">(You)</span>
+            ) : null}
+          </span>
+          <span className="font-mono text-xs tabular-nums">
+            {player.current_hp}/{snap.max_hp}
+          </span>
+        </div>
+        <HealthBar
+          current={player.current_hp}
+          max={snap.max_hp}
+          className="h-2"
+        />
+        <p className="text-[10px] uppercase tracking-widest">
+          {snap.race} · {snap.class} · Lv: {snap.level} · AC:{" "}
+          {playerAC(
+            findClass(snap.class) ?? null,
+            snap.ability_scores,
+            snap.equipped_armor ?? null,
+            snap.equipped_shield ?? null,
+          )}
+        </p>
+      </div>
     </div>
   );
 }

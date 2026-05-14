@@ -235,6 +235,28 @@ export default function CreatePage() {
       }
       const created = (await res.json()) as Character;
       setActiveCharacterId(created.id);
+
+      // Upload the staged avatar now that the row exists and we have
+      // an id to scope the storage path. Avatar failure is non-fatal —
+      // the character is fully usable without one and the player can
+      // retry from the lobby — so we log and continue rather than
+      // bouncing the user back to the create form.
+      if (state.avatarFile) {
+        try {
+          const form = new FormData();
+          form.append("file", state.avatarFile);
+          const avatarRes = await fetchWithSession(
+            `/api/character/${created.id}/avatar`,
+            { method: "POST", body: form },
+          );
+          if (!avatarRes.ok) {
+            console.error("avatar upload failed", avatarRes.status);
+          }
+        } catch (err) {
+          console.error("avatar upload threw", err);
+        }
+      }
+
       dispatch({ type: "SUBMIT_DONE" });
       router.push("/");
     } catch (err) {
@@ -318,9 +340,16 @@ export default function CreatePage() {
                 background={background}
                 finalAbilities={finalAbilities}
                 maxHp={maxHp}
+                avatarFile={state.avatarFile}
+                // Anonymous users have no Supabase row to attach an
+                // upload to, so the slot is hidden until they sign in.
+                avatarUploadEnabled={!!user}
                 onNameChange={(n) => dispatch({ type: "SET_NAME", name: n })}
                 onAlignmentChange={(a) =>
                   dispatch({ type: "SET_ALIGNMENT", alignment: a })
+                }
+                onAvatarFileChange={(file) =>
+                  dispatch({ type: "SET_AVATAR_FILE", file })
                 }
               />
             ) : null}

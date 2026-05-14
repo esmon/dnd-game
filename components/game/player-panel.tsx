@@ -1,3 +1,4 @@
+import { CharacterAvatar } from "@/components/game/character-avatar";
 import { HealthBar } from "@/components/game/health-bar";
 import { PanelLabel } from "@/components/game/panel-label";
 import { StatRow } from "@/components/game/stat-row";
@@ -13,10 +14,16 @@ export function PlayerPanel({
   player,
   attackNonce = 0,
   className,
+  onAvatarUpload,
 }: {
   player: Player;
   attackNonce?: number;
   className?: string;
+  // Wiring the avatar to a callback turns the slot into a clickable
+  // "change avatar" affordance. Omit (e.g. mid-fight) for a read-only
+  // display. Anonymous callers should also omit since they have no
+  // Supabase row to attach an upload to.
+  onAvatarUpload?: (file: File) => Promise<void>;
 }) {
   // Shake when the monster lands an attack — fixed kick regardless
   // of damage so even a 1-HP nibble registers visibly.
@@ -66,6 +73,14 @@ export function PlayerPanel({
       )}
     >
       <PanelLabel>{player.name}</PanelLabel>
+      <div className="mx-auto mb-1">
+        <CharacterAvatar
+          src={player.avatar}
+          name={player.name}
+          size="lg"
+          onUpload={onAvatarUpload}
+        />
+      </div>
       {race || klass ? (
         <p className="mb-2 text-center text-xs uppercase tracking-widest">
           <span className="block md:inline">
