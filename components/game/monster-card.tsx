@@ -56,6 +56,28 @@ export function MonsterCard({
           <span className="text-3xl">??</span>
         )}
       </div>
+      {/* Mirrors PlayerPanel's race · class subhead so the HP / AC /
+          DMG rows below line up between the two cards. Two lines on
+          mobile, one inline line on desktop. Falls back to a hidden
+          placeholder for legacy snapshots so alignment still holds. */}
+      {monster.size || monster.type ? (
+        <p className="mb-2 text-center text-xs uppercase tracking-widest">
+          <span className="block md:inline">{monster.size ?? ""}</span>
+          {monster.size && monster.type ? (
+            <span className="hidden md:inline"> · </span>
+          ) : null}
+          <span className="block md:inline">{monster.type ?? ""}</span>
+        </p>
+      ) : (
+        <p
+          aria-hidden
+          className="invisible mb-2 text-center text-xs uppercase tracking-widest"
+        >
+          <span className="block md:inline">·</span>
+          <span className="hidden md:inline"> · </span>
+          <span className="block md:inline">·</span>
+        </p>
+      )}
       <StatRow label="HP" value={`${monster.health}/${monster.maxHealth}`} />
       <HealthBar
         current={monster.health}

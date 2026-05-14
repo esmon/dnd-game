@@ -160,6 +160,12 @@ export type Monster = {
   // rolls in coop. Older monster snapshots may be missing this; the
   // initiative roller treats undefined as DEX 10.
   dexterity?: number;
+  // Display-only subhead fields ("Huge · Dragon"). Mirrors the
+  // player card's race · class line so the rows below align visually.
+  // Optional because pre-existing coop snapshots don't have them
+  // (rendering falls back to no subhead in that case).
+  size?: string;
+  type?: string;
 };
 
 // Action type drives the icon shown in the combat log. Kept separate

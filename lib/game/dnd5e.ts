@@ -34,6 +34,8 @@ type RawMonsterAc =
 type RawMonster = {
   index: string;
   name: string;
+  size?: string;
+  type?: string;
   hit_points: number;
   hit_dice: string;
   xp: number;
@@ -160,5 +162,7 @@ export async function fetchMonster(index: string): Promise<Monster> {
     damageVulnerabilities: lower(data.damage_vulnerabilities),
     damageImmunities: lower(data.damage_immunities),
     dexterity: typeof data.dexterity === "number" ? data.dexterity : 10,
+    size: typeof data.size === "string" ? data.size : undefined,
+    type: typeof data.type === "string" ? data.type : undefined,
   };
 }
