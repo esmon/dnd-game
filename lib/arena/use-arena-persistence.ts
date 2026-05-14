@@ -110,6 +110,8 @@ export function useArenaPersistence({
     ) => {
       if (!player.id) return;
       const update = playerToUpdate(player, stats);
+      let mainOk = false;
+      let dbUpdatedAt: string | undefined;
       try {
         const res = await fetchWithSession(`/api/character/${player.id}`, {
           method: "PATCH",
@@ -117,30 +119,74 @@ export function useArenaPersistence({
           body: JSON.stringify(update),
           keepalive: opts?.keepalive,
         });
-        if (!res.ok) {
-          console.error("character patch failed", res.status);
-          return;
-        }
-        // The PATCH returns the updated row including the new
-        // updated_at; thread it back onto the player so subsequent
-        // cache writes stamp the right server version.
-        try {
-          const row = (await res.json()) as { updated_at?: string };
-          if (typeof row.updated_at === "string") {
-            player.dbUpdatedAt = row.updated_at;
+        if (res.ok) {
+          mainOk = true;
+          try {
+            const row = (await res.json()) as { updated_at?: string };
+            if (typeof row.updated_at === "string") dbUpdatedAt = row.updated_at;
+          } catch {
+            // Body parse failed — non-blocking, the cache just misses
+            // its stamp this round and refetch will re-sync.
           }
-        } catch {
-          // Body parse failed — non-blocking, the cache will just
-          // miss its stamp this round and refetch will re-sync.
+        } else {
+          const text = await res.text().catch(() => "");
+          console.error(
+            "character patch failed",
+            res.status,
+            text.slice(0, 200),
+          );
         }
+      } catch (err) {
+        console.error("character patch threw", err);
+      }
+
+      // Dedicated stats sync. Always fire it (whether the main PATCH
+      // succeeded or not) so a regression in the bigger payload can't
+      // strand wins / losses / runaways in the local cache. Cheap:
+      // three integers, owner-checked, no validators.
+      let statsOk = false;
+      try {
+        const sres = await fetchWithSession(
+          `/api/character/${player.id}/stats`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              wins: stats.wins,
+              losses: stats.losses,
+              runaways: stats.runaways,
+            }),
+            keepalive: opts?.keepalive,
+          },
+        );
+        if (sres.ok) {
+          statsOk = true;
+          try {
+            const row = (await sres.json()) as { updated_at?: string };
+            if (typeof row.updated_at === "string") dbUpdatedAt = row.updated_at;
+          } catch {
+            // ignore
+          }
+        } else {
+          const text = await sres.text().catch(() => "");
+          console.error("stats patch failed", sres.status, text.slice(0, 200));
+        }
+      } catch (err) {
+        console.error("stats patch threw", err);
+      }
+
+      // Only consider sync "done" when stats landed — they're the
+      // counters that have been observed to drop. If both routes
+      // failed we leave lastSyncedRef alone so the next stat change
+      // retries.
+      if (mainOk || statsOk) {
+        if (dbUpdatedAt) player.dbUpdatedAt = dbUpdatedAt;
         lastSyncedRef.current = {
           id: player.id,
           level: player.level,
           stats,
         };
         clearPlayerStateCache(player.id);
-      } catch (err) {
-        console.error("character patch failed", err);
       }
     },
     [playerToUpdate, lastSyncedRef],
