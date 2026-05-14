@@ -167,90 +167,75 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  if (body.weapons !== undefined && !isWeaponArray(body.weapons)) {
-    return NextResponse.json(
-      { error: "invalid weapons: expected Weapon[]" },
-      { status: 400 },
-    );
-  }
-  if (body.inventory !== undefined && !isWeaponArray(body.inventory)) {
-    return NextResponse.json(
-      { error: "invalid inventory: expected Weapon[]" },
-      { status: 400 },
-    );
-  }
-  if (
-    body.weapons !== undefined &&
-    body.inventory !== undefined &&
-    !weaponsAreSubsetById(body.weapons, body.inventory)
-  ) {
-    return NextResponse.json(
-      { error: "every equipped weapon id must exist in inventory" },
-      { status: 400 },
-    );
-  }
-
-  if (body.known_spells !== undefined && !isSpellArray(body.known_spells)) {
-    return NextResponse.json(
-      { error: "invalid known_spells: expected Spell[]" },
-      { status: 400 },
-    );
-  }
-  if (
-    body.equipped_spells !== undefined &&
-    !isSpellArray(body.equipped_spells)
-  ) {
-    return NextResponse.json(
-      { error: "invalid equipped_spells: expected Spell[]" },
-      { status: 400 },
-    );
-  }
-  if (body.spell_slots !== undefined && !isSpellSlots(body.spell_slots)) {
-    return NextResponse.json(
-      { error: "invalid spell_slots: expected Record<string, number>" },
-      { status: 400 },
-    );
-  }
-  if (body.consumables !== undefined && !isConsumableArray(body.consumables)) {
-    return NextResponse.json(
-      { error: "invalid consumables: expected Consumable[]" },
-      { status: 400 },
-    );
-  }
-  // When both arrive together, equipped must be a subset by id of known.
-  // When only equipped arrives, validate against the row's existing known_spells.
-  if (body.equipped_spells !== undefined) {
-    const known =
-      body.known_spells !== undefined
-        ? body.known_spells
-        : (owned.row.known_spells ?? []);
-    if (!spellsAreSubsetById(body.equipped_spells, known)) {
-      return NextResponse.json(
-        { error: "every equipped spell id must exist in known_spells" },
-        { status: 400 },
-      );
-    }
-  }
-
+  // Build the update field-by-field. Validator failures used to reject
+  // the entire PATCH; that meant a single malformed legacy spell or
+  // consumable in the body would silently 400 every persist tick,
+  // taking stats / xp / hp / level down with it. Now we log + skip
+  // the offending field so the rest of the update lands.
   const update: CharacterUpdate = {};
+  const skipped: string[] = [];
+
   if (typeof body.current_hp === "number") update.current_hp = body.current_hp;
   if (typeof body.xp === "number") update.xp = body.xp;
   if (typeof body.level === "number") update.level = body.level;
-  if (body.weapons !== undefined) update.weapons = body.weapons;
-  if (body.inventory !== undefined) update.inventory = body.inventory;
   if (typeof body.max_hp === "number") update.max_hp = body.max_hp;
   if (typeof body.proficiency_bonus === "number") {
     update.proficiency_bonus = body.proficiency_bonus;
   }
   if (isAbilityScores(body.ability_scores)) {
     update.ability_scores = body.ability_scores;
+  } else if (body.ability_scores !== undefined) {
+    skipped.push("ability_scores");
   }
-  if (body.known_spells !== undefined) update.known_spells = body.known_spells;
+
+  if (body.weapons !== undefined) {
+    if (isWeaponArray(body.weapons)) update.weapons = body.weapons;
+    else skipped.push("weapons");
+  }
+  if (body.inventory !== undefined) {
+    if (isWeaponArray(body.inventory)) update.inventory = body.inventory;
+    else skipped.push("inventory");
+  }
+  // Subset check only meaningful when both sides survived validation.
+  if (
+    update.weapons !== undefined &&
+    update.inventory !== undefined &&
+    !weaponsAreSubsetById(update.weapons, update.inventory)
+  ) {
+    delete update.weapons;
+    delete update.inventory;
+    skipped.push("weapons+inventory(subset)");
+  }
+
+  if (body.known_spells !== undefined) {
+    if (isSpellArray(body.known_spells)) update.known_spells = body.known_spells;
+    else skipped.push("known_spells");
+  }
   if (body.equipped_spells !== undefined) {
-    update.equipped_spells = body.equipped_spells;
+    if (isSpellArray(body.equipped_spells)) {
+      update.equipped_spells = body.equipped_spells;
+    } else {
+      skipped.push("equipped_spells");
+    }
   }
-  if (body.spell_slots !== undefined) update.spell_slots = body.spell_slots;
-  if (body.consumables !== undefined) update.consumables = body.consumables;
+  if (update.equipped_spells !== undefined) {
+    const known = update.known_spells ?? owned.row.known_spells ?? [];
+    if (!spellsAreSubsetById(update.equipped_spells, known)) {
+      delete update.equipped_spells;
+      skipped.push("equipped_spells(subset)");
+    }
+  }
+  if (body.spell_slots !== undefined) {
+    if (isSpellSlots(body.spell_slots)) update.spell_slots = body.spell_slots;
+    else skipped.push("spell_slots");
+  }
+  if (body.consumables !== undefined) {
+    if (isConsumableArray(body.consumables)) {
+      update.consumables = body.consumables;
+    } else {
+      skipped.push("consumables");
+    }
+  }
   if (body.equipped_armor !== undefined) {
     update.equipped_armor = body.equipped_armor;
   }
@@ -263,6 +248,13 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   if (typeof body.wins === "number") update.wins = body.wins;
   if (typeof body.losses === "number") update.losses = body.losses;
   if (typeof body.runaways === "number") update.runaways = body.runaways;
+
+  if (skipped.length > 0) {
+    console.warn(
+      `[PATCH /character/${id}] skipped malformed fields:`,
+      skipped.join(", "),
+    );
+  }
 
   const { data, error } = await supabaseAdmin
     .from("characters")
