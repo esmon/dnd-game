@@ -140,11 +140,13 @@ export function useArenaPersistence({
         console.error("character patch threw", err);
       }
 
-      // Dedicated stats sync. Always fire it (whether the main PATCH
-      // succeeded or not) so a regression in the bigger payload can't
-      // strand wins / losses / runaways in the local cache. Cheap:
-      // three integers, owner-checked, no validators.
-      let statsOk = false;
+      // Scalar fallback. Fires every persist tick alongside the main
+      // PATCH so the small set of integer fields that drive
+      // progression (level, xp, hp) and counters (wins/losses/run)
+      // always land — even if the bigger payload fails its
+      // validators or 5xx's. No shape validation, so this can't be
+      // poisoned by a malformed weapon / spell / consumable.
+      let scalarOk = false;
       try {
         const sres = await fetchWithSession(
           `/api/character/${player.id}/stats`,
@@ -155,12 +157,17 @@ export function useArenaPersistence({
               wins: stats.wins,
               losses: stats.losses,
               runaways: stats.runaways,
+              level: player.level,
+              xp: player.xp,
+              current_hp: player.health,
+              max_hp: player.maxHealth,
+              proficiency_bonus: player.proficiencyBonus,
             }),
             keepalive: opts?.keepalive,
           },
         );
         if (sres.ok) {
-          statsOk = true;
+          scalarOk = true;
           try {
             const row = (await sres.json()) as { updated_at?: string };
             if (typeof row.updated_at === "string") dbUpdatedAt = row.updated_at;
@@ -169,17 +176,19 @@ export function useArenaPersistence({
           }
         } else {
           const text = await sres.text().catch(() => "");
-          console.error("stats patch failed", sres.status, text.slice(0, 200));
+          console.error("scalar patch failed", sres.status, text.slice(0, 200));
         }
       } catch (err) {
-        console.error("stats patch threw", err);
+        console.error("scalar patch threw", err);
       }
 
-      // Only consider sync "done" when stats landed — they're the
-      // counters that have been observed to drop. If both routes
-      // failed we leave lastSyncedRef alone so the next stat change
-      // retries.
-      if (mainOk || statsOk) {
+      // Cache holds the full mutable state (inventory, spells, armor,
+      // etc.) — fields the scalar route doesn't cover. Only clear it
+      // once the main PATCH succeeds, because that's the call that
+      // carries those fields into the row. Otherwise the cache is the
+      // only place they live, and dropping it would lose loot /
+      // equip changes on the next bootstrap.
+      if (mainOk) {
         if (dbUpdatedAt) player.dbUpdatedAt = dbUpdatedAt;
         lastSyncedRef.current = {
           id: player.id,
@@ -187,9 +196,23 @@ export function useArenaPersistence({
           stats,
         };
         clearPlayerStateCache(player.id);
+      } else if (scalarOk && dbUpdatedAt) {
+        // Scalar PATCH landed but main didn't. The row's updated_at
+        // just advanced, so the cache we wrote a moment ago (with
+        // the *old* stamp) would now look stale to the bootstrap's
+        // freshness check and get dropped — taking inventory / equip
+        // state with it. Re-write the cache with the new stamp so
+        // the overlay survives.
+        player.dbUpdatedAt = dbUpdatedAt;
+        cacheLocally(player, stats);
+        lastSyncedRef.current = {
+          id: player.id,
+          level: player.level,
+          stats,
+        };
       }
     },
-    [playerToUpdate, lastSyncedRef],
+    [playerToUpdate, lastSyncedRef, cacheLocally],
   );
 
   // Deferred persist once dialogs are dismissed and we're idle in the

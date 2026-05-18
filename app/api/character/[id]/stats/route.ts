@@ -4,17 +4,35 @@ import { getRequestIdentity, isOwnedBy } from "@/lib/auth/server-identity";
 import { supabase, supabaseAdmin } from "@/lib/supabase";
 import type { Character } from "@/lib/db/schema";
 
-// Dedicated stats sync. The main PATCH route runs validators against
-// every shaped field in the body; a single malformed legacy spell or
-// consumable used to drop the whole update on the floor — wins /
-// losses / runaways included. That's been made non-fatal, but stats
-// are simple integers and don't need to ride on the validity of
-// anything else, so they get their own route. The client fires this
-// in addition to the main PATCH so the counters always land even if
-// future regressions break the bigger payload.
+// Scalar character sync. The main PATCH route runs validators against
+// every shaped field (weapons, spells, consumables) and any single
+// malformed legacy item could drop the whole update on the floor —
+// including primitives like level / xp / current_hp. Even with the
+// non-fatal validator fix in place, this route is the durable path
+// for the small set of integer fields that drive game progression
+// and counters. The client fires it on every persist tick alongside
+// the main PATCH so these fields always land.
+//
+// Limited to integer scalars on purpose: no validators, no
+// possibility of a single bad field blocking another. Negative
+// values are clamped out so a buggy reducer can't accidentally
+// regress someone to a negative HP / XP / level.
 
 type RouteContext = { params: Promise<{ id: string }> };
-type StatsBody = { wins?: unknown; losses?: unknown; runaways?: unknown };
+type ScalarBody = {
+  wins?: unknown;
+  losses?: unknown;
+  runaways?: unknown;
+  level?: unknown;
+  xp?: unknown;
+  current_hp?: unknown;
+  max_hp?: unknown;
+  proficiency_bonus?: unknown;
+};
+
+function isNonNegativeInt(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v >= 0;
+}
 
 export async function POST(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
@@ -41,25 +59,37 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  let body: StatsBody;
+  let body: ScalarBody;
   try {
-    body = (await request.json()) as StatsBody;
+    body = (await request.json()) as ScalarBody;
   } catch {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
 
-  const update: { wins?: number; losses?: number; runaways?: number } = {};
-  if (typeof body.wins === "number" && body.wins >= 0) update.wins = body.wins;
-  if (typeof body.losses === "number" && body.losses >= 0) {
-    update.losses = body.losses;
-  }
-  if (typeof body.runaways === "number" && body.runaways >= 0) {
-    update.runaways = body.runaways;
+  const update: {
+    wins?: number;
+    losses?: number;
+    runaways?: number;
+    level?: number;
+    xp?: number;
+    current_hp?: number;
+    max_hp?: number;
+    proficiency_bonus?: number;
+  } = {};
+  if (isNonNegativeInt(body.wins)) update.wins = body.wins;
+  if (isNonNegativeInt(body.losses)) update.losses = body.losses;
+  if (isNonNegativeInt(body.runaways)) update.runaways = body.runaways;
+  if (isNonNegativeInt(body.level)) update.level = body.level;
+  if (isNonNegativeInt(body.xp)) update.xp = body.xp;
+  if (isNonNegativeInt(body.current_hp)) update.current_hp = body.current_hp;
+  if (isNonNegativeInt(body.max_hp)) update.max_hp = body.max_hp;
+  if (isNonNegativeInt(body.proficiency_bonus)) {
+    update.proficiency_bonus = body.proficiency_bonus;
   }
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json(
-      { error: "no valid stats fields" },
+      { error: "no valid scalar fields" },
       { status: 400 },
     );
   }
