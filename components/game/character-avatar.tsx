@@ -1,5 +1,6 @@
 "use client";
 
+import { CameraIcon } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState } from "react";
 
@@ -60,7 +61,7 @@ export function CharacterAvatar({
   ) : (
     <span
       className={cn(
-        "font-mono font-bold uppercase tracking-widest text-zinc-800",
+        "font-mono font-bold uppercase tracking-widest text-white",
         dims.text,
       )}
     >
@@ -68,24 +69,17 @@ export function CharacterAvatar({
     </span>
   );
 
+  // Matches the dark zinc-900 borders used throughout the panel
+  // chrome, so the avatar reads as a contained slot (not a separate
+  // brand color).
   const boxClass = cn(
-    "flex items-center justify-center overflow-hidden rounded-md",
+    "flex items-center justify-center overflow-hidden rounded-md bg-zinc-900",
     dims.box,
     className,
   );
-  // Same radial wash MonsterCard uses, so the player's slot reads as
-  // a portrait frame even when it's just initials.
-  const boxStyle: React.CSSProperties = {
-    background:
-      "radial-gradient(circle, rgba(213,233,233,1) 0%, rgba(88,218,223,1) 100%)",
-  };
 
   if (!onUpload) {
-    return (
-      <div className={boxClass} style={boxStyle}>
-        {inner}
-      </div>
-    );
+    return <div className={boxClass}>{inner}</div>;
   }
 
   async function handleFile(file: File) {
@@ -120,21 +114,27 @@ export function CharacterAvatar({
           boxClass,
           "group relative cursor-pointer transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60",
         )}
-        style={boxStyle}
         aria-label={src ? "Change avatar" : "Add avatar"}
       >
         {inner}
+        {/* Always-visible camera badge so the slot reads as
+            "tap to upload." Previously a hover-only pill — that
+            never showed up on touch devices and made the affordance
+            invisible. While uploading, the badge swaps to a label so
+            the user knows the click registered. */}
         <span
           className={cn(
-            "absolute inset-x-0 bottom-0 bg-zinc-900/70 py-0.5 text-center font-mono text-[9px] uppercase tracking-widest text-white",
-            // Show on hover; always show while uploading so the user
-            // knows the click registered.
-            uploading
-              ? "opacity-100"
-              : "opacity-0 transition-opacity group-hover:opacity-100",
+            "absolute bottom-1 right-1 flex items-center justify-center rounded-full border border-zinc-900 bg-white text-zinc-900 shadow-sm transition-transform group-hover:scale-110",
+            size === "lg" ? "size-7" : "size-4",
           )}
         >
-          {uploading ? "Uploading…" : src ? "Change" : "Add"}
+          {uploading ? (
+            <span className="text-[8px] font-bold uppercase tracking-widest">
+              …
+            </span>
+          ) : (
+            <CameraIcon className={size === "lg" ? "size-4" : "size-2.5"} />
+          )}
         </span>
       </button>
     </>
