@@ -50,8 +50,7 @@ export function MobileCombatLog({
       )}
       {canExpand ? (
         <Button
-          size="sm"
-          className="w-full"
+          className="min-h-12 w-full"
           onClick={() => onToggle(!expanded)}
         >
           {expanded ? "COLLAPSE LOG" : `SHOW ALL (${turns.length})`}
