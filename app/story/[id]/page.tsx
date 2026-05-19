@@ -21,7 +21,10 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StoryCombatDialog } from "@/components/dm/story-combat-dialog";
+import { PlayerPanel } from "@/components/game/player-panel";
 import { useUser } from "@/lib/auth/use-user";
+import { characterToPlayer } from "@/lib/db/schema";
+import type { Character } from "@/lib/db/schema";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
 import {
@@ -35,6 +38,10 @@ import { cn } from "@/lib/utils";
 type Snapshot = {
   campaign: StoryCampaign;
   messages: StoryMessage[];
+  // The character driving this story. Returned by the snapshot
+  // route so the party panel renders without a separate fetch.
+  // Null if the row vanished (shouldn't normally happen).
+  character: Character | null;
 };
 
 type LoadState =
@@ -117,6 +124,7 @@ function pageReducer(state: PageState, action: PageAction): PageState {
         load: {
           ...state.load,
           data: {
+            ...state.load.data,
             campaign: action.campaign,
             messages: [...state.load.data.messages, ...action.newMessages],
           },
@@ -362,7 +370,7 @@ export default function StoryPage({
     );
   }
 
-  const { campaign, messages } = load.data;
+  const { campaign, messages, character } = load.data;
   const template = findCampaign(campaign.campaign_template_id);
   const currentScene =
     template?.scenes.find((s) => s.id === campaign.current_scene_id) ?? null;
@@ -388,12 +396,14 @@ export default function StoryPage({
         <ArrowLeftIcon className="size-3.5 shrink-0" />
         <span className="hidden md:inline">Back to home</span>
       </Link>
-      {/* max-w bumps from 2xl to 5xl so the chat column and the DM
-          notes side panel both have room on desktop. On mobile the
-          grid collapses to a single column and the notes panel
-          drops below the chat (where the DM is least likely to need
-          it mid-scroll). */}
-      <div className="flex w-full max-w-5xl flex-col gap-4 pt-12 md:pt-0">
+      {/* max-w accommodates three side-by-side columns on desktop:
+          party (240px) · chat (flex) · DM notes (320px). On mobile
+          the grid collapses; explicit md:order-* puts the chat
+          first in the stack (primary play surface), then the party
+          panel, then DM notes — so HP / inventory glances live one
+          scroll away on a phone instead of pushing the conversation
+          below the fold. */}
+      <div className="flex w-full max-w-7xl flex-col gap-4 pt-12 md:pt-0">
         <header className="flex flex-col gap-1 text-center font-mono">
           <h1 className="text-2xl font-bold uppercase tracking-widest md:text-3xl">
             {template?.title ?? "Story"}
@@ -411,12 +421,24 @@ export default function StoryPage({
         <div
           className={cn(
             "grid gap-4",
-            isDm && currentScene
-              ? "md:grid-cols-[minmax(0,1fr)_320px]"
-              : null,
+            // Three-column layout when the DM is viewing: party
+            // 240px, chat flex, notes 320px. Two-column (party +
+            // chat) when not DM. Single column on mobile.
+            character && isDm && currentScene
+              ? "md:grid-cols-[240px_minmax(0,1fr)_320px]"
+              : character
+                ? "md:grid-cols-[240px_minmax(0,1fr)]"
+                : isDm && currentScene
+                  ? "md:grid-cols-[minmax(0,1fr)_320px]"
+                  : null,
           )}
         >
-          <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono">
+          {character ? (
+            <aside className="md:order-1">
+              <PlayerPanel player={characterToPlayer(character)} />
+            </aside>
+          ) : null}
+          <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2">
           <ScrollArea className="h-[55vh] pr-2">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
@@ -496,13 +518,15 @@ export default function StoryPage({
           </div>
 
           {isDm && currentScene ? (
-            <DmNotesPanel
-              scene={currentScene}
-              isOpen={dmNotesOpen}
-              onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
-              onTriggerEncounter={triggerEncounter}
-              triggering={triggeringEncounter}
-            />
+            <div className="md:order-3">
+              <DmNotesPanel
+                scene={currentScene}
+                isOpen={dmNotesOpen}
+                onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
+                onTriggerEncounter={triggerEncounter}
+                triggering={triggeringEncounter}
+              />
+            </div>
           ) : null}
         </div>
       </div>

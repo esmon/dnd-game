@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import type { Character } from "@/lib/db/schema";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
+import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -45,8 +47,28 @@ export async function GET(_request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: messagesError.message }, { status: 500 });
   }
 
+  // Bundle the character row so the page can render the party panel
+  // without a second round-trip. characters has no RLS yet —
+  // supabaseAdmin is the consistent path the other story routes use.
+  // The story_campaigns RLS above already established that this
+  // caller owns the campaign, and the campaign points at one
+  // character_id, so reading that row is safe by transitive trust.
+  const c = campaign as StoryCampaign;
+  const { data: characterRow, error: characterError } = await supabaseAdmin
+    .from("characters")
+    .select("*")
+    .eq("id", c.character_id)
+    .maybeSingle();
+  if (characterError) {
+    return NextResponse.json(
+      { error: characterError.message },
+      { status: 500 },
+    );
+  }
+
   return NextResponse.json({
-    campaign: campaign as StoryCampaign,
+    campaign: c,
     messages: (messages ?? []) as StoryMessage[],
+    character: (characterRow ?? null) as Character | null,
   });
 }
