@@ -1,8 +1,8 @@
 import Image from "next/image";
 
-import { HealthBar } from "@/components/game/health-bar";
-import { PanelLabel } from "@/components/game/panel-label";
-import { StatRow } from "@/components/game/stat-row";
+import { HealthBar } from "@/components/shared/health-bar";
+import { PanelLabel } from "@/components/shared/panel-label";
+import { StatRow } from "@/components/arena/stat-row";
 import { formatDrvi } from "@/lib/dnd/combat";
 import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import type { Monster } from "@/lib/game/types";

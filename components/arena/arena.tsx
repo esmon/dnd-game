@@ -28,22 +28,22 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { CommandButton } from "@/components/game/command-button";
-import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
-import { CombatLog } from "@/components/game/combat-log";
-import { MobileCombatLog } from "@/components/game/mobile-combat-log";
-import { CommandPanel, type CommandItem } from "@/components/game/command-panel";
+import { CommandButton } from "@/components/shared/command-button";
+import { CharacterPickerDialog } from "@/components/shared/character-picker-dialog";
+import { CombatLog } from "@/components/arena/combat-log";
+import { MobileCombatLog } from "@/components/shared/mobile-combat-log";
+import { CommandPanel, type CommandItem } from "@/components/shared/command-panel";
 import {
   BattleCommands,
   type BattleTile,
-} from "@/components/game/battle-commands";
-import { LobbyOutcomePanel } from "@/components/game/lobby-outcome-panel";
-import { PlayerPanel } from "@/components/game/player-panel";
-import { CampaignPickerDialog } from "@/components/dm/campaign-picker-dialog";
-import { InventoryDialog } from "@/components/game/inventory-dialog";
-import { LevelUpDialog } from "@/components/game/level-up-dialog";
-import { MonsterCard } from "@/components/game/monster-card";
-import { StatsBar } from "@/components/game/stats-bar";
+} from "@/components/shared/battle-commands";
+import { LobbyOutcomePanel } from "@/components/arena/lobby-outcome-panel";
+import { PlayerPanel } from "@/components/arena/player-panel";
+import { CampaignPickerDialog } from "@/components/story/campaign-picker-dialog";
+import { InventoryDialog } from "@/components/arena/inventory-dialog";
+import { LevelUpDialog } from "@/components/arena/level-up-dialog";
+import { MonsterCard } from "@/components/arena/monster-card";
+import { StatsBar } from "@/components/arena/stats-bar";
 import { rollDice, randomInt } from "@/lib/game/dice";
 import {
   classFeatureLabel,

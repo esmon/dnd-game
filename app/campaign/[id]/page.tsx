@@ -11,7 +11,7 @@ import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { CampaignOutcomePanel } from "@/components/coop/campaign-outcome-panel";
 import { RestScreen } from "@/components/coop/rest-screen";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
+import { CharacterPickerDialog } from "@/components/shared/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import { cn } from "@/lib/utils";
 import type {

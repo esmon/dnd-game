@@ -1,6 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PanelLabel } from "@/components/game/panel-label";
-import { TurnLine } from "@/components/game/turn-line";
+import { PanelLabel } from "@/components/shared/panel-label";
+import { TurnLine } from "@/components/shared/turn-line";
 import type { Turn } from "@/lib/game/types";
 
 export function CombatLog({ turns }: { turns: Turn[] }) {

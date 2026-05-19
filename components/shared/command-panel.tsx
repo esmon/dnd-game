@@ -3,8 +3,8 @@ import { Fragment, type ReactNode } from "react";
 import {
   CommandButton,
   type CommandButtonProps,
-} from "@/components/game/command-button";
-import { PanelLabel } from "@/components/game/panel-label";
+} from "@/components/shared/command-button";
+import { PanelLabel } from "@/components/shared/panel-label";
 import { cn } from "@/lib/utils";
 
 // A CommandPanel item is either a CommandButton descriptor or a pre-built

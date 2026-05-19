@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
+import { LobbyResultFrame } from "@/components/shared/lobby-result-frame";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { readApiError } from "@/lib/coop/api-error";
 import {

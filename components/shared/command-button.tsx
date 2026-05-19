@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { DisabledTip } from "@/components/game/disabled-tip";
+import { DisabledTip } from "@/components/shared/disabled-tip";
 import { cn } from "@/lib/utils";
 
 // Visual category for a command. Drives color, variant, and (for `dev`) size.

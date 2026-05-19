@@ -9,8 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { DisabledTip } from "@/components/game/disabled-tip";
-import { PanelLabel } from "@/components/game/panel-label";
+import { DisabledTip } from "@/components/shared/disabled-tip";
+import { PanelLabel } from "@/components/shared/panel-label";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
 

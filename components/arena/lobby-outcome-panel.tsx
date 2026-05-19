@@ -3,8 +3,8 @@
 import { MoonIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { CommandButton } from "@/components/game/command-button";
-import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
+import { CommandButton } from "@/components/shared/command-button";
+import { LobbyResultFrame } from "@/components/shared/lobby-result-frame";
 import type { VictoryInfo } from "@/lib/game/types";
 
 // Lobby middle-column panel for the three "fight ended" states:

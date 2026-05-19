@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-import { HealthBar } from "@/components/game/health-bar";
-import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
-import { PanelLabel } from "@/components/game/panel-label";
+import { HealthBar } from "@/components/shared/health-bar";
+import { LobbyResultFrame } from "@/components/shared/lobby-result-frame";
+import { PanelLabel } from "@/components/shared/panel-label";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { readApiError } from "@/lib/coop/api-error";

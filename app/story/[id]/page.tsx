@@ -20,9 +20,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { StoryCombatDialog } from "@/components/dm/story-combat-dialog";
-import { PartyRow } from "@/components/coop/party-row";
-import { PanelLabel } from "@/components/game/panel-label";
+import { StoryCombatDialog } from "@/components/story/story-combat-dialog";
+import { PartyRow } from "@/components/shared/party-row";
+import { PanelLabel } from "@/components/shared/panel-label";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import { useUser } from "@/lib/auth/use-user";
 import type { Character } from "@/lib/db/schema";

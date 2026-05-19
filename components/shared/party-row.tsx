@@ -1,8 +1,8 @@
 "use client";
 
-import { CharacterAvatar } from "@/components/game/character-avatar";
-import { HealthBar } from "@/components/game/health-bar";
-import { PanelLabel } from "@/components/game/panel-label";
+import { CharacterAvatar } from "@/components/shared/character-avatar";
+import { HealthBar } from "@/components/shared/health-bar";
+import { PanelLabel } from "@/components/shared/panel-label";
 import { findClass } from "@/lib/dnd/classes";
 import { playerAC } from "@/lib/dnd/combat";
 import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";

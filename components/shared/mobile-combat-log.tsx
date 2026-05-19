@@ -1,7 +1,7 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { PanelLabel } from "@/components/game/panel-label";
-import { TurnLine } from "@/components/game/turn-line";
+import { PanelLabel } from "@/components/shared/panel-label";
+import { TurnLine } from "@/components/shared/turn-line";
 import { cn } from "@/lib/utils";
 import type { Turn } from "@/lib/game/types";
 

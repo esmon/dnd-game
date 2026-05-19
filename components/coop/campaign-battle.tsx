@@ -20,15 +20,15 @@ import { useHideAuthButton } from "@/lib/ui/auth-button-visibility";
 import {
   BattleCommands,
   type BattleTile,
-} from "@/components/game/battle-commands";
-import { CommandButton } from "@/components/game/command-button";
-import { type CommandItem } from "@/components/game/command-panel";
-import { HealthBar } from "@/components/game/health-bar";
-import { MobileCombatLog } from "@/components/game/mobile-combat-log";
-import { PanelLabel } from "@/components/game/panel-label";
-import { TurnLine } from "@/components/game/turn-line";
+} from "@/components/shared/battle-commands";
+import { CommandButton } from "@/components/shared/command-button";
+import { type CommandItem } from "@/components/shared/command-panel";
+import { HealthBar } from "@/components/shared/health-bar";
+import { MobileCombatLog } from "@/components/shared/mobile-combat-log";
+import { PanelLabel } from "@/components/shared/panel-label";
+import { TurnLine } from "@/components/shared/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PartyRow } from "@/components/coop/party-row";
+import { PartyRow } from "@/components/shared/party-row";
 import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
 import { findLowestSlot, isAoeSpell } from "@/lib/dnd/spells";
 import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
