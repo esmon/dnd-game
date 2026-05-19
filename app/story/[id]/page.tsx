@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  ArrowLeftIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CompassIcon,
-  PlayIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, CompassIcon, PlayIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useReducer, useRef } from "react";
@@ -58,7 +52,6 @@ interface PageState {
   input: string;
   composerRole: ComposerRole;
   submitting: boolean;
-  dmNotesOpen: boolean;
   advanceOpen: boolean;
   advancing: boolean;
   triggeringEncounter: boolean;
@@ -71,7 +64,6 @@ type PageAction =
   | { type: "SUBMIT_BEGIN" }
   | { type: "SUBMIT_END" }
   | { type: "APPEND_MESSAGE"; message: StoryMessage }
-  | { type: "TOGGLE_DM_NOTES" }
   | { type: "SET_ADVANCE_OPEN"; open: boolean }
   | { type: "ADVANCE_BEGIN" }
   | { type: "ADVANCE_END" }
@@ -108,8 +100,6 @@ function pageReducer(state: PageState, action: PageAction): PageState {
           },
         },
       };
-    case "TOGGLE_DM_NOTES":
-      return { ...state, dmNotesOpen: !state.dmNotesOpen };
     case "SET_ADVANCE_OPEN":
       return { ...state, advanceOpen: action.open };
     case "ADVANCE_BEGIN":
@@ -181,7 +171,6 @@ const INITIAL: PageState = {
   input: "",
   composerRole: "player",
   submitting: false,
-  dmNotesOpen: false,
   advanceOpen: false,
   advancing: false,
   triggeringEncounter: false,
@@ -201,7 +190,6 @@ export default function StoryPage({
     input,
     composerRole,
     submitting,
-    dmNotesOpen,
     advanceOpen,
     advancing,
     triggeringEncounter,
@@ -565,8 +553,6 @@ export default function StoryPage({
             <div className="md:order-3">
               <DmNotesPanel
                 scene={currentScene}
-                isOpen={dmNotesOpen}
-                onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
                 onTriggerEncounter={triggerEncounter}
                 triggering={triggeringEncounter}
               />
@@ -636,14 +622,10 @@ function ComposerRoleTabs({
 
 function DmNotesPanel({
   scene,
-  isOpen,
-  onToggle,
   onTriggerEncounter,
   triggering,
 }: {
   scene: Scene;
-  isOpen: boolean;
-  onToggle: () => void;
   // Optional so the panel still works in read-only contexts (e.g. a
   // future spectator mode). When provided, each encounter row gets
   // a ▶ Trigger button that posts a system message into the story
@@ -651,29 +633,21 @@ function DmNotesPanel({
   onTriggerEncounter?: (encounter: Encounter) => void;
   triggering?: boolean;
 }) {
+  // Always-open panel. `h-full` lets the grid row (sized by the
+  // chat column to the left) determine the panel's total height so
+  // both columns bottom out together on desktop; on mobile (no
+  // grid row sizing), max-h keeps the panel from running off the
+  // viewport. The inner ScrollArea (flex-1 + min-h-0) consumes
+  // whatever's left after the static header so long scenes scroll
+  // rather than bleed past the container.
   return (
-    <div className="relative rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20">
+    <div className="relative flex h-full max-h-[70vh] flex-col rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20 md:max-h-none">
       <PanelLabel>DM Notes</PanelLabel>
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-      >
+      <div className="border-b border-zinc-900/20 px-4 py-3">
         <span className="text-sm font-bold">{scene.title}</span>
-        {isOpen ? (
-          <ChevronUpIcon className="size-4 shrink-0" />
-        ) : (
-          <ChevronDownIcon className="size-4 shrink-0" />
-        )}
-      </button>
-      {isOpen ? (
-        // ScrollArea bounds the expanded body so the whole panel
-        // stays within the fold even on long scenes (Haunted Manor's
-        // background paragraph alone is ~12 lines). Roughly matches
-        // the chat panel's 55vh internal scroll so the two columns
-        // bottom out together on a standard laptop viewport.
-        <ScrollArea className="max-h-[60vh] border-t border-zinc-900/20">
-          <div className="flex flex-col gap-3 px-4 py-3 text-sm leading-relaxed">
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="flex flex-col gap-3 px-4 py-3 text-sm leading-relaxed">
             <section>
               <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
                 Background
@@ -765,9 +739,8 @@ function DmNotesPanel({
                 </ul>
               </section>
             ) : null}
-          </div>
-        </ScrollArea>
-      ) : null}
+        </div>
+      </ScrollArea>
     </div>
   );
 }
