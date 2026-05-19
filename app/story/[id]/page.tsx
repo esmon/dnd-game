@@ -427,7 +427,7 @@ export default function StoryPage({
           panel, then DM notes — so HP / inventory glances live one
           scroll away on a phone instead of pushing the conversation
           below the fold. */}
-      <div className="flex w-full max-w-7xl flex-col gap-4 pt-12 md:pt-0">
+      <div className="flex w-full max-w-[100rem] flex-col gap-4 pt-12 md:pt-0">
         <header className="flex flex-col gap-1 text-center font-mono">
           <h1 className="text-2xl font-bold uppercase tracking-widest md:text-3xl">
             {template?.title ?? "Story"}
@@ -446,12 +446,12 @@ export default function StoryPage({
           className={cn(
             "grid gap-4",
             // Three-column layout when the DM is viewing: party
-            // 320px, chat flex, notes 400px. Two-column (party +
+            // 400px, chat flex, notes 400px. Two-column (party +
             // chat) when not DM. Single column on mobile.
             character && isDm && currentScene
-              ? "md:grid-cols-[320px_minmax(0,1fr)_400px]"
+              ? "md:grid-cols-[400px_minmax(0,1fr)_400px]"
               : character
-                ? "md:grid-cols-[320px_minmax(0,1fr)]"
+                ? "md:grid-cols-[400px_minmax(0,1fr)]"
                 : isDm && currentScene
                   ? "md:grid-cols-[minmax(0,1fr)_400px]"
                   : null,
