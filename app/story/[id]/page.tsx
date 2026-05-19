@@ -298,7 +298,12 @@ export default function StoryPage({
         <ArrowLeftIcon className="size-3.5 shrink-0" />
         <span className="hidden md:inline">Back to home</span>
       </Link>
-      <div className="flex w-full max-w-2xl flex-col gap-4 pt-12 md:pt-0">
+      {/* max-w bumps from 2xl to 5xl so the chat column and the DM
+          notes side panel both have room on desktop. On mobile the
+          grid collapses to a single column and the notes panel
+          drops below the chat (where the DM is least likely to need
+          it mid-scroll). */}
+      <div className="flex w-full max-w-5xl flex-col gap-4 pt-12 md:pt-0">
         <header className="flex flex-col gap-1 text-center font-mono">
           <h1 className="text-2xl font-bold uppercase tracking-widest md:text-3xl">
             {template?.title ?? "Story"}
@@ -313,15 +318,15 @@ export default function StoryPage({
           ) : null}
         </header>
 
-        {isDm && currentScene ? (
-          <DmNotesPanel
-            scene={currentScene}
-            isOpen={dmNotesOpen}
-            onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
-          />
-        ) : null}
-
-        <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono">
+        <div
+          className={cn(
+            "grid gap-4",
+            isDm && currentScene
+              ? "md:grid-cols-[minmax(0,1fr)_320px]"
+              : null,
+          )}
+        >
+          <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono">
           <ScrollArea className="h-[55vh] pr-2">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
@@ -398,6 +403,15 @@ export default function StoryPage({
               </div>
             </>
           )}
+          </div>
+
+          {isDm && currentScene ? (
+            <DmNotesPanel
+              scene={currentScene}
+              isOpen={dmNotesOpen}
+              onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
+            />
+          ) : null}
         </div>
       </div>
 
