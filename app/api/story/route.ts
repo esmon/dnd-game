@@ -1,30 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestIdentity } from "@/lib/auth/server-identity";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type {
   NewStoryCampaign,
   NewStoryMessage,
   StoryCampaign,
-  StoryMessage,
 } from "@/lib/dm/db";
 import { supabaseAdmin } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 // GET /api/story — list the signed-in user's story campaigns
-// (newest first). Used by the campaign picker / dashboard.
-export async function GET(request: NextRequest) {
-  const { userId } = await getRequestIdentity(request);
-  if (!userId) {
+// (newest first). RLS on story_campaigns filters by auth.uid(); we
+// rely on it rather than re-filtering in code so a future policy
+// change is the single source of truth.
+export async function GET(_request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
 
-  // supabaseAdmin (service-role key) bypasses RLS — same pattern
-  // the character routes use. The `eq("user_id", userId)` filter
-  // is what gates the result set; do not loosen it.
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("story_campaigns")
     .select("*")
-    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -36,12 +36,16 @@ export async function GET(request: NextRequest) {
 
 // POST /api/story — start a new campaign. Body: { characterId,
 // campaignTemplateId }. Validates the template exists in the
-// registry and the character is owned by the caller, then creates
-// the campaign + seeds the first scene's readAloud as opening
-// narrative messages.
+// registry, looks up the character (no RLS on characters yet —
+// uses supabaseAdmin + explicit owner check), then INSERTs the
+// campaign + seed messages via the SSR client so RLS's INSERT
+// policies enforce ownership at the DB layer.
 export async function POST(request: NextRequest) {
-  const { userId } = await getRequestIdentity(request);
-  if (!userId) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
 
@@ -74,8 +78,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the character belongs to the caller. Explicit
-  // ownership gate — characters table doesn't have RLS yet.
+  // Verify the character belongs to the caller. characters has no
+  // RLS yet — supabaseAdmin + explicit check until that gap closes.
   const { data: charRow, error: charError } = await supabaseAdmin
     .from("characters")
     .select("id, user_id")
@@ -87,13 +91,13 @@ export async function POST(request: NextRequest) {
   if (!charRow) {
     return NextResponse.json({ error: "character not found" }, { status: 404 });
   }
-  if (charRow.user_id !== userId) {
+  if (charRow.user_id !== user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const firstScene = template.scenes[0];
   const campaignInsert: NewStoryCampaign = {
-    user_id: userId,
+    user_id: user.id,
     character_id: characterId,
     campaign_template_id: campaignTemplateId,
     current_scene_id: firstScene.id,
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
     status: "active",
   };
 
-  const { data: campaign, error: campaignError } = await supabaseAdmin
+  const { data: campaign, error: campaignError } = await supabase
     .from("story_campaigns")
     .insert(campaignInsert)
     .select()
@@ -115,7 +119,8 @@ export async function POST(request: NextRequest) {
 
   // Seed the first scene's readAloud passages as opening narrative.
   // One row per passage so the UI can render them as distinct beats.
-  // System-authored (author_user_id = null).
+  // RLS's INSERT policy gates these on the parent campaign's
+  // ownership — auth.uid() must match c.user_id or c.dm_user_id.
   const seedMessages: NewStoryMessage[] = firstScene.readAloud.map(
     (content) => ({
       campaign_id: (campaign as StoryCampaign).id,
@@ -126,7 +131,7 @@ export async function POST(request: NextRequest) {
     }),
   );
   if (seedMessages.length > 0) {
-    const { error: seedError } = await supabaseAdmin
+    const { error: seedError } = await supabase
       .from("story_messages")
       .insert(seedMessages);
     if (seedError) {

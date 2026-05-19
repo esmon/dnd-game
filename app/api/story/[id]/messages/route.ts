@@ -1,27 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestIdentity } from "@/lib/auth/server-identity";
 import type {
   NewStoryMessage,
   StoryCampaign,
   StoryMessage,
 } from "@/lib/dm/db";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
 const MAX_CONTENT = 4000;
 
 // POST /api/story/[id]/messages — append a message to the
-// conversation log. Body: { role, content }. For Phase 0 the
-// player posts 'player' rows; future phases will add 'narrative'
-// (DM-authored) and 'tool' (DM-triggered actions). We let the
-// caller specify the role but gate which roles a given identity
-// can post: 'player' for the campaign owner, 'narrative' for
-// dm_user_id (Phase 1), 'tool' / 'system' are server-only for now.
+// conversation log. Body: { role, content }.
+//
+// Authorization is split between two layers:
+//   1. RLS gates membership: only owner / dm_user_id can SELECT
+//      the parent campaign or INSERT into story_messages. That's
+//      enough to keep non-members out entirely.
+//   2. This route additionally restricts which `role` a member
+//      can post — only the campaign owner can post 'player'
+//      rows; only the DM seat can post 'narrative'. The DB
+//      can't see that distinction (one membership policy covers
+//      both), so it's enforced here.
 export async function POST(request: NextRequest, ctx: RouteContext) {
   const { id } = await ctx.params;
-  const { userId } = await getRequestIdentity(request);
-  if (!userId) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
     return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
 
@@ -49,7 +56,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  const { data: campaign, error: campaignError } = await supabaseAdmin
+  // RLS filters out campaigns the caller isn't a member of, so a
+  // null result here means either it doesn't exist or they can't
+  // see it. 404 either way.
+  const { data: campaign, error: campaignError } = await supabase
     .from("story_campaigns")
     .select("*")
     .eq("id", id)
@@ -63,16 +73,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const c = campaign as StoryCampaign;
-  // Role-based gate: 'player' = campaign owner, 'narrative' = the
-  // DM seat (whoever's running it). For dm_kind='self' the owner
-  // is both, which is fine.
-  if (role === "player" && c.user_id !== userId) {
+  // Role-action gate: 'player' = campaign owner, 'narrative' = the
+  // active DM seat. RLS already proved the caller is one of them;
+  // this just maps role → allowed actor.
+  if (role === "player" && c.user_id !== user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (role === "narrative") {
     const allowed =
-      (c.dm_kind === "self" && c.user_id === userId) ||
-      (c.dm_kind === "human" && c.dm_user_id === userId);
+      (c.dm_kind === "self" && c.user_id === user.id) ||
+      (c.dm_kind === "human" && c.dm_user_id === user.id);
     if (!allowed) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
@@ -88,11 +98,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     campaign_id: id,
     role,
     content,
-    author_user_id: userId,
+    author_user_id: user.id,
     metadata: { scene_id: c.current_scene_id },
   };
 
-  const { data: inserted, error: insertError } = await supabaseAdmin
+  const { data: inserted, error: insertError } = await supabase
     .from("story_messages")
     .insert(insert)
     .select()
@@ -104,8 +114,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   // Touch the campaign's updated_at so the picker / dashboard
   // surfaces recently-played campaigns first. The story_campaigns
-  // touch trigger handles this when we explicitly UPDATE.
-  await supabaseAdmin
+  // touch trigger handles this when we explicitly UPDATE — the
+  // world_state assignment is a no-op data-wise but bumps the trigger.
+  await supabase
     .from("story_campaigns")
     .update({ world_state: c.world_state })
     .eq("id", id);
