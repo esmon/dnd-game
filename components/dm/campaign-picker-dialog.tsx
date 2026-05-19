@@ -76,10 +76,8 @@ export function CampaignPickerDialog({
                     type="button"
                     onClick={() => setSelected(c.id)}
                     className={cn(
-                      "relative flex flex-col gap-1 rounded-md bg-card px-3 py-2 text-left",
-                      isSelected
-                        ? "border-2 border-zinc-900"
-                        : "border border-muted-foreground/20",
+                      "relative flex flex-col gap-1 rounded-md border border-muted-foreground/20 bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40",
+                      isSelected && "ring-2 ring-primary",
                     )}
                   >
                     {isSelected ? (
