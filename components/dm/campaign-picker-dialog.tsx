@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -75,13 +76,18 @@ export function CampaignPickerDialog({
                     type="button"
                     onClick={() => setSelected(c.id)}
                     className={cn(
-                      "flex flex-col gap-1 rounded-md bg-card px-3 py-2 text-left",
+                      "relative flex flex-col gap-1 rounded-md bg-card px-3 py-2 text-left",
                       isSelected
                         ? "border-2 border-zinc-900"
                         : "border border-muted-foreground/20",
                     )}
                   >
-                    <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
+                    {isSelected ? (
+                      <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                        <CheckIcon className="size-4" />
+                      </span>
+                    ) : null}
+                    <span className="truncate pr-8 font-mono text-sm font-bold uppercase tracking-widest">
                       {c.title}
                     </span>
                     <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
