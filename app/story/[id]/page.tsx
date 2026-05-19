@@ -21,6 +21,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StoryCombatDialog } from "@/components/dm/story-combat-dialog";
+import { PanelLabel } from "@/components/game/panel-label";
 import { PlayerPanel } from "@/components/game/player-panel";
 import { useUser } from "@/lib/auth/use-user";
 import { characterToPlayer } from "@/lib/db/schema";
@@ -608,18 +609,14 @@ function DmNotesPanel({
   triggering?: boolean;
 }) {
   return (
-    <div className="rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20">
+    <div className="relative rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20">
+      <PanelLabel>DM Notes</PanelLabel>
       <button
         type="button"
         onClick={onToggle}
         className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
       >
-        <span className="flex flex-col">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-            DM Notes
-          </span>
-          <span className="text-sm font-bold">{scene.title}</span>
-        </span>
+        <span className="text-sm font-bold">{scene.title}</span>
         {isOpen ? (
           <ChevronUpIcon className="size-4 shrink-0" />
         ) : (
