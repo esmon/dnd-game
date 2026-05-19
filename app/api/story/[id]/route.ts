@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestIdentity } from "@/lib/auth/server-identity";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
-import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -17,7 +17,9 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
 
-  const { data: campaign, error: campaignError } = await supabase
+  // supabaseAdmin bypasses RLS; the explicit user_id / dm_user_id
+  // check below is the actual authorization gate.
+  const { data: campaign, error: campaignError } = await supabaseAdmin
     .from("story_campaigns")
     .select("*")
     .eq("id", id)
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const { data: messages, error: messagesError } = await supabase
+  const { data: messages, error: messagesError } = await supabaseAdmin
     .from("story_messages")
     .select("*")
     .eq("campaign_id", id)

@@ -8,7 +8,7 @@ import type {
   StoryCampaign,
   StoryMessage,
 } from "@/lib/dm/db";
-import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 // GET /api/story — list the signed-in user's story campaigns
 // (newest first). Used by the campaign picker / dashboard.
@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  // supabaseAdmin (service-role key) bypasses RLS — same pattern
+  // the character routes use. The `eq("user_id", userId)` filter
+  // is what gates the result set; do not loosen it.
+  const { data, error } = await supabaseAdmin
     .from("story_campaigns")
     .select("*")
     .eq("user_id", userId)
@@ -71,9 +74,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the character belongs to the caller. RLS would catch
-  // this too but a friendly error beats a 500.
-  const { data: charRow, error: charError } = await supabase
+  // Verify the character belongs to the caller. Explicit
+  // ownership gate — characters table doesn't have RLS yet.
+  const { data: charRow, error: charError } = await supabaseAdmin
     .from("characters")
     .select("id, user_id")
     .eq("id", characterId)

@@ -6,7 +6,7 @@ import type {
   StoryCampaign,
   StoryMessage,
 } from "@/lib/dm/db";
-import { supabase, supabaseAdmin } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase";
 
 type RouteContext = { params: Promise<{ id: string }> };
 const MAX_CONTENT = 4000;
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  const { data: campaign, error: campaignError } = await supabase
+  const { data: campaign, error: campaignError } = await supabaseAdmin
     .from("story_campaigns")
     .select("*")
     .eq("id", id)
