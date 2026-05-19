@@ -23,6 +23,12 @@ export interface StoryCampaign {
   dm_kind: DmKind;
   dm_user_id: string | null;
   status: StoryCampaignStatus;
+  // Set while a combat encounter is in flight — points at the coop
+  // campaigns row spawned by /api/story/[id]/combat/start. Cleared
+  // when /combat/end runs after the fight resolves. Null when no
+  // combat is active. Used by the story page to know whether a
+  // locked combat dialog should be open.
+  active_combat_campaign_id: string | null;
 }
 
 export type StoryMessageRole = "narrative" | "player" | "system" | "tool";
@@ -40,11 +46,13 @@ export interface StoryMessage {
 
 export type NewStoryCampaign = Omit<
   StoryCampaign,
-  "id" | "created_at" | "updated_at"
+  "id" | "created_at" | "updated_at" | "active_combat_campaign_id"
 > & {
   id?: string;
   created_at?: string;
   updated_at?: string;
+  // SQL defaults this to null; callers don't need to pass it.
+  active_combat_campaign_id?: string | null;
 };
 
 export type NewStoryMessage = Omit<

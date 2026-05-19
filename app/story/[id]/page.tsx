@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { StoryCombatDialog } from "@/components/dm/story-combat-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
@@ -72,7 +73,8 @@ type PageAction =
       newMessages: StoryMessage[];
     }
   | { type: "TRIGGER_ENCOUNTER_BEGIN" }
-  | { type: "TRIGGER_ENCOUNTER_END" };
+  | { type: "TRIGGER_ENCOUNTER_END" }
+  | { type: "SET_ACTIVE_COMBAT"; campaignId: string | null };
 
 function pageReducer(state: PageState, action: PageAction): PageState {
   switch (action.type) {
@@ -124,6 +126,21 @@ function pageReducer(state: PageState, action: PageAction): PageState {
       return { ...state, triggeringEncounter: true };
     case "TRIGGER_ENCOUNTER_END":
       return { ...state, triggeringEncounter: false };
+    case "SET_ACTIVE_COMBAT":
+      if (state.load.kind !== "ready") return state;
+      return {
+        ...state,
+        load: {
+          ...state.load,
+          data: {
+            ...state.load.data,
+            campaign: {
+              ...state.load.data.campaign,
+              active_combat_campaign_id: action.campaignId,
+            },
+          },
+        },
+      };
   }
 }
 
@@ -235,7 +252,11 @@ export default function StoryPage({
       if (triggeringEncounter) return;
       dispatch({ type: "TRIGGER_ENCOUNTER_BEGIN" });
       try {
-        const res = await fetch(`/api/story/${campaignId}/encounter`, {
+        // /combat/start spins up a coop campaign + posts the
+        // "encounter begins" system message in one round-trip.
+        // Response carries both the new coop campaign id (which
+        // unlocks the dialog) and the seed message.
+        const res = await fetch(`/api/story/${campaignId}/combat/start`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -245,19 +266,44 @@ export default function StoryPage({
           }),
         });
         if (!res.ok) {
-          console.error("trigger encounter failed", res.status);
+          console.error("combat start failed", res.status);
           return;
         }
-        const message = (await res.json()) as StoryMessage;
-        dispatch({ type: "APPEND_MESSAGE", message });
+        const data = (await res.json()) as {
+          combatCampaignId: string;
+          message: StoryMessage | null;
+        };
+        if (data.message) {
+          dispatch({ type: "APPEND_MESSAGE", message: data.message });
+        }
+        dispatch({
+          type: "SET_ACTIVE_COMBAT",
+          campaignId: data.combatCampaignId,
+        });
       } catch (err) {
-        console.error("trigger encounter threw", err);
+        console.error("combat start threw", err);
       } finally {
         dispatch({ type: "TRIGGER_ENCOUNTER_END" });
       }
     },
     [campaignId, triggeringEncounter],
   );
+
+  // Called by the combat dialog after /combat/end succeeds. Clears
+  // the active combat pointer so the dialog unmounts, then refetches
+  // the snapshot so the outcome system message + updated character
+  // state (HP, XP, loot) land on the page.
+  const handleCombatResolved = useCallback(async () => {
+    dispatch({ type: "SET_ACTIVE_COMBAT", campaignId: null });
+    try {
+      const res = await fetch(`/api/story/${campaignId}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as Snapshot;
+      dispatch({ type: "SET_LOAD", load: { kind: "ready", data } });
+    } catch (err) {
+      console.error("post-combat refetch threw", err);
+    }
+  }, [campaignId]);
 
   const advance = useCallback(
     async (to: string) => {
@@ -468,6 +514,18 @@ export default function StoryPage({
           scene={currentScene}
           onAdvance={advance}
           busy={advancing}
+        />
+      ) : null}
+
+      {/* Combat dialog mounts whenever the story has an active
+          coop campaign attached. Locks the page until the fight
+          resolves (win / lose / forfeit) — see StoryCombatDialog. */}
+      {campaign.active_combat_campaign_id ? (
+        <StoryCombatDialog
+          storyCampaignId={campaign.id}
+          combatCampaignId={campaign.active_combat_campaign_id}
+          userId={user.id}
+          onResolved={handleCombatResolved}
         />
       ) : null}
     </main>
