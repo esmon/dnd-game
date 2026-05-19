@@ -95,17 +95,15 @@ export function CampaignPickerDialog({
             </div>
           </ScrollArea>
         )}
-        <DialogFooter className="flex-col gap-2 sm:flex-row">
+        <DialogFooter>
           <Button
             variant="outline"
-            className="w-full"
             onClick={() => onOpenChange(false)}
             disabled={busy}
           >
             Cancel
           </Button>
           <Button
-            className="w-full"
             disabled={!selected || busy}
             onClick={() => selected && onPick(selected)}
           >
