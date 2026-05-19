@@ -444,7 +444,16 @@ export default function StoryPage({
 
         <div
           className={cn(
-            "grid gap-4",
+            // md:h-[calc(100vh-9rem)] pins the whole grid row to
+            // fit-the-fold on desktop (the ~9rem subtracts page
+            // padding + header + gap). Every grid item (chat,
+            // party, DM notes) stretches to that row height by
+            // default; chat / DM notes use flex-1 + min-h-0
+            // internally so their scrollable areas absorb whatever
+            // space is left after their fixed bits. Mobile keeps
+            // natural stacking — no row height — and the inner
+            // ScrollArea reverts to its old h-[55vh] fallback.
+            "grid gap-4 md:h-[calc(100vh-9rem)]",
             // Three-column layout when the DM is viewing: party
             // 400px, chat flex, notes 400px. Two-column (party +
             // chat) when not DM. Single column on mobile.
@@ -467,8 +476,8 @@ export default function StoryPage({
               />
             </aside>
           ) : null}
-          <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2">
-          <ScrollArea className="h-[55vh] pr-2">
+          <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2 md:min-h-0">
+          <ScrollArea className="h-[55vh] pr-2 md:h-auto md:min-h-0 md:flex-1">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
                 <MessageRow key={m.id} message={m} />
