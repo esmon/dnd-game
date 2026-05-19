@@ -5,6 +5,7 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   CompassIcon,
+  PlayIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -22,7 +23,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUser } from "@/lib/auth/use-user";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
-import { FAILURE_END, SUCCESS_END, type Scene } from "@/lib/dm/types";
+import {
+  FAILURE_END,
+  SUCCESS_END,
+  type Encounter,
+  type Scene,
+} from "@/lib/dm/types";
 import { cn } from "@/lib/utils";
 
 type Snapshot = {
@@ -46,6 +52,7 @@ interface PageState {
   dmNotesOpen: boolean;
   advanceOpen: boolean;
   advancing: boolean;
+  triggeringEncounter: boolean;
 }
 
 type PageAction =
@@ -63,7 +70,9 @@ type PageAction =
       type: "APPLY_ADVANCE";
       campaign: StoryCampaign;
       newMessages: StoryMessage[];
-    };
+    }
+  | { type: "TRIGGER_ENCOUNTER_BEGIN" }
+  | { type: "TRIGGER_ENCOUNTER_END" };
 
 function pageReducer(state: PageState, action: PageAction): PageState {
   switch (action.type) {
@@ -111,6 +120,10 @@ function pageReducer(state: PageState, action: PageAction): PageState {
           },
         },
       };
+    case "TRIGGER_ENCOUNTER_BEGIN":
+      return { ...state, triggeringEncounter: true };
+    case "TRIGGER_ENCOUNTER_END":
+      return { ...state, triggeringEncounter: false };
   }
 }
 
@@ -122,6 +135,7 @@ const INITIAL: PageState = {
   dmNotesOpen: false,
   advanceOpen: false,
   advancing: false,
+  triggeringEncounter: false,
 };
 
 export default function StoryPage({
@@ -141,6 +155,7 @@ export default function StoryPage({
     dmNotesOpen,
     advanceOpen,
     advancing,
+    triggeringEncounter,
   } = state;
 
   // Sign-in gated. Anonymous browsers get sent to sign-in with a
@@ -214,6 +229,35 @@ export default function StoryPage({
       dispatch({ type: "SUBMIT_END" });
     }
   }, [campaignId, input, composerRole, submitting]);
+
+  const triggerEncounter = useCallback(
+    async (encounter: Encounter) => {
+      if (triggeringEncounter) return;
+      dispatch({ type: "TRIGGER_ENCOUNTER_BEGIN" });
+      try {
+        const res = await fetch(`/api/story/${campaignId}/encounter`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            monsterIndex: encounter.monsterIndex,
+            count: encounter.count,
+            intent: encounter.intent,
+          }),
+        });
+        if (!res.ok) {
+          console.error("trigger encounter failed", res.status);
+          return;
+        }
+        const message = (await res.json()) as StoryMessage;
+        dispatch({ type: "APPEND_MESSAGE", message });
+      } catch (err) {
+        console.error("trigger encounter threw", err);
+      } finally {
+        dispatch({ type: "TRIGGER_ENCOUNTER_END" });
+      }
+    },
+    [campaignId, triggeringEncounter],
+  );
 
   const advance = useCallback(
     async (to: string) => {
@@ -410,6 +454,8 @@ export default function StoryPage({
               scene={currentScene}
               isOpen={dmNotesOpen}
               onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
+              onTriggerEncounter={triggerEncounter}
+              triggering={triggeringEncounter}
             />
           ) : null}
         </div>
@@ -466,10 +512,18 @@ function DmNotesPanel({
   scene,
   isOpen,
   onToggle,
+  onTriggerEncounter,
+  triggering,
 }: {
   scene: Scene;
   isOpen: boolean;
   onToggle: () => void;
+  // Optional so the panel still works in read-only contexts (e.g. a
+  // future spectator mode). When provided, each encounter row gets
+  // a ▶ Trigger button that posts a system message into the story
+  // log marking the encounter as started.
+  onTriggerEncounter?: (encounter: Encounter) => void;
+  triggering?: boolean;
 }) {
   return (
     <div className="rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20">
@@ -522,13 +576,31 @@ function DmNotesPanel({
               <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
                 Encounters
               </h3>
-              <ul className="flex flex-col gap-1 text-xs">
+              <ul className="flex flex-col gap-2 text-xs">
                 {scene.scripted.encounters.map((e, i) => (
-                  <li key={i}>
-                    <span className="font-bold">{e.monsterIndex}</span>
-                    {e.count ? ` × ${e.count}` : null} — {e.trigger}
-                    {e.intent ? (
-                      <span className="text-muted-foreground"> · {e.intent}</span>
+                  <li
+                    key={i}
+                    className="flex items-start justify-between gap-2 rounded-md border border-muted-foreground/20 bg-background p-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p>
+                        <span className="font-bold">{e.monsterIndex}</span>
+                        {e.count ? ` × ${e.count}` : null} — {e.trigger}
+                      </p>
+                      {e.intent ? (
+                        <p className="text-muted-foreground">{e.intent}</p>
+                      ) : null}
+                    </div>
+                    {onTriggerEncounter ? (
+                      <button
+                        type="button"
+                        onClick={() => onTriggerEncounter(e)}
+                        disabled={triggering}
+                        className="inline-flex shrink-0 items-center gap-1 rounded-md bg-zinc-900 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+                      >
+                        <PlayIcon className="size-3" />
+                        Trigger
+                      </button>
                     ) : null}
                   </li>
                 ))}
