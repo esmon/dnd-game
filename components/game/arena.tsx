@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 
 import {
   BackpackIcon,
+  BookOpenIcon,
   ChevronsUpIcon,
   CompassIcon,
   FlaskConicalIcon,
@@ -38,6 +39,7 @@ import {
 } from "@/components/game/battle-commands";
 import { LobbyOutcomePanel } from "@/components/game/lobby-outcome-panel";
 import { PlayerPanel } from "@/components/game/player-panel";
+import { CampaignPickerDialog } from "@/components/dm/campaign-picker-dialog";
 import { InventoryDialog } from "@/components/game/inventory-dialog";
 import { LevelUpDialog } from "@/components/game/level-up-dialog";
 import { MonsterCard } from "@/components/game/monster-card";
@@ -125,6 +127,11 @@ export function Arena() {
   // Tracks the create-campaign request in flight so the lobby button
   // can show "Starting…" and disable while waiting on the API + route.
   const [creatingCampaign, setCreatingCampaign] = useState(false);
+  // Story Mode lobby state. `picker` toggles the campaign-picker
+  // dialog; `starting` blocks repeat submits while POST /api/story
+  // is in flight. Same shape as the coop "Starting…" pattern.
+  const [storyPickerOpen, setStoryPickerOpen] = useState(false);
+  const [startingStory, setStartingStory] = useState(false);
 
   useArenaBootstrap({
     dispatch,
@@ -382,6 +389,37 @@ export function Arena() {
       setCreatingCampaign(false);
     }
   }, [creatingCampaign, router]);
+
+  const handleStartStory = useCallback(
+    async (campaignTemplateId: string) => {
+      const snap = stateRef.current;
+      if (!snap.player?.id) return;
+      if (startingStory) return;
+      setStartingStory(true);
+      try {
+        const res = await fetch("/api/story", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            characterId: snap.player.id,
+            campaignTemplateId,
+          }),
+        });
+        if (!res.ok) {
+          console.error("create story failed", res.status);
+          return;
+        }
+        const { id } = (await res.json()) as { id: string };
+        setStoryPickerOpen(false);
+        router.push(`/story/${id}`);
+      } catch (err) {
+        console.error("create story threw", err);
+      } finally {
+        setStartingStory(false);
+      }
+    },
+    [router, startingStory],
+  );
 
   const handleRest = useCallback(() => {
     const snap = stateRef.current;
@@ -1308,6 +1346,14 @@ export function Arena() {
                     onClick: handleStartCampaign,
                     disabled: creatingCampaign,
                   } satisfies CommandItem,
+                  {
+                    key: "start-story",
+                    kind: "primary",
+                    icon: BookOpenIcon,
+                    label: startingStory ? "Starting Story…" : "Story Mode",
+                    onClick: () => setStoryPickerOpen(true),
+                    disabled: startingStory,
+                  } satisfies CommandItem,
                 ]
                 : []),
               {
@@ -1438,6 +1484,13 @@ export function Arena() {
         }
         currentCharacterId={player.id ?? ""}
         onSelect={handleSelectCharacter}
+      />
+
+      <CampaignPickerDialog
+        open={storyPickerOpen}
+        onOpenChange={setStoryPickerOpen}
+        onPick={handleStartStory}
+        busy={startingStory}
       />
     </div>
   );
