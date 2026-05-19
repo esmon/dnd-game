@@ -652,99 +652,106 @@ function DmNotesPanel({
         )}
       </button>
       {isOpen ? (
-        <div className="flex flex-col gap-3 border-t border-zinc-900/20 px-4 py-3 text-sm leading-relaxed">
-          <section>
-            <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-              Background
-            </h3>
-            <p>{scene.dmBackground}</p>
-          </section>
-
-          {scene.readAloud.length > 0 ? (
+        // ScrollArea bounds the expanded body so the whole panel
+        // stays within the fold even on long scenes (Haunted Manor's
+        // background paragraph alone is ~12 lines). Roughly matches
+        // the chat panel's 55vh internal scroll so the two columns
+        // bottom out together on a standard laptop viewport.
+        <ScrollArea className="max-h-[60vh] border-t border-zinc-900/20">
+          <div className="flex flex-col gap-3 px-4 py-3 text-sm leading-relaxed">
             <section>
               <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                Read-Aloud
+                Background
               </h3>
-              <ul className="flex flex-col gap-2">
-                {scene.readAloud.map((p, i) => (
-                  <li
-                    key={i}
-                    className="rounded-md border border-muted-foreground/20 bg-background p-2 text-xs italic"
-                  >
-                    “{p}”
-                  </li>
-                ))}
-              </ul>
+              <p>{scene.dmBackground}</p>
             </section>
-          ) : null}
 
-          {scene.scripted.encounters?.length ? (
-            <section>
-              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                Encounters
-              </h3>
-              <ul className="flex flex-col gap-2 text-xs">
-                {scene.scripted.encounters.map((e, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start justify-between gap-2 rounded-md border border-muted-foreground/20 bg-background p-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p>
-                        <span className="font-bold">{e.monsterIndex}</span>
-                        {e.count ? ` × ${e.count}` : null} — {e.trigger}
-                      </p>
-                      {e.intent ? (
-                        <p className="text-muted-foreground">{e.intent}</p>
+            {scene.readAloud.length > 0 ? (
+              <section>
+                <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                  Read-Aloud
+                </h3>
+                <ul className="flex flex-col gap-2">
+                  {scene.readAloud.map((p, i) => (
+                    <li
+                      key={i}
+                      className="rounded-md border border-muted-foreground/20 bg-background p-2 text-xs italic"
+                    >
+                      “{p}”
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {scene.scripted.encounters?.length ? (
+              <section>
+                <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                  Encounters
+                </h3>
+                <ul className="flex flex-col gap-2 text-xs">
+                  {scene.scripted.encounters.map((e, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start justify-between gap-2 rounded-md border border-muted-foreground/20 bg-background p-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p>
+                          <span className="font-bold">{e.monsterIndex}</span>
+                          {e.count ? ` × ${e.count}` : null} — {e.trigger}
+                        </p>
+                        {e.intent ? (
+                          <p className="text-muted-foreground">{e.intent}</p>
+                        ) : null}
+                      </div>
+                      {onTriggerEncounter ? (
+                        <button
+                          type="button"
+                          onClick={() => onTriggerEncounter(e)}
+                          disabled={triggering}
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-zinc-900 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+                        >
+                          <PlayIcon className="size-3" />
+                          Trigger
+                        </button>
                       ) : null}
-                    </div>
-                    {onTriggerEncounter ? (
-                      <button
-                        type="button"
-                        onClick={() => onTriggerEncounter(e)}
-                        disabled={triggering}
-                        className="inline-flex shrink-0 items-center gap-1 rounded-md bg-zinc-900 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
-                      >
-                        <PlayIcon className="size-3" />
-                        Trigger
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
-          {scene.scripted.rewards?.length ? (
-            <section>
-              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                Rewards
-              </h3>
-              <ul className="flex flex-col gap-1 text-xs">
-                {scene.scripted.rewards.map((r, i) => (
-                  <li key={i}>
-                    <span className="font-bold uppercase">{r.kind}</span>
-                    {" — "}
-                    {rewardSummary(r)}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
+            {scene.scripted.rewards?.length ? (
+              <section>
+                <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                  Rewards
+                </h3>
+                <ul className="flex flex-col gap-1 text-xs">
+                  {scene.scripted.rewards.map((r, i) => (
+                    <li key={i}>
+                      <span className="font-bold uppercase">{r.kind}</span>
+                      {" — "}
+                      {rewardSummary(r)}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
-          {scene.scripted.notes?.length ? (
-            <section>
-              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
-                Notes
-              </h3>
-              <ul className="list-disc pl-4 text-xs">
-                {scene.scripted.notes.map((n, i) => (
-                  <li key={i}>{n}</li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-        </div>
+            {scene.scripted.notes?.length ? (
+              <section>
+                <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                  Notes
+                </h3>
+                <ul className="list-disc pl-4 text-xs">
+                  {scene.scripted.notes.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+          </div>
+        </ScrollArea>
       ) : null}
     </div>
   );
