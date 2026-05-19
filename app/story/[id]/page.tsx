@@ -446,14 +446,14 @@ export default function StoryPage({
           className={cn(
             "grid gap-4",
             // Three-column layout when the DM is viewing: party
-            // 240px, chat flex, notes 320px. Two-column (party +
+            // 320px, chat flex, notes 400px. Two-column (party +
             // chat) when not DM. Single column on mobile.
             character && isDm && currentScene
-              ? "md:grid-cols-[240px_minmax(0,1fr)_320px]"
+              ? "md:grid-cols-[320px_minmax(0,1fr)_400px]"
               : character
-                ? "md:grid-cols-[240px_minmax(0,1fr)]"
+                ? "md:grid-cols-[320px_minmax(0,1fr)]"
                 : isDm && currentScene
-                  ? "md:grid-cols-[minmax(0,1fr)_320px]"
+                  ? "md:grid-cols-[minmax(0,1fr)_400px]"
                   : null,
           )}
         >
