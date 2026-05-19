@@ -1,15 +1,28 @@
 "use client";
 
-import { ArrowLeftIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CompassIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useReducer, useState } from "react";
+import { use, useCallback, useEffect, useReducer } from "react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUser } from "@/lib/auth/use-user";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
+import { FAILURE_END, SUCCESS_END, type Scene } from "@/lib/dm/types";
 import { cn } from "@/lib/utils";
 
 type Snapshot = {
@@ -23,18 +36,34 @@ type LoadState =
   | { kind: "not-found" }
   | { kind: "error"; message: string };
 
+type ComposerRole = "player" | "narrative";
+
 interface PageState {
   load: LoadState;
   input: string;
+  composerRole: ComposerRole;
   submitting: boolean;
+  dmNotesOpen: boolean;
+  advanceOpen: boolean;
+  advancing: boolean;
 }
 
 type PageAction =
   | { type: "SET_LOAD"; load: LoadState }
   | { type: "SET_INPUT"; input: string }
+  | { type: "SET_COMPOSER_ROLE"; role: ComposerRole }
   | { type: "SUBMIT_BEGIN" }
   | { type: "SUBMIT_END" }
-  | { type: "APPEND_MESSAGE"; message: StoryMessage };
+  | { type: "APPEND_MESSAGE"; message: StoryMessage }
+  | { type: "TOGGLE_DM_NOTES" }
+  | { type: "SET_ADVANCE_OPEN"; open: boolean }
+  | { type: "ADVANCE_BEGIN" }
+  | { type: "ADVANCE_END" }
+  | {
+      type: "APPLY_ADVANCE";
+      campaign: StoryCampaign;
+      newMessages: StoryMessage[];
+    };
 
 function pageReducer(state: PageState, action: PageAction): PageState {
   switch (action.type) {
@@ -42,6 +71,8 @@ function pageReducer(state: PageState, action: PageAction): PageState {
       return { ...state, load: action.load };
     case "SET_INPUT":
       return { ...state, input: action.input };
+    case "SET_COMPOSER_ROLE":
+      return { ...state, composerRole: action.role };
     case "SUBMIT_BEGIN":
       return { ...state, submitting: true };
     case "SUBMIT_END":
@@ -58,13 +89,39 @@ function pageReducer(state: PageState, action: PageAction): PageState {
           },
         },
       };
+    case "TOGGLE_DM_NOTES":
+      return { ...state, dmNotesOpen: !state.dmNotesOpen };
+    case "SET_ADVANCE_OPEN":
+      return { ...state, advanceOpen: action.open };
+    case "ADVANCE_BEGIN":
+      return { ...state, advancing: true };
+    case "ADVANCE_END":
+      return { ...state, advancing: false };
+    case "APPLY_ADVANCE":
+      if (state.load.kind !== "ready") return state;
+      return {
+        ...state,
+        advanceOpen: false,
+        advancing: false,
+        load: {
+          ...state.load,
+          data: {
+            campaign: action.campaign,
+            messages: [...state.load.data.messages, ...action.newMessages],
+          },
+        },
+      };
   }
 }
 
 const INITIAL: PageState = {
   load: { kind: "loading" },
   input: "",
+  composerRole: "player",
   submitting: false,
+  dmNotesOpen: false,
+  advanceOpen: false,
+  advancing: false,
 };
 
 export default function StoryPage({
@@ -76,7 +133,15 @@ export default function StoryPage({
   const router = useRouter();
   const { user, loading: authLoading } = useUser();
   const [state, dispatch] = useReducer(pageReducer, INITIAL);
-  const { load, input, submitting } = state;
+  const {
+    load,
+    input,
+    composerRole,
+    submitting,
+    dmNotesOpen,
+    advanceOpen,
+    advancing,
+  } = state;
 
   // Sign-in gated. Anonymous browsers get sent to sign-in with a
   // `next` back to this page (same pattern coop uses).
@@ -134,7 +199,7 @@ export default function StoryPage({
       const res = await fetch(`/api/story/${campaignId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: "player", content: trimmed }),
+        body: JSON.stringify({ role: composerRole, content: trimmed }),
       });
       if (!res.ok) {
         console.error("post message failed", res.status);
@@ -148,7 +213,39 @@ export default function StoryPage({
     } finally {
       dispatch({ type: "SUBMIT_END" });
     }
-  }, [campaignId, input, submitting]);
+  }, [campaignId, input, composerRole, submitting]);
+
+  const advance = useCallback(
+    async (to: string) => {
+      if (advancing) return;
+      dispatch({ type: "ADVANCE_BEGIN" });
+      try {
+        const res = await fetch(`/api/story/${campaignId}/advance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to }),
+        });
+        if (!res.ok) {
+          console.error("advance failed", res.status);
+          return;
+        }
+        const data = (await res.json()) as {
+          campaign: StoryCampaign;
+          newMessages: StoryMessage[];
+        };
+        dispatch({
+          type: "APPLY_ADVANCE",
+          campaign: data.campaign,
+          newMessages: data.newMessages,
+        });
+      } catch (err) {
+        console.error("advance threw", err);
+      } finally {
+        dispatch({ type: "ADVANCE_END" });
+      }
+    },
+    [campaignId, advancing],
+  );
 
   if (authLoading || load.kind === "loading") {
     return <CenteredCard>Loading campaign…</CenteredCard>;
@@ -177,6 +274,16 @@ export default function StoryPage({
 
   const { campaign, messages } = load.data;
   const template = findCampaign(campaign.campaign_template_id);
+  const currentScene =
+    template?.scenes.find((s) => s.id === campaign.current_scene_id) ?? null;
+  // DM seat check. dm_kind=self means the owner is also the DM —
+  // they see notes + the advance affordance + the narrate composer
+  // mode. When dm_kind='human'/'ai' lands later this gates the same
+  // surface correctly without further changes.
+  const isDm =
+    (campaign.dm_kind === "self" && campaign.user_id === user.id) ||
+    (campaign.dm_kind === "human" && campaign.dm_user_id === user.id);
+  const isFinished = campaign.status !== "active";
 
   return (
     <main className="relative flex min-h-screen items-start justify-center p-4 md:p-6">
@@ -196,14 +303,25 @@ export default function StoryPage({
           <h1 className="text-2xl font-bold uppercase tracking-widest md:text-3xl">
             {template?.title ?? "Story"}
           </h1>
-          {template ? (
+          {currentScene ? (
             <p className="text-xs uppercase tracking-widest text-muted-foreground">
-              {template.premise}
+              Scene · {currentScene.title}
+              {isFinished
+                ? ` · ${campaign.status === "completed_success" ? "Concluded" : "Ended"}`
+                : null}
             </p>
           ) : null}
         </header>
 
-        <div className="flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-4 font-mono">
+        {isDm && currentScene ? (
+          <DmNotesPanel
+            scene={currentScene}
+            isOpen={dmNotesOpen}
+            onToggle={() => dispatch({ type: "TOGGLE_DM_NOTES" })}
+          />
+        ) : null}
+
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono">
           <ScrollArea className="h-[55vh] pr-2">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
@@ -216,43 +334,303 @@ export default function StoryPage({
               ) : null}
             </ul>
           </ScrollArea>
-          <div className="flex flex-col gap-2">
-            <textarea
-              value={input}
-              onChange={(e) =>
-                dispatch({ type: "SET_INPUT", input: e.target.value })
-              }
-              placeholder="What does your character do?"
-              rows={3}
-              maxLength={4000}
-              disabled={submitting || campaign.status !== "active"}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-              className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            />
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">
-                Cmd / Ctrl + Enter to send.
-              </p>
-              <Button
-                onClick={send}
-                disabled={
-                  !input.trim() ||
-                  submitting ||
-                  campaign.status !== "active"
-                }
-              >
-                {submitting ? "Sending…" : "Send"}
-              </Button>
+
+          {isFinished ? (
+            <div className="rounded-md border border-muted-foreground/20 bg-muted/40 p-3 text-center text-sm">
+              This campaign has ended.{" "}
+              <Link href="/" className="font-bold underline">
+                Return home
+              </Link>
+              .
             </div>
-          </div>
+          ) : (
+            <>
+              {isDm ? (
+                <ComposerRoleTabs
+                  role={composerRole}
+                  onChange={(role) =>
+                    dispatch({ type: "SET_COMPOSER_ROLE", role })
+                  }
+                />
+              ) : null}
+              <textarea
+                value={input}
+                onChange={(e) =>
+                  dispatch({ type: "SET_INPUT", input: e.target.value })
+                }
+                placeholder={
+                  composerRole === "narrative"
+                    ? "Describe what happens next."
+                    : "What does your character do?"
+                }
+                rows={3}
+                maxLength={4000}
+                disabled={submitting}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+                className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">
+                  Cmd / Ctrl + Enter to send.
+                </p>
+                <div className="flex items-center gap-2">
+                  {isDm && currentScene?.transitions.length ? (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        dispatch({ type: "SET_ADVANCE_OPEN", open: true })
+                      }
+                      disabled={advancing}
+                    >
+                      <CompassIcon className="size-4" />
+                      Advance Scene
+                    </Button>
+                  ) : null}
+                  <Button onClick={send} disabled={!input.trim() || submitting}>
+                    {submitting ? "Sending…" : "Send"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
+
+      {currentScene ? (
+        <AdvanceSceneDialog
+          open={advanceOpen}
+          onOpenChange={(open) => dispatch({ type: "SET_ADVANCE_OPEN", open })}
+          scene={currentScene}
+          onAdvance={advance}
+          busy={advancing}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function ComposerRoleTabs({
+  role,
+  onChange,
+}: {
+  role: ComposerRole;
+  onChange: (role: ComposerRole) => void;
+}) {
+  return (
+    <div className="flex w-fit gap-1 rounded-md border border-input bg-muted/30 p-0.5 text-xs uppercase tracking-widest">
+      {(
+        [
+          { key: "player", label: "Player" },
+          { key: "narrative", label: "Narrate as DM" },
+        ] as const
+      ).map((tab) => {
+        const active = role === tab.key;
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => onChange(tab.key)}
+            className={cn(
+              "rounded-sm px-3 py-1 transition-colors",
+              active ? "bg-zinc-900 text-white" : "hover:bg-muted/60",
+            )}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function DmNotesPanel({
+  scene,
+  isOpen,
+  onToggle,
+}: {
+  scene: Scene;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+      >
+        <span className="flex flex-col">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+            DM Notes
+          </span>
+          <span className="text-sm font-bold">{scene.title}</span>
+        </span>
+        {isOpen ? (
+          <ChevronUpIcon className="size-4 shrink-0" />
+        ) : (
+          <ChevronDownIcon className="size-4 shrink-0" />
+        )}
+      </button>
+      {isOpen ? (
+        <div className="flex flex-col gap-3 border-t border-zinc-900/20 px-4 py-3 text-sm leading-relaxed">
+          <section>
+            <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+              Background
+            </h3>
+            <p>{scene.dmBackground}</p>
+          </section>
+
+          {scene.readAloud.length > 0 ? (
+            <section>
+              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                Read-Aloud
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {scene.readAloud.map((p, i) => (
+                  <li
+                    key={i}
+                    className="rounded-md border border-muted-foreground/20 bg-background p-2 text-xs italic"
+                  >
+                    “{p}”
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {scene.scripted.encounters?.length ? (
+            <section>
+              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                Encounters
+              </h3>
+              <ul className="flex flex-col gap-1 text-xs">
+                {scene.scripted.encounters.map((e, i) => (
+                  <li key={i}>
+                    <span className="font-bold">{e.monsterIndex}</span>
+                    {e.count ? ` × ${e.count}` : null} — {e.trigger}
+                    {e.intent ? (
+                      <span className="text-muted-foreground"> · {e.intent}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {scene.scripted.rewards?.length ? (
+            <section>
+              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                Rewards
+              </h3>
+              <ul className="flex flex-col gap-1 text-xs">
+                {scene.scripted.rewards.map((r, i) => (
+                  <li key={i}>
+                    <span className="font-bold uppercase">{r.kind}</span>
+                    {" — "}
+                    {rewardSummary(r)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {scene.scripted.notes?.length ? (
+            <section>
+              <h3 className="mb-1 text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
+                Notes
+              </h3>
+              <ul className="list-disc pl-4 text-xs">
+                {scene.scripted.notes.map((n, i) => (
+                  <li key={i}>{n}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function rewardSummary(
+  r: NonNullable<Scene["scripted"]["rewards"]>[number],
+): string {
+  switch (r.kind) {
+    case "weapon":
+    case "armor":
+    case "potion":
+      return `${r.baseId}${"bonus" in r && r.bonus ? ` +${r.bonus}` : ""}${r.note ? ` — ${r.note}` : ""}`;
+    case "scroll":
+      return `${r.spellBaseId}${r.note ? ` — ${r.note}` : ""}`;
+    case "xp":
+      return `${r.amount} XP${r.note ? ` — ${r.note}` : ""}`;
+    case "story":
+      return r.description;
+  }
+}
+
+function AdvanceSceneDialog({
+  open,
+  onOpenChange,
+  scene,
+  onAdvance,
+  busy,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  scene: Scene;
+  onAdvance: (to: string) => void;
+  busy: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
+            Advance the Story
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-2 font-mono">
+          {scene.transitions.map((t) => {
+            const isEnding = t.to === SUCCESS_END || t.to === FAILURE_END;
+            return (
+              <button
+                key={t.to}
+                type="button"
+                onClick={() => onAdvance(t.to)}
+                disabled={busy}
+                className={cn(
+                  "rounded-xl border-2 border-zinc-900 bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40 disabled:cursor-wait disabled:opacity-60",
+                )}
+              >
+                <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+                  {isEnding
+                    ? t.to === SUCCESS_END
+                      ? "Conclude · Success"
+                      : "Conclude · Failure"
+                    : `Next Scene · ${t.to}`}
+                </span>
+                <span className="text-sm leading-snug">{t.when}</span>
+              </button>
+            );
+          })}
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={busy}
+          >
+            Cancel
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
