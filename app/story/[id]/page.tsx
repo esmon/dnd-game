@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useReducer } from "react";
+import { use, useCallback, useEffect, useReducer, useRef } from "react";
 
 import {
   Dialog,
@@ -206,6 +206,18 @@ export default function StoryPage({
     advancing,
     triggeringEncounter,
   } = state;
+
+  // Auto-scroll the message log to the bottom whenever a new
+  // message lands. Pin lives at the end of the ScrollArea's
+  // content; scrollIntoView bubbles to the nearest scrollable
+  // ancestor (the base-ui Viewport) so the window itself doesn't
+  // jump.
+  const logBottomRef = useRef<HTMLDivElement>(null);
+  const messageCount = load.kind === "ready" ? load.data.messages.length : 0;
+  useEffect(() => {
+    if (load.kind !== "ready") return;
+    logBottomRef.current?.scrollIntoView({ block: "end" });
+  }, [load.kind, messageCount]);
 
   // Sign-in gated. Anonymous browsers get sent to sign-in with a
   // `next` back to this page (same pattern coop uses).
@@ -479,6 +491,9 @@ export default function StoryPage({
                 </li>
               ) : null}
             </ul>
+            {/* Auto-scroll sentinel — useEffect scrolls this into
+                view whenever messages.length changes. */}
+            <div ref={logBottomRef} aria-hidden />
           </ScrollArea>
 
           {isFinished ? (
