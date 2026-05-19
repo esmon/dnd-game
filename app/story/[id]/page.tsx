@@ -21,10 +21,10 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StoryCombatDialog } from "@/components/dm/story-combat-dialog";
+import { PartyRow } from "@/components/coop/party-row";
 import { PanelLabel } from "@/components/game/panel-label";
-import { PlayerPanel } from "@/components/game/player-panel";
+import type { CampaignPlayer } from "@/lib/coop/types";
 import { useUser } from "@/lib/auth/use-user";
-import { characterToPlayer } from "@/lib/db/schema";
 import type { Character } from "@/lib/db/schema";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
@@ -151,6 +151,29 @@ function pageReducer(state: PageState, action: PageAction): PageState {
         },
       };
   }
+}
+
+// Out of combat the story has no real coop campaign, but PartyRow
+// is shaped around CampaignPlayer. Build a synthetic one from the
+// character row — only fields PartyMember actually reads (snapshot,
+// current_hp, user_id) need real values; the rest are stub-only
+// because actions=[] means the per-player hit / current-turn paths
+// never execute.
+function characterToPartyMember(
+  c: Character,
+  userId: string,
+): CampaignPlayer {
+  return {
+    id: c.id,
+    campaign_id: "",
+    user_id: userId,
+    position: 0,
+    character_snapshot: c,
+    current_hp: c.current_hp,
+    is_ready: true,
+    continue_ready: false,
+    joined_at: c.created_at,
+  };
 }
 
 const INITIAL: PageState = {
@@ -436,7 +459,12 @@ export default function StoryPage({
         >
           {character ? (
             <aside className="md:order-1">
-              <PlayerPanel player={characterToPlayer(character)} />
+              <PartyRow
+                players={[characterToPartyMember(character, user.id)]}
+                actions={[]}
+                currentTurnUserId={undefined}
+                myUserId={user.id}
+              />
             </aside>
           ) : null}
           <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2">
