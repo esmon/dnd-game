@@ -567,6 +567,7 @@ export default function StoryPage({
               {currentScene?.playerActions?.length ? (
                 <PlayerCommands
                   actions={currentScene.playerActions}
+                  characterClassId={character?.class ?? null}
                   onRun={runAction}
                   busy={runningAction}
                 />
@@ -665,10 +666,12 @@ export default function StoryPage({
 
 function PlayerCommands({
   actions,
+  characterClassId,
   onRun,
   busy,
 }: {
   actions: PlayerAction[];
+  characterClassId: string | null;
   onRun: (action: PlayerAction) => void;
   busy: boolean;
 }) {
@@ -677,13 +680,25 @@ function PlayerCommands({
   // any action is in flight, the whole row disables so a fast
   // double-tap can't fire the same action (or two different ones)
   // before the first response lands.
+  //
+  // Class-gated actions (PlayerAction.classes) only render when
+  // the character's class id is in the list. Universal actions
+  // (no `classes`) render for everyone. We also tag class-locked
+  // buttons with a small "ROGUE" / "WIZARD" label so it reads as
+  // a class affordance rather than a random extra option.
+  const visible = actions.filter(
+    (a) =>
+      !a.classes ||
+      a.classes.length === 0 ||
+      (characterClassId !== null && a.classes.includes(characterClassId)),
+  );
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
         Your move
       </p>
       <div className="flex flex-wrap gap-2">
-        {actions.map((a) => (
+        {visible.map((a) => (
           <Button
             key={a.id}
             variant="outline"
@@ -693,6 +708,11 @@ function PlayerCommands({
             className="text-left"
           >
             {a.label}
+            {a.classes && a.classes.length > 0 ? (
+              <span className="ml-2 rounded bg-amber-100 px-1 text-[9px] font-bold uppercase tracking-widest text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+                {a.classes[0]}
+              </span>
+            ) : null}
           </Button>
         ))}
       </div>

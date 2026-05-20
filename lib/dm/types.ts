@@ -102,6 +102,14 @@ export type PlayerAction = {
   // With one: advance the scene, start a combat encounter, or hand
   // out a reward. Effects layer on top of the response message.
   effect?: PlayerActionEffect;
+  // Optional class restriction. If set, the action only appears in
+  // the menu when the character's class id is in this list — used
+  // for flavor beats like "Pick the chief's pocket" (rogue),
+  // "Read the signs on the strongbox" (wizard), or "Intimidate
+  // Grask" (barbarian / fighter). Class ids match the slugs from
+  // lib/dnd/classes.ts ("rogue", "wizard", "barbarian", etc.).
+  // Absent = available to every class.
+  classes?: string[];
 };
 
 export type PlayerActionEffect =

@@ -98,6 +98,14 @@ export const GOBLIN_WARRENS: Campaign = {
             "You scoop a stone and lob it into the brush downhill. The goblins both turn, peering. You've bought yourself a clean opening — whatever you do next, you do first.",
         },
         {
+          id: "slip-past",
+          label: "Slip past the sentries entirely",
+          response:
+            "You move like water around stone. The goblins never look up. You're past the outcrop and into the cave mouth before either of them takes the next swig from the jug — leaving them to argue all night about a watch nobody bothered to keep.",
+          classes: ["rogue"],
+          effect: { kind: "advance", to: "scene:warren" },
+        },
+        {
           id: "wait",
           label: "Wait and watch",
           response:
@@ -169,6 +177,20 @@ export const GOBLIN_WARRENS: Campaign = {
           label: "Search the strongbox",
           response:
             "The iron-bound chest is half pried open but stubbornly locked. Whatever's inside, the goblins haven't reached it yet. The key must be on someone deeper in.",
+        },
+        {
+          id: "examine-runes",
+          label: "Read the markings on the strongbox",
+          response:
+            "Beneath the dust, scratches on the iron band aren't goblin work — they're old merchant cant. A house mark you almost recognize: Berran's caravan was carrying for a noble. Whoever's pulling these goblins' strings knew exactly what was on board.",
+          classes: ["wizard", "warlock", "bard"],
+        },
+        {
+          id: "pick-lock",
+          label: "Pick the strongbox lock",
+          response:
+            "You work the pin with practiced patience. It's a heavy lock but a stupid one — three tumblers, no false sets. The clasp turns. Inside: ledger pages, a pouch of coin, and — wedged at the bottom — a small velvet bag with the merchants' guild seal. You don't need Grask's key after all.",
+          classes: ["rogue"],
         },
         {
           id: "side-tunnels",
@@ -257,6 +279,28 @@ export const GOBLIN_WARRENS: Campaign = {
           label: "Intimidate — \"Hand over the ring\"",
           response:
             "You take a step in. The bigger bodyguard's knuckles go white on his cleaver. Grask's eyes flicker — once to his goons, once to the back of the cave where there isn't actually a back door. He weighs it. Then his hand goes to the cord at his neck.",
+        },
+        {
+          id: "menace",
+          label: "Loom — you fill the chamber",
+          response:
+            "You don't move. You don't draw. You just *grow* in the small chamber, somehow, the torchlight finding the wrong angles on your face. One bodyguard takes a step back without meaning to. Grask says nothing for a long beat. Then, quietly: 'Take the ring. Take the key. Go.'",
+          classes: ["barbarian", "fighter", "paladin"],
+          effect: { kind: "advance", to: SUCCESS_END },
+        },
+        {
+          id: "pickpocket",
+          label: "Pick Grask's pocket while he gestures",
+          response:
+            "He's all hands and teeth, jabbing his finger at the air while he monologues. You lean a little, reach a little, and the strongbox key is in your palm before he's finished his next sentence. The bodyguards never blink. Grask never knows.",
+          classes: ["rogue"],
+        },
+        {
+          id: "true-name",
+          label: "Speak the name on the signet ring aloud",
+          response:
+            "The two syllables echo wrong in the torchlight. Grask flinches like you'd swung at him. The bodyguards exchange a look that says: *he never said that name to us*. The grin is gone. 'Where did you hear that,' Grask asks. He's no longer in charge of this conversation.",
+          classes: ["wizard", "warlock", "cleric"],
         },
         {
           id: "demand-ring",
