@@ -476,7 +476,7 @@ export default function StoryPage({
               />
             </aside>
           ) : null}
-          <div className="flex flex-col gap-3 rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2 md:min-h-0">
+          <div className="flex flex-col gap-3 overflow-hidden rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2 md:h-full md:min-h-0">
           <ScrollArea className="h-[55vh] pr-2 md:h-auto md:min-h-0 md:flex-1">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
@@ -559,7 +559,7 @@ export default function StoryPage({
           </div>
 
           {isDm && currentScene ? (
-            <div className="md:order-3">
+            <div className="md:order-3 md:h-full md:min-h-0">
               <DmNotesPanel
                 scene={currentScene}
                 onTriggerEncounter={triggerEncounter}
