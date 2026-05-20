@@ -745,9 +745,12 @@ function PlayerCommands({
               ? (CLASS_ICON[a.classes[0]] ?? null)
               : null;
           return (
+            // Solid (default) variant so the action stack reads as
+            // a row of pressable controls, not another set of
+            // bordered cards stacked under the narrative log.
             <Button
               key={a.id}
-              variant="outline"
+              variant="default"
               size="sm"
               onClick={() => onRun(a)}
               disabled={busy}
@@ -1010,8 +1013,12 @@ function MessageRow({ message }: { message: StoryMessage }) {
   // 'tool' rows aren't rendered for Phase 0 (don't exist yet);
   // when they do, they'll get their own block style.
   if (message.role === "narrative") {
+    // Blockquote-style left accent so DM narration visually
+    // separates from the (solid-dark) action buttons below the
+    // log. Reads as "this is story text," not "this is a UI
+    // control."
     return (
-      <li className="rounded-md border border-muted-foreground/20 bg-background p-3 text-sm leading-relaxed">
+      <li className="rounded-md border border-muted-foreground/20 border-l-4 border-l-zinc-900 bg-background p-3 text-sm leading-relaxed">
         {message.content}
       </li>
     );
