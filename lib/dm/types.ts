@@ -79,7 +79,45 @@ export type Scene = {
   // are human-readable ("if players defeat the wight"); the DM
   // judges when one fires. AI DM evaluates with LLM judgment.
   transitions: Transition[];
+  // Authored player choices for the scene. The story page renders
+  // these as a command menu — the player taps one, the system posts
+  // the response text as narrative, then applies the effect (move
+  // to next scene, kick off a combat, just narrate, etc.). Optional
+  // because earlier campaigns / older content didn't ship with
+  // them; UI falls back to the free-text composer when missing.
+  playerActions?: PlayerAction[];
 };
+
+export type PlayerAction = {
+  // Stable within the scene — what the POST /action route receives
+  // to identify which authored beat fired. Slug-style.
+  id: string;
+  // Button text. Keep short and verb-led — "Approach the cave",
+  // "Search the bodies", not full sentences.
+  label: string;
+  // Narrative text posted as a `narrative` message when the action
+  // is taken. Reads as the DM responding to the player's choice.
+  response: string;
+  // Optional side effect. Without one, the action just narrates.
+  // With one: advance the scene, start a combat encounter, or hand
+  // out a reward. Effects layer on top of the response message.
+  effect?: PlayerActionEffect;
+};
+
+export type PlayerActionEffect =
+  // Just post the response. Default behavior when `effect` is
+  // absent; kept as an explicit value so the campaign can be
+  // self-documenting.
+  | { kind: "narrate" }
+  // Post the response, then transition to the named scene (or one
+  // of the conclusion markers). The target must match one of the
+  // scene's `transitions[].to` so authoring stays consistent.
+  | { kind: "advance"; to: string }
+  // Post the response, then trigger a combat encounter. The
+  // monsterIndex / count must match an encounter on the *current*
+  // scene's scripted.encounters so a bad action can't spawn
+  // arbitrary fights.
+  | { kind: "encounter"; monsterIndex: string; count?: number };
 
 export type Encounter = {
   // dnd5eapi index slug — must match an entry the monster API

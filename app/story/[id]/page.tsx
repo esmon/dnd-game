@@ -26,6 +26,7 @@ import {
   FAILURE_END,
   SUCCESS_END,
   type Encounter,
+  type PlayerAction,
   type Scene,
 } from "@/lib/dm/types";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,11 @@ interface PageState {
   advanceOpen: boolean;
   advancing: boolean;
   triggeringEncounter: boolean;
+  // True while a /action POST is in flight. Used to disable every
+  // command-menu button so a fast double-tap doesn't fire the same
+  // action twice (each fire would re-post the response and re-apply
+  // the effect — encounters would double-spawn).
+  runningAction: boolean;
 }
 
 type PageAction =
@@ -74,6 +80,8 @@ type PageAction =
     }
   | { type: "TRIGGER_ENCOUNTER_BEGIN" }
   | { type: "TRIGGER_ENCOUNTER_END" }
+  | { type: "RUN_ACTION_BEGIN" }
+  | { type: "RUN_ACTION_END" }
   | { type: "SET_ACTIVE_COMBAT"; campaignId: string | null };
 
 function pageReducer(state: PageState, action: PageAction): PageState {
@@ -125,6 +133,10 @@ function pageReducer(state: PageState, action: PageAction): PageState {
       return { ...state, triggeringEncounter: true };
     case "TRIGGER_ENCOUNTER_END":
       return { ...state, triggeringEncounter: false };
+    case "RUN_ACTION_BEGIN":
+      return { ...state, runningAction: true };
+    case "RUN_ACTION_END":
+      return { ...state, runningAction: false };
     case "SET_ACTIVE_COMBAT":
       if (state.load.kind !== "ready") return state;
       return {
@@ -174,6 +186,7 @@ const INITIAL: PageState = {
   advanceOpen: false,
   advancing: false,
   triggeringEncounter: false,
+  runningAction: false,
 };
 
 export default function StoryPage({
@@ -193,6 +206,7 @@ export default function StoryPage({
     advanceOpen,
     advancing,
     triggeringEncounter,
+    runningAction,
   } = state;
 
   // Auto-scroll the message log to the bottom whenever a new
@@ -336,6 +350,53 @@ export default function StoryPage({
       console.error("post-combat refetch threw", err);
     }
   }, [campaignId]);
+
+  // Resolve an authored player action against the current scene.
+  // The route handles posting the response message, applying any
+  // effect (advance scene / start encounter), and returns the
+  // updated campaign + new messages + optional combat campaign id.
+  // We translate that into the existing reducer events:
+  //   APPLY_ADVANCE — updates campaign + appends new messages
+  //   SET_ACTIVE_COMBAT — opens the locked combat dialog when an
+  //   encounter effect fired
+  const runAction = useCallback(
+    async (action: PlayerAction) => {
+      if (runningAction) return;
+      dispatch({ type: "RUN_ACTION_BEGIN" });
+      try {
+        const res = await fetch(`/api/story/${campaignId}/action`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actionId: action.id }),
+        });
+        if (!res.ok) {
+          console.error("player action failed", res.status);
+          return;
+        }
+        const data = (await res.json()) as {
+          campaign: StoryCampaign;
+          newMessages: StoryMessage[];
+          combatCampaignId: string | null;
+        };
+        dispatch({
+          type: "APPLY_ADVANCE",
+          campaign: data.campaign,
+          newMessages: data.newMessages,
+        });
+        if (data.combatCampaignId) {
+          dispatch({
+            type: "SET_ACTIVE_COMBAT",
+            campaignId: data.combatCampaignId,
+          });
+        }
+      } catch (err) {
+        console.error("player action threw", err);
+      } finally {
+        dispatch({ type: "RUN_ACTION_END" });
+      }
+    },
+    [campaignId, runningAction],
+  );
 
   const advance = useCallback(
     async (to: string) => {
@@ -503,6 +564,13 @@ export default function StoryPage({
             </div>
           ) : (
             <>
+              {currentScene?.playerActions?.length ? (
+                <PlayerCommands
+                  actions={currentScene.playerActions}
+                  onRun={runAction}
+                  busy={runningAction}
+                />
+              ) : null}
               {isDm ? (
                 <ComposerRoleTabs
                   role={composerRole}
@@ -592,6 +660,43 @@ export default function StoryPage({
         />
       ) : null}
     </main>
+  );
+}
+
+function PlayerCommands({
+  actions,
+  onRun,
+  busy,
+}: {
+  actions: PlayerAction[];
+  onRun: (action: PlayerAction) => void;
+  busy: boolean;
+}) {
+  // Stack of buttons rendering the current scene's authored
+  // player choices. Wraps to multi-row on narrow viewports. While
+  // any action is in flight, the whole row disables so a fast
+  // double-tap can't fire the same action (or two different ones)
+  // before the first response lands.
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        Your move
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {actions.map((a) => (
+          <Button
+            key={a.id}
+            variant="outline"
+            size="sm"
+            onClick={() => onRun(a)}
+            disabled={busy}
+            className="text-left"
+          >
+            {a.label}
+          </Button>
+        ))}
+      </div>
+    </div>
   );
 }
 
