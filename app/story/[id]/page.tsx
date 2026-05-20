@@ -1,6 +1,23 @@
 "use client";
 
-import { ArrowLeftIcon, CompassIcon, PlayIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  CompassIcon,
+  FlameIcon,
+  HandIcon,
+  HeartPulseIcon,
+  KeyRoundIcon,
+  LeafIcon,
+  MusicIcon,
+  PlayIcon,
+  ShieldIcon,
+  SparklesIcon,
+  SunIcon,
+  SwordIcon,
+  TargetIcon,
+  ZapIcon,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useCallback, useEffect, useReducer, useRef } from "react";
@@ -664,6 +681,29 @@ export default function StoryPage({
   );
 }
 
+// Class id → lucide icon. Mirrors the ACTION_ICON pattern from
+// TurnLine so a class-gated player action reads visually as
+// "this is a Class affordance" the same way a combat log row
+// reads "this is an attack / heal / spell." We pick the first
+// class in PlayerAction.classes — most authored actions are
+// single-class; the few multi-class ones (e.g. wizard / warlock
+// for lore reads) share a flavor close enough that one icon
+// covers the meaning.
+const CLASS_ICON: Record<string, LucideIcon> = {
+  barbarian: SwordIcon,
+  bard: MusicIcon,
+  cleric: SunIcon,
+  druid: LeafIcon,
+  fighter: ShieldIcon,
+  monk: HandIcon,
+  paladin: HeartPulseIcon,
+  ranger: TargetIcon,
+  rogue: KeyRoundIcon,
+  sorcerer: ZapIcon,
+  warlock: FlameIcon,
+  wizard: SparklesIcon,
+};
+
 function PlayerCommands({
   actions,
   characterClassId,
@@ -683,9 +723,10 @@ function PlayerCommands({
   //
   // Class-gated actions (PlayerAction.classes) only render when
   // the character's class id is in the list. Universal actions
-  // (no `classes`) render for everyone. We also tag class-locked
-  // buttons with a small "ROGUE" / "WIZARD" label so it reads as
-  // a class affordance rather than a random extra option.
+  // (no `classes`) render for everyone. Class-gated buttons get
+  // a leading icon keyed by CLASS_ICON so the menu reads as
+  // "these extra options are class-flavored beats" the same way
+  // the combat log uses per-action icons.
   const visible = actions.filter(
     (a) =>
       !a.classes ||
@@ -698,23 +739,30 @@ function PlayerCommands({
         Your move
       </p>
       <div className="flex flex-wrap gap-2">
-        {visible.map((a) => (
-          <Button
-            key={a.id}
-            variant="outline"
-            size="sm"
-            onClick={() => onRun(a)}
-            disabled={busy}
-            className="text-left"
-          >
-            {a.label}
-            {a.classes && a.classes.length > 0 ? (
-              <span className="ml-2 rounded bg-amber-100 px-1 text-[9px] font-bold uppercase tracking-widest text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
-                {a.classes[0]}
-              </span>
-            ) : null}
-          </Button>
-        ))}
+        {visible.map((a) => {
+          const classIcon =
+            a.classes && a.classes.length > 0
+              ? (CLASS_ICON[a.classes[0]] ?? null)
+              : null;
+          return (
+            <Button
+              key={a.id}
+              variant="outline"
+              size="sm"
+              onClick={() => onRun(a)}
+              disabled={busy}
+              className="text-left"
+            >
+              {classIcon
+                ? (() => {
+                    const Icon = classIcon;
+                    return <Icon className="size-3.5 shrink-0" />;
+                  })()
+                : null}
+              {a.label}
+            </Button>
+          );
+        })}
       </div>
     </div>
   );
