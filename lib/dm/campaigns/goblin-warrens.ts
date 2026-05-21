@@ -74,12 +74,14 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "sneak",
           label: "Sneak closer along the scree",
+          icon: "footprints",
           response:
             "You pick your way through the loose stone, soft-footed. The goblins are still arguing — they don't see you. You're within a stone's throw, and they have their backs half-turned.",
         },
         {
           id: "charge",
           label: "Charge the outcrop, weapons drawn",
+          icon: "sword",
           response:
             "You break from cover and sprint. One of the goblins shrieks, drops the jug, claws for a spear. The other is already cocking a sling. They're fighting now.",
           effect: { kind: "encounter", monsterIndex: "goblin", count: 2 },
@@ -87,6 +89,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "hail",
           label: "Call out — offer to talk",
+          icon: "talk",
           response:
             "You raise your hands and shout that you've come to talk. The goblins freeze, then laugh. The bigger one spits down the slope. The smaller one is already reaching for his sling. So much for talking.",
           effect: { kind: "encounter", monsterIndex: "goblin", count: 2 },
@@ -94,6 +97,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "throw-rock",
           label: "Throw a rock into the brush to distract them",
+          icon: "eye",
           response:
             "You scoop a stone and lob it into the brush downhill. The goblins both turn, peering. You've bought yourself a clean opening — whatever you do next, you do first.",
         },
@@ -108,12 +112,14 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "wait",
           label: "Wait and watch",
+          icon: "wait",
           response:
             "You settle into cover. The goblins drink, argue, drink. The light fails. After a while one of them yawns hugely and slides down to nap; the other settles in to whittle a stick. Their guard, what little there was, is gone.",
         },
         {
           id: "advance-fight",
           label: "Attack now (they spot you)",
+          icon: "sword",
           response:
             "You commit. The goblins are on their feet before you've fully drawn — but only just.",
           effect: { kind: "encounter", monsterIndex: "goblin", count: 2 },
@@ -121,6 +127,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "advance-to-warren",
           label: "Press on to the cave mouth",
+          icon: "advance",
           response:
             "With the slope quiet behind you, you slip past the outcrop and the cave swallows the last of the light.",
           effect: { kind: "advance", to: "scene:warren" },
@@ -168,6 +175,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "engage",
           label: "Engage the goblins",
+          icon: "sword",
           response:
             "Their first spear comes whistling past your ear before you've finished the thought. The cooking fire spits sparks as the fight starts.",
           effect: { kind: "encounter", monsterIndex: "goblin", count: 3 },
@@ -175,6 +183,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "strongbox",
           label: "Search the strongbox",
+          icon: "search",
           response:
             "The iron-bound chest is half pried open but stubbornly locked. Whatever's inside, the goblins haven't reached it yet. The key must be on someone deeper in.",
         },
@@ -195,18 +204,21 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "side-tunnels",
           label: "Investigate the side tunnels",
+          icon: "search",
           response:
             "The first tunnel reeks of midden and old refuse. The second slopes down into a foul, stagnant sump. Both are dead ends. You back out into the cavern.",
         },
         {
           id: "search-pallets",
           label: "Search the sleeping pallets",
+          icon: "search",
           response:
             "Beneath one of the heaped pallets you find a small clay vial — a healing potion, stoppered with wax. You pocket it.",
         },
         {
           id: "press-deeper",
           label: "Press deeper into the warren",
+          icon: "advance",
           response:
             "The far tunnel narrows and runs straight back into the rock. A faint torchlight glow from the end. Whoever's in charge is in there.",
           effect: { kind: "advance", to: "scene:chief" },
@@ -264,6 +276,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "fight",
           label: "Refuse the deal — attack",
+          icon: "sword",
           response:
             "Grask's grin curdles. 'Bad answer, longshanks.' The bodyguards move first, snarling. The torchlight gutters.",
           effect: { kind: "encounter", monsterIndex: "goblin", count: 3 },
@@ -271,12 +284,14 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "bargain",
           label: "Hear his offer",
+          icon: "talk",
           response:
             "Grask leans forward, eager. 'Ring. Key. Whatever you want. You walk out, we walk out, no longshanks die today.' He's lying about something — but maybe not the ring. The bodyguards haven't relaxed.",
         },
         {
           id: "intimidate",
           label: "Intimidate — \"Hand over the ring\"",
+          icon: "intimidate",
           response:
             "You take a step in. The bigger bodyguard's knuckles go white on his cleaver. Grask's eyes flicker — once to his goons, once to the back of the cave where there isn't actually a back door. He weighs it. Then his hand goes to the cord at his neck.",
         },
@@ -305,6 +320,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "demand-ring",
           label: "Take the ring and key, accept the parley",
+          icon: "give",
           response:
             "Grask snaps the cord and tosses you the iron ring. The key follows from his belt. 'Go,' he says, voice ragged. 'And never come back.' His bodyguards lower their cleavers a hair's breadth.",
           effect: { kind: "advance", to: SUCCESS_END },
@@ -312,6 +328,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "victory",
           label: "Claim the ring and leave",
+          icon: "trophy",
           response:
             "You search Grask's body. The iron signet on its cord. The strongbox key. The shortsword at his belt — well-kept, with a strange sigil etched near the hilt. The warren is silent.",
           effect: { kind: "advance", to: SUCCESS_END },
@@ -319,6 +336,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "retreat",
           label: "Retreat — this is too much",
+          icon: "retreat",
           response:
             "You back out of the chamber. Grask's laughter follows you down the tunnel. The strongbox sits where the goblins left it, untouched.",
           effect: { kind: "advance", to: FAILURE_END },

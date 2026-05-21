@@ -2,19 +2,30 @@
 
 import {
   ArrowLeftIcon,
+  ArrowRightIcon,
+  BookOpenIcon,
+  ChevronRightIcon,
+  ClockIcon,
   CompassIcon,
+  EyeIcon,
   FlameIcon,
+  FootprintsIcon,
+  GiftIcon,
   HandIcon,
   HeartPulseIcon,
   KeyRoundIcon,
   LeafIcon,
+  MessageCircleIcon,
   MusicIcon,
   PlayIcon,
+  SearchIcon,
   ShieldIcon,
+  SkullIcon,
   SparklesIcon,
   SunIcon,
   SwordIcon,
   TargetIcon,
+  TrophyIcon,
   ZapIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -44,6 +55,7 @@ import {
   SUCCESS_END,
   type Encounter,
   type PlayerAction,
+  type PlayerActionIcon,
   type Scene,
 } from "@/lib/dm/types";
 import { cn } from "@/lib/utils";
@@ -684,11 +696,7 @@ export default function StoryPage({
 // Class id → lucide icon. Mirrors the ACTION_ICON pattern from
 // TurnLine so a class-gated player action reads visually as
 // "this is a Class affordance" the same way a combat log row
-// reads "this is an attack / heal / spell." We pick the first
-// class in PlayerAction.classes — most authored actions are
-// single-class; the few multi-class ones (e.g. wizard / warlock
-// for lore reads) share a flavor close enough that one icon
-// covers the meaning.
+// reads "this is an attack / heal / spell."
 const CLASS_ICON: Record<string, LucideIcon> = {
   barbarian: SwordIcon,
   bard: MusicIcon,
@@ -702,6 +710,25 @@ const CLASS_ICON: Record<string, LucideIcon> = {
   sorcerer: ZapIcon,
   warlock: FlameIcon,
   wizard: SparklesIcon,
+};
+
+// Action-flavor slug → lucide icon. Authors set
+// PlayerAction.icon = "sword" / "footprints" / etc. and we
+// resolve to the matching lucide here. Same shape as CLASS_ICON;
+// class-gated actions take the class icon, universal actions
+// take this one, anything else falls back to a neutral chevron.
+const ACTION_ICON: Record<PlayerActionIcon, LucideIcon> = {
+  sword: SwordIcon,
+  footprints: FootprintsIcon,
+  search: SearchIcon,
+  eye: EyeIcon,
+  talk: MessageCircleIcon,
+  advance: ArrowRightIcon,
+  retreat: ArrowLeftIcon,
+  wait: ClockIcon,
+  intimidate: SkullIcon,
+  trophy: TrophyIcon,
+  give: GiftIcon,
 };
 
 function PlayerCommands({
@@ -740,10 +767,16 @@ function PlayerCommands({
       </p>
       <div className="flex flex-wrap gap-2">
         {visible.map((a) => {
-          const classIcon =
-            a.classes && a.classes.length > 0
-              ? (CLASS_ICON[a.classes[0]] ?? null)
-              : null;
+          // Icon priority: class > authored action icon > neutral
+          // chevron. Class wins because a class-gated action's
+          // primary signal is "this is a Class beat"; the
+          // verb-icon (sword / search / etc.) is secondary.
+          const Icon: LucideIcon =
+            (a.classes && a.classes.length > 0
+              ? CLASS_ICON[a.classes[0]]
+              : undefined) ??
+            (a.icon ? ACTION_ICON[a.icon] : undefined) ??
+            ChevronRightIcon;
           return (
             // Solid (default) variant so the action stack reads as
             // a row of pressable controls, not another set of
@@ -756,12 +789,7 @@ function PlayerCommands({
               disabled={busy}
               className="text-left"
             >
-              {classIcon
-                ? (() => {
-                    const Icon = classIcon;
-                    return <Icon className="size-3.5 shrink-0" />;
-                  })()
-                : null}
+              <Icon className="size-3.5 shrink-0" />
               {a.label}
             </Button>
           );
@@ -1013,13 +1041,13 @@ function MessageRow({ message }: { message: StoryMessage }) {
   // 'tool' rows aren't rendered for Phase 0 (don't exist yet);
   // when they do, they'll get their own block style.
   if (message.role === "narrative") {
-    // Blockquote-style left accent so DM narration visually
-    // separates from the (solid-dark) action buttons below the
-    // log. Reads as "this is story text," not "this is a UI
-    // control."
+    // Leading book icon mirrors the TurnLine pattern from the
+    // combat log — every story beat starts with a visual marker
+    // so it reads as "this is the world telling you something."
     return (
-      <li className="rounded-md border border-muted-foreground/20 border-l-4 border-l-zinc-900 bg-background p-3 text-sm leading-relaxed">
-        {message.content}
+      <li className="flex items-start gap-2 rounded-md border border-muted-foreground/20 bg-background p-3 text-sm leading-relaxed">
+        <BookOpenIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <span>{message.content}</span>
       </li>
     );
   }

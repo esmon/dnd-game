@@ -88,6 +88,23 @@ export type Scene = {
   playerActions?: PlayerAction[];
 };
 
+// Curated set of action-flavor icon slugs. Picked so authors
+// don't have to import a lucide name into each campaign file —
+// the page resolves slug → icon via a lookup map. Add new slugs
+// here and the map in app/story/[id]/page.tsx as needed.
+export type PlayerActionIcon =
+  | "sword"
+  | "footprints"
+  | "search"
+  | "eye"
+  | "talk"
+  | "advance"
+  | "retreat"
+  | "wait"
+  | "intimidate"
+  | "trophy"
+  | "give";
+
 export type PlayerAction = {
   // Stable within the scene — what the POST /action route receives
   // to identify which authored beat fired. Slug-style.
@@ -110,6 +127,11 @@ export type PlayerAction = {
   // lib/dnd/classes.ts ("rogue", "wizard", "barbarian", etc.).
   // Absent = available to every class.
   classes?: string[];
+  // Optional leading icon slug. Resolved on the client into a
+  // lucide icon — same pattern the combat log uses for per-action
+  // verbs. Class-gated actions ignore this and use their class
+  // icon instead. Absent = generic chevron.
+  icon?: PlayerActionIcon;
 };
 
 export type PlayerActionEffect =
