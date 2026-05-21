@@ -497,6 +497,24 @@ export default function StoryPage({
     (campaign.dm_kind === "human" && campaign.dm_user_id === user.id);
   const isFinished = campaign.status !== "active";
 
+  // Build the set of action ids already taken in the *current*
+  // scene from message metadata. PlayerCommands uses this to hide
+  // one-shot actions (the default) and leave repeatable ones in
+  // place. Filtering by scene_id means each scene starts with a
+  // fresh menu — taken state doesn't leak across transitions.
+  const takenActionIds = new Set<string>();
+  for (const m of messages) {
+    if (m.role !== "narrative") continue;
+    const meta = m.metadata as Record<string, unknown>;
+    if (
+      meta.kind === "player_action_response" &&
+      meta.scene_id === campaign.current_scene_id &&
+      typeof meta.action_id === "string"
+    ) {
+      takenActionIds.add(meta.action_id);
+    }
+  }
+
   return (
     <main className="relative flex min-h-screen items-start justify-center p-4 md:p-6">
       <Link
@@ -605,6 +623,7 @@ export default function StoryPage({
                 <PlayerCommands
                   actions={currentScene.playerActions}
                   characterClassId={character?.class ?? null}
+                  takenIds={takenActionIds}
                   onRun={runAction}
                   busy={runningAction}
                 />
@@ -786,11 +805,16 @@ function iconForNarrative(
 function PlayerCommands({
   actions,
   characterClassId,
+  takenIds,
   onRun,
   busy,
 }: {
   actions: PlayerAction[];
   characterClassId: string | null;
+  // Set of action ids already taken in the current scene. Built in
+  // the parent from message metadata; the panel uses it to hide
+  // single-use actions after they've fired.
+  takenIds: Set<string>;
   onRun: (action: PlayerAction) => void;
   busy: boolean;
 }) {
@@ -800,17 +824,19 @@ function PlayerCommands({
   // double-tap can't fire the same action (or two different ones)
   // before the first response lands.
   //
-  // Class-gated actions (PlayerAction.classes) only render when
-  // the character's class id is in the list. Universal actions
-  // (no `classes`) render for everyone. Class-gated buttons get
-  // a leading icon keyed by CLASS_ICON so the menu reads as
-  // "these extra options are class-flavored beats" the same way
-  // the combat log uses per-action icons.
+  // Filter chain (each must pass):
+  //   1. Class gate — class-gated actions only show when the
+  //      character's class id matches; universal ones always show.
+  //   2. One-shot gate — actions vanish once taken in this scene
+  //      unless they're explicitly `repeatable`. Resets when the
+  //      scene advances because `takenIds` only collects responses
+  //      whose metadata.scene_id matches the current scene.
   const visible = actions.filter(
     (a) =>
-      !a.classes ||
-      a.classes.length === 0 ||
-      (characterClassId !== null && a.classes.includes(characterClassId)),
+      (!a.classes ||
+        a.classes.length === 0 ||
+        (characterClassId !== null && a.classes.includes(characterClassId))) &&
+      (a.repeatable === true || !takenIds.has(a.id)),
   );
   return (
     <div className="flex flex-col gap-2">

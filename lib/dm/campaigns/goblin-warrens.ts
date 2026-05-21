@@ -113,6 +113,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "wait",
           label: "Wait and watch",
           icon: "wait",
+          repeatable: true,
           response:
             "You settle into cover. The goblins drink, argue, drink. The light fails. After a while one of them yawns hugely and slides down to nap; the other settles in to whittle a stick. Their guard, what little there was, is gone.",
         },

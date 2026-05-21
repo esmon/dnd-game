@@ -132,6 +132,15 @@ export type PlayerAction = {
   // verbs. Class-gated actions ignore this and use their class
   // icon instead. Absent = generic chevron.
   icon?: PlayerActionIcon;
+  // By default an action is one-shot: once taken in a scene, it
+  // disappears from the menu so the player can't replay the same
+  // beat. Set true for ambient checks that genuinely should repeat
+  // — "Wait and watch", "Look around again", etc. — or for class
+  // beats meant as a recurring affordance (e.g. a Druid's "Listen
+  // to the trees" being available every scene transition). Per-
+  // scene, not per-campaign: taken state resets when the scene
+  // advances since the metadata gate filters by scene_id.
+  repeatable?: boolean;
 };
 
 export type PlayerActionEffect =
