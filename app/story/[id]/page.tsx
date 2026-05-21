@@ -570,7 +570,15 @@ export default function StoryPage({
           <ScrollArea className="h-[55vh] pr-2 md:h-auto md:min-h-0 md:flex-1">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
-                <MessageRow key={m.id} message={m} />
+                <MessageRow
+                  key={m.id}
+                  message={m}
+                  icon={
+                    m.role === "narrative"
+                      ? iconForNarrative(m, template)
+                      : null
+                  }
+                />
               ))}
               {messages.length === 0 ? (
                 <li className="text-center text-sm">
@@ -731,6 +739,50 @@ const ACTION_ICON: Record<PlayerActionIcon, LucideIcon> = {
   give: GiftIcon,
 };
 
+// One source of truth for "what icon represents this player
+// action." Shared between the button (PlayerCommands) and the
+// narrative message that the action posts on resolution, so the
+// click and the response carry the same visual signature.
+function iconForAction(action: PlayerAction): LucideIcon {
+  return (
+    (action.classes && action.classes.length > 0
+      ? CLASS_ICON[action.classes[0]]
+      : undefined) ??
+    (action.icon ? ACTION_ICON[action.icon] : undefined) ??
+    ChevronRightIcon
+  );
+}
+
+// Pick a leading icon for a narrative message based on what kind
+// of beat it is. Action-response messages mirror the button that
+// produced them (sword for charge, footprints for sneak, etc.);
+// scene openings and free DM narration get the book; conclusions
+// get a trophy or skull. Falls back to book when metadata is
+// thin or the template can't be resolved.
+function iconForNarrative(
+  message: StoryMessage,
+  template: ReturnType<typeof findCampaign>,
+): LucideIcon {
+  const meta = message.metadata as Record<string, unknown>;
+  const kind = meta.kind;
+
+  if (kind === "player_action_response" && template) {
+    const sceneId = typeof meta.scene_id === "string" ? meta.scene_id : null;
+    const actionId = typeof meta.action_id === "string" ? meta.action_id : null;
+    if (sceneId && actionId) {
+      const scene = template.scenes.find((s) => s.id === sceneId);
+      const action = scene?.playerActions?.find((a) => a.id === actionId);
+      if (action) return iconForAction(action);
+    }
+  }
+
+  if (kind === "conclusion") {
+    return meta.outcome === SUCCESS_END ? TrophyIcon : SkullIcon;
+  }
+
+  return BookOpenIcon;
+}
+
 function PlayerCommands({
   actions,
   characterClassId,
@@ -767,16 +819,7 @@ function PlayerCommands({
       </p>
       <div className="flex flex-wrap gap-2">
         {visible.map((a) => {
-          // Icon priority: class > authored action icon > neutral
-          // chevron. Class wins because a class-gated action's
-          // primary signal is "this is a Class beat"; the
-          // verb-icon (sword / search / etc.) is secondary.
-          const Icon: LucideIcon =
-            (a.classes && a.classes.length > 0
-              ? CLASS_ICON[a.classes[0]]
-              : undefined) ??
-            (a.icon ? ACTION_ICON[a.icon] : undefined) ??
-            ChevronRightIcon;
+          const Icon = iconForAction(a);
           return (
             // Solid (default) variant so the action stack reads as
             // a row of pressable controls, not another set of
@@ -1035,18 +1078,26 @@ function AdvanceSceneDialog({
   );
 }
 
-function MessageRow({ message }: { message: StoryMessage }) {
+function MessageRow({
+  message,
+  icon,
+}: {
+  message: StoryMessage;
+  // Resolved by iconForNarrative in the parent. For action-
+  // response messages this is the same icon the button used,
+  // so the click and its narrative consequence visually
+  // correspond.
+  icon: LucideIcon | null;
+}) {
   // Three visual styles. Narrative = DM voice, prose. Player =
   // chat-style bubble. System = small italic stage direction.
   // 'tool' rows aren't rendered for Phase 0 (don't exist yet);
   // when they do, they'll get their own block style.
   if (message.role === "narrative") {
-    // Leading book icon mirrors the TurnLine pattern from the
-    // combat log — every story beat starts with a visual marker
-    // so it reads as "this is the world telling you something."
+    const Icon = icon ?? BookOpenIcon;
     return (
       <li className="flex items-start gap-2 rounded-md border border-muted-foreground/20 bg-background p-3 text-sm leading-relaxed">
-        <BookOpenIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <span>{message.content}</span>
       </li>
     );
