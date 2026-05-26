@@ -531,26 +531,32 @@ export default function StoryPage({
     }
   }, [campaignId, refetch]);
 
-  // Join stub. Wired in Phase 4 (POST /api/story/[id]/join). Until
-  // then a non-member can't read the lobby (RLS hides the row), so
-  // this branch is effectively unreachable.
-  const handleJoin = useCallback(async () => {
-    dispatch({ type: "LOBBY_BUSY_BEGIN" });
-    try {
-      const res = await fetch(`/api/story/${campaignId}/join`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        console.error("join story failed", res.status);
-        return;
+  // Join an open lobby — as a player (with a chosen character) or by
+  // claiming the open DM seat. The lobby SELECT policy lets a
+  // non-member read the row to get here; the join route validates and
+  // performs the privileged insert / seat claim.
+  const handleJoin = useCallback(
+    async (opts: { role: "player" | "dm"; characterId?: string }) => {
+      dispatch({ type: "LOBBY_BUSY_BEGIN" });
+      try {
+        const res = await fetch(`/api/story/${campaignId}/join`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(opts),
+        });
+        if (!res.ok) {
+          console.error("join story failed", res.status);
+          return;
+        }
+        await refetch();
+      } catch (err) {
+        console.error("join story threw", err);
+      } finally {
+        dispatch({ type: "LOBBY_BUSY_END" });
       }
-      await refetch();
-    } catch (err) {
-      console.error("join story threw", err);
-    } finally {
-      dispatch({ type: "LOBBY_BUSY_END" });
-    }
-  }, [campaignId, refetch]);
+    },
+    [campaignId, refetch],
+  );
 
   // While the story sits in the lobby, poll the snapshot so the
   // roster (and the DM's view of who's readied) stays live without a

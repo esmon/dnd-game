@@ -23,6 +23,13 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   currentCharacterId: string;
   onSelect: (id: string) => void;
+  // Dialog heading. Defaults to the original "Switch Character" so
+  // existing callers are unaffected; the story lobby passes
+  // "Choose Your Character" for the join flow.
+  title?: string;
+  // Per-row action label (the button next to a non-current
+  // character). Defaults to "Switch".
+  selectLabel?: string;
 };
 
 export function CharacterPickerDialog({
@@ -30,6 +37,8 @@ export function CharacterPickerDialog({
   onOpenChange,
   currentCharacterId,
   onSelect,
+  title = "Switch Character",
+  selectLabel = "Switch",
 }: Props) {
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const loading = open && characters === null;
@@ -56,7 +65,7 @@ export function CharacterPickerDialog({
       <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
-            Switch Character
+            {title}
           </DialogTitle>
         </DialogHeader>
         {loading || characters === null ? (
@@ -102,7 +111,7 @@ export function CharacterPickerDialog({
                       </span>
                     ) : (
                       <Button size="sm" onClick={() => onSelect(c.id)}>
-                        Switch
+                        {selectLabel}
                       </Button>
                     )}
                   </div>

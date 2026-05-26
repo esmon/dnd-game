@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CharacterAvatar } from "@/components/shared/character-avatar";
+import { CharacterPickerDialog } from "@/components/shared/character-picker-dialog";
 import { PanelLabel } from "@/components/shared/panel-label";
 import type { StoryCampaign, StoryPlayer } from "@/lib/dm/db";
 import type { Campaign } from "@/lib/dm/types";
@@ -33,9 +34,10 @@ export function StoryLobby({
   busy: boolean;
   onReady: (ready: boolean) => void;
   onStart: () => void;
-  onJoin: () => void;
+  onJoin: (opts: { role: "player" | "dm"; characterId?: string }) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const me = players.find((p) => p.user_id === userId) ?? null;
   const dm = players.find((p) => p.role === "dm") ?? null;
@@ -118,9 +120,14 @@ export function StoryLobby({
               </span>
             </span>
             {!dm && !me ? (
-              <span className="text-xs text-muted-foreground">
-                Join to claim
-              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onJoin({ role: "dm" })}
+                disabled={busy}
+              >
+                {busy ? "Claiming…" : "Claim Seat"}
+              </Button>
             ) : null}
           </div>
 
@@ -173,10 +180,12 @@ export function StoryLobby({
 
         {/* Controls */}
         {!me ? (
-          // Non-member landed via the invite link.
+          // Non-member landed via the invite link. Joining as a
+          // player picks a character first; claiming the DM seat (if
+          // open) is the button on the DM row above.
           <Button
             className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
-            onClick={onJoin}
+            onClick={() => setPickerOpen(true)}
             disabled={busy}
           >
             {busy ? "Joining…" : "Join as a Player"}
@@ -220,6 +229,18 @@ export function StoryLobby({
           </div>
         )}
       </div>
+
+      <CharacterPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        currentCharacterId=""
+        title="Choose Your Character"
+        selectLabel="Join"
+        onSelect={(characterId) => {
+          setPickerOpen(false);
+          onJoin({ role: "player", characterId });
+        }}
+      />
     </main>
   );
 }
