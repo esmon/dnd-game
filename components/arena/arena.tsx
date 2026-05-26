@@ -14,7 +14,6 @@ import {
   BackpackIcon,
   BookOpenIcon,
   ChevronsUpIcon,
-  CompassIcon,
   FlaskConicalIcon,
   FootprintsIcon,
   HeartIcon,
@@ -40,6 +39,7 @@ import {
 import { LobbyOutcomePanel } from "@/components/arena/lobby-outcome-panel";
 import { PlayerPanel } from "@/components/arena/player-panel";
 import { CampaignPickerDialog } from "@/components/story/campaign-picker-dialog";
+import { FightModeDialog } from "@/components/arena/fight-mode-dialog";
 import { InventoryDialog } from "@/components/arena/inventory-dialog";
 import { LevelUpDialog } from "@/components/arena/level-up-dialog";
 import { MonsterCard } from "@/components/arena/monster-card";
@@ -132,6 +132,10 @@ export function Arena() {
   // is in flight. Same shape as the coop "Starting…" pattern.
   const [storyPickerOpen, setStoryPickerOpen] = useState(false);
   const [startingStory, setStartingStory] = useState(false);
+  // Fight-mode picker (Solo vs Co-op). Only opens for signed-in
+  // players; anonymous players start solo directly since co-op
+  // needs an account.
+  const [fightMenuOpen, setFightMenuOpen] = useState(false);
 
   useArenaBootstrap({
     dispatch,
@@ -1329,23 +1333,17 @@ export function Arena() {
                 key: "fight",
                 kind: "primary",
                 icon: SwordsIcon,
-                label: "Fight Solo",
-                onClick: startFight,
-                disabled: asiPending.length > 0,
+                label: "Fight",
+                // Signed-in players get the Solo / Co-op picker;
+                // anonymous players have no co-op option, so the
+                // button just starts a solo fight directly.
+                onClick: () =>
+                  user ? setFightMenuOpen(true) : startFight(),
+                disabled: asiPending.length > 0 || creatingCampaign,
                 disabledReason: lobbyActionReason,
               },
               ...(user
                 ? [
-                  {
-                    key: "start-campaign",
-                    kind: "primary",
-                    icon: CompassIcon,
-                    label: creatingCampaign
-                      ? "Starting Co-op…"
-                      : "Fight Co-op",
-                    onClick: handleStartCampaign,
-                    disabled: creatingCampaign,
-                  } satisfies CommandItem,
                   {
                     key: "start-story",
                     kind: "primary",
@@ -1357,10 +1355,11 @@ export function Arena() {
                 ]
                 : []),
               {
-                // Visual divider between primary commands (Fight Solo /
-                // Fight Co-op) and navigation (Switch Character / Create
-                // New / dev). Rest now lives on the VictoryPanel so it's
-                // the obvious next step after a fight ends.
+                // Visual divider between primary commands (Fight /
+                // Story Mode) and navigation (Switch Character /
+                // Create New / dev). Rest now lives on the
+                // VictoryPanel so it's the obvious next step after a
+                // fight ends.
                 key: "nav-separator",
                 render: <div className="my-1 h-px bg-primary" />,
               },
@@ -1491,6 +1490,17 @@ export function Arena() {
         onOpenChange={setStoryPickerOpen}
         onPick={handleStartStory}
         busy={startingStory}
+      />
+
+      <FightModeDialog
+        open={fightMenuOpen}
+        onOpenChange={setFightMenuOpen}
+        onSolo={() => {
+          setFightMenuOpen(false);
+          startFight();
+        }}
+        onCoop={handleStartCampaign}
+        creatingCampaign={creatingCampaign}
       />
     </div>
   );

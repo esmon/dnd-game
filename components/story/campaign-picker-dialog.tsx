@@ -62,7 +62,7 @@ export function CampaignPickerDialog({
         </DialogHeader>
         {list.length === 0 ? (
           <p className="py-6 text-center text-sm">
-            No campaigns match your character's level.
+            No campaigns match your character&apos;s level.
           </p>
         ) : (
           <ScrollArea className="max-h-[60vh] pr-2">
