@@ -38,7 +38,10 @@ import {
 } from "@/components/shared/battle-commands";
 import { LobbyOutcomePanel } from "@/components/arena/lobby-outcome-panel";
 import { PlayerPanel } from "@/components/arena/player-panel";
-import { CampaignPickerDialog } from "@/components/story/campaign-picker-dialog";
+import {
+  CampaignPickerDialog,
+  type StoryStartConfig,
+} from "@/components/story/campaign-picker-dialog";
 import { FightModeDialog } from "@/components/arena/fight-mode-dialog";
 import { InventoryDialog } from "@/components/arena/inventory-dialog";
 import { LevelUpDialog } from "@/components/arena/level-up-dialog";
@@ -395,7 +398,7 @@ export function Arena() {
   }, [creatingCampaign, router]);
 
   const handleStartStory = useCallback(
-    async (campaignTemplateId: string) => {
+    async (config: StoryStartConfig) => {
       const snap = stateRef.current;
       if (!snap.player?.id) return;
       if (startingStory) return;
@@ -406,7 +409,9 @@ export function Arena() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             characterId: snap.player.id,
-            campaignTemplateId,
+            campaignTemplateId: config.campaignTemplateId,
+            mode: config.mode,
+            dmRole: config.dmRole,
           }),
         });
         if (!res.ok) {
@@ -415,6 +420,9 @@ export function Arena() {
         }
         const { id } = (await res.json()) as { id: string };
         setStoryPickerOpen(false);
+        // Solo lands in play; coop lands in the lobby. The story
+        // page routes on status, so the destination is the same URL
+        // either way.
         router.push(`/story/${id}`);
       } catch (err) {
         console.error("create story threw", err);

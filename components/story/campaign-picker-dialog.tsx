@@ -13,8 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CAMPAIGNS } from "@/lib/dm/campaigns";
+import type { StoryMode, StoryPlayerRole } from "@/lib/dm/db";
 import type { Campaign } from "@/lib/dm/types";
 import { cn } from "@/lib/utils";
+
+export type StoryStartConfig = {
+  campaignTemplateId: string;
+  mode: StoryMode;
+  // Only meaningful when mode === "coop". Solo ignores it.
+  dmRole: StoryPlayerRole;
+};
 
 type Props = {
   open: boolean;
@@ -23,7 +31,7 @@ type Props = {
   // null = show everything (no character context). The caller does
   // the filtering since it knows the character's level.
   visibleIds?: string[] | null;
-  onPick: (campaignTemplateId: string) => void;
+  onPick: (config: StoryStartConfig) => void;
   busy?: boolean;
 };
 
@@ -48,6 +56,8 @@ export function CampaignPickerDialog({
   busy = false,
 }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [mode, setMode] = useState<StoryMode>("solo");
+  const [dmRole, setDmRole] = useState<StoryPlayerRole>("dm");
   const list = visibleIds
     ? CAMPAIGNS.filter((c) => visibleIds.includes(c.id))
     : CAMPAIGNS;
@@ -99,6 +109,33 @@ export function CampaignPickerDialog({
             </div>
           </ScrollArea>
         )}
+
+        {/* Mode + (coop) DM-role selectors. Solo plays straight
+            through; coop drops into a lobby where the party
+            assembles. */}
+        <div className="flex flex-col gap-3 border-t border-muted-foreground/20 pt-3">
+          <Segmented
+            label="Mode"
+            value={mode}
+            options={[
+              { value: "solo", label: "Solo" },
+              { value: "coop", label: "Co-op" },
+            ]}
+            onChange={setMode}
+          />
+          {mode === "coop" ? (
+            <Segmented
+              label="Your seat"
+              value={dmRole}
+              options={[
+                { value: "dm", label: "I'll DM" },
+                { value: "player", label: "I'll play" },
+              ]}
+              onChange={setDmRole}
+            />
+          ) : null}
+        </div>
+
         <DialogFooter>
           <Button
             variant="outline"
@@ -109,12 +146,61 @@ export function CampaignPickerDialog({
           </Button>
           <Button
             disabled={!selected || busy}
-            onClick={() => selected && onPick(selected)}
+            onClick={() =>
+              selected &&
+              onPick({ campaignTemplateId: selected, mode, dmRole })
+            }
           >
-            {busy ? "Starting…" : "Begin Campaign"}
+            {busy
+              ? "Starting…"
+              : mode === "coop"
+                ? "Create Lobby"
+                : "Begin Campaign"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Small two-or-more option segmented control. Generic over the
+// value type so it serves both the mode (solo/coop) and seat
+// (dm/player) toggles. Matches the composer role tabs on the
+// story page visually.
+function Segmented<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 font-mono">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+      <div className="flex gap-1 rounded-md border border-input bg-muted/30 p-0.5 text-xs uppercase tracking-widest">
+        {options.map((o) => {
+          const active = value === o.value;
+          return (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => onChange(o.value)}
+              className={cn(
+                "rounded-sm px-3 py-1 transition-colors",
+                active ? "bg-zinc-900 text-white" : "hover:bg-muted/60",
+              )}
+            >
+              {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

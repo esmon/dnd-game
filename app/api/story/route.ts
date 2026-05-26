@@ -4,8 +4,12 @@ import { findCampaign } from "@/lib/dm/campaigns";
 import type {
   NewStoryCampaign,
   NewStoryMessage,
+  NewStoryPlayer,
   StoryCampaign,
+  StoryMode,
+  StoryPlayerRole,
 } from "@/lib/dm/db";
+import type { Character } from "@/lib/db/schema";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,12 +38,17 @@ export async function GET(_request: NextRequest) {
   return NextResponse.json((data ?? []) as StoryCampaign[]);
 }
 
-// POST /api/story — start a new campaign. Body: { characterId,
-// campaignTemplateId }. Validates the template exists in the
-// registry, looks up the character (no RLS on characters yet —
-// uses supabaseAdmin + explicit owner check), then INSERTs the
-// campaign + seed messages via the SSR client so RLS's INSERT
-// policies enforce ownership at the DB layer.
+// POST /api/story — start a new campaign.
+// Body: { campaignTemplateId, characterId, mode, dmRole? }.
+//   mode 'solo' → dm_kind 'self', status 'active', one player row
+//     (the owner's character), first scene's readAloud seeded.
+//     Caller redirects straight into play.
+//   mode 'coop' → dm_kind 'human', status 'lobby'. No readAloud
+//     yet — the story begins when the DM starts it from the lobby.
+//     dmRole decides the creator's seat:
+//       'dm'     → role 'dm' row (no character), dm_user_id = owner
+//       'player' → role 'player' row (their character), DM seat
+//                  open (dm_user_id null) for someone to claim.
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -49,7 +58,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "sign-in required" }, { status: 401 });
   }
 
-  let body: { characterId?: string; campaignTemplateId?: string };
+  let body: {
+    characterId?: string;
+    campaignTemplateId?: string;
+    mode?: StoryMode;
+    dmRole?: StoryPlayerRole;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -57,11 +71,20 @@ export async function POST(request: NextRequest) {
   }
 
   const { characterId, campaignTemplateId } = body;
-  if (!characterId || !campaignTemplateId) {
+  const mode: StoryMode = body.mode === "coop" ? "coop" : "solo";
+  // For coop the creator picks a seat; default to DM if unspecified.
+  const dmRole: StoryPlayerRole = body.dmRole === "player" ? "player" : "dm";
+  if (!campaignTemplateId) {
     return NextResponse.json(
-      { error: "missing characterId or campaignTemplateId" },
+      { error: "missing campaignTemplateId" },
       { status: 400 },
     );
+  }
+  // A character is required unless the creator is opening a coop
+  // story as the DM (they run the world, no character).
+  const needsCharacter = mode === "solo" || dmRole === "player";
+  if (needsCharacter && !characterId) {
+    return NextResponse.json({ error: "missing characterId" }, { status: 400 });
   }
 
   const template = findCampaign(campaignTemplateId);
@@ -78,69 +101,103 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Verify the character belongs to the caller. characters has no
-  // RLS yet — supabaseAdmin + explicit check until that gap closes.
-  const { data: charRow, error: charError } = await supabaseAdmin
-    .from("characters")
-    .select("id, user_id")
-    .eq("id", characterId)
-    .maybeSingle();
-  if (charError) {
-    return NextResponse.json({ error: charError.message }, { status: 500 });
-  }
-  if (!charRow) {
-    return NextResponse.json({ error: "character not found" }, { status: 404 });
-  }
-  if (charRow.user_id !== user.id) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // Load the full character (for the roster snapshot) when one is
+  // needed. characters has no RLS yet — supabaseAdmin + explicit
+  // owner check.
+  let character: Character | null = null;
+  if (needsCharacter && characterId) {
+    const { data: charRow, error: charError } = await supabaseAdmin
+      .from("characters")
+      .select("*")
+      .eq("id", characterId)
+      .maybeSingle();
+    if (charError) {
+      return NextResponse.json({ error: charError.message }, { status: 500 });
+    }
+    if (!charRow) {
+      return NextResponse.json(
+        { error: "character not found" },
+        { status: 404 },
+      );
+    }
+    if ((charRow as Character).user_id !== user.id) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    character = charRow as Character;
   }
 
   const firstScene = template.scenes[0];
+  const isCoop = mode === "coop";
   const campaignInsert: NewStoryCampaign = {
     user_id: user.id,
-    character_id: characterId,
+    // Legacy column: keep the owner's character where we have one.
+    character_id: character?.id ?? "",
     campaign_template_id: campaignTemplateId,
     current_scene_id: firstScene.id,
     world_state: {},
-    dm_kind: "self",
-    dm_user_id: null,
-    status: "active",
+    mode,
+    dm_kind: isCoop ? "human" : "self",
+    // Coop-as-DM claims the seat now; coop-as-player leaves it open.
+    dm_user_id: isCoop && dmRole === "dm" ? user.id : null,
+    status: isCoop ? "lobby" : "active",
   };
 
-  const { data: campaign, error: campaignError } = await supabase
+  const { data: campaignRow, error: campaignError } = await supabase
     .from("story_campaigns")
     .insert(campaignInsert)
     .select()
     .single();
-
   if (campaignError) {
     return NextResponse.json({ error: campaignError.message }, { status: 500 });
   }
+  const campaign = campaignRow as StoryCampaign;
 
-  // Seed the first scene's readAloud passages as opening narrative.
-  // One row per passage so the UI can render them as distinct beats.
-  // RLS's INSERT policy gates these on the parent campaign's
-  // ownership — auth.uid() must match c.user_id or c.dm_user_id.
-  const seedMessages: NewStoryMessage[] = firstScene.readAloud.map(
-    (content) => ({
-      campaign_id: (campaign as StoryCampaign).id,
-      role: "narrative",
-      content,
-      author_user_id: null,
-      metadata: { scene_id: firstScene.id, kind: "scene_opening" },
-    }),
-  );
-  if (seedMessages.length > 0) {
-    const { error: seedError } = await supabase
-      .from("story_messages")
-      .insert(seedMessages);
-    if (seedError) {
-      // Non-fatal — campaign exists, opening can be re-derived if
-      // needed. Log and continue so we don't leave the caller without
-      // a campaign id to navigate to.
-      console.error("story seed messages failed", seedError.message);
+  // Creator's roster row. Solo + coop-as-player bring a character;
+  // coop-as-DM takes the dm seat with none.
+  const creatorRole: StoryPlayerRole = isCoop ? dmRole : "player";
+  const playerInsert: NewStoryPlayer = {
+    campaign_id: campaign.id,
+    user_id: user.id,
+    role: creatorRole,
+    character_id: creatorRole === "player" ? (character?.id ?? null) : null,
+    character_snapshot: creatorRole === "player" ? character : null,
+    // Solo is ready by definition; in a lobby the creator still
+    // readies up (the DM's "ready" is implicit via Start, mirroring
+    // coop, but we set true to keep the roster tidy).
+    is_ready: !isCoop,
+    position: 0,
+  };
+  const { error: playerError } = await supabase
+    .from("story_players")
+    .insert(playerInsert);
+  if (playerError) {
+    // Roll back the campaign so we don't orphan it.
+    await supabaseAdmin.from("story_campaigns").delete().eq("id", campaign.id);
+    return NextResponse.json({ error: playerError.message }, { status: 500 });
+  }
+
+  // Solo starts playing immediately, so seed the opening narrative
+  // now. Coop waits in the lobby — the start route seeds when the
+  // DM kicks off.
+  if (!isCoop) {
+    const seedMessages: NewStoryMessage[] = firstScene.readAloud.map(
+      (content) => ({
+        campaign_id: campaign.id,
+        role: "narrative",
+        content,
+        author_user_id: null,
+        metadata: { scene_id: firstScene.id, kind: "scene_opening" },
+      }),
+    );
+    if (seedMessages.length > 0) {
+      const { error: seedError } = await supabase
+        .from("story_messages")
+        .insert(seedMessages);
+      if (seedError) {
+        console.error("story seed messages failed", seedError.message);
+      }
     }
   }
 
-  return NextResponse.json(campaign as StoryCampaign, { status: 201 });
+  return NextResponse.json(campaign, { status: 201 });
 }
