@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import type { Character } from "@/lib/db/schema";
-import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
+import type { StoryCampaign, StoryMessage, StoryPlayer } from "@/lib/dm/db";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
@@ -47,28 +47,44 @@ export async function GET(_request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: messagesError.message }, { status: 500 });
   }
 
-  // Bundle the character row so the page can render the party panel
-  // without a second round-trip. characters has no RLS yet —
-  // supabaseAdmin is the consistent path the other story routes use.
-  // The story_campaigns RLS above already established that this
-  // caller owns the campaign, and the campaign points at one
-  // character_id, so reading that row is safe by transitive trust.
   const c = campaign as StoryCampaign;
-  const { data: characterRow, error: characterError } = await supabaseAdmin
-    .from("characters")
+
+  // Party roster. RLS lets any member read the rows; ordered by
+  // position so the lobby / party panel render consistently.
+  const { data: playersRows, error: playersError } = await supabase
+    .from("story_players")
     .select("*")
-    .eq("id", c.character_id)
-    .maybeSingle();
-  if (characterError) {
-    return NextResponse.json(
-      { error: characterError.message },
-      { status: 500 },
-    );
+    .eq("campaign_id", id)
+    .order("position", { ascending: true });
+  if (playersError) {
+    return NextResponse.json({ error: playersError.message }, { status: 500 });
+  }
+  const players = (playersRows ?? []) as StoryPlayer[];
+
+  // Legacy convenience: the solo play page's party panel still reads
+  // a single `character`. Resolve it from the campaign's character_id
+  // when set (empty for coop-as-DM stories). characters has no RLS
+  // yet — supabaseAdmin, gated transitively by the campaign read.
+  let character: Character | null = null;
+  if (c.character_id) {
+    const { data: characterRow, error: characterError } = await supabaseAdmin
+      .from("characters")
+      .select("*")
+      .eq("id", c.character_id)
+      .maybeSingle();
+    if (characterError) {
+      return NextResponse.json(
+        { error: characterError.message },
+        { status: 500 },
+      );
+    }
+    character = (characterRow ?? null) as Character | null;
   }
 
   return NextResponse.json({
     campaign: c,
     messages: (messages ?? []) as StoryMessage[],
-    character: (characterRow ?? null) as Character | null,
+    players,
+    character,
   });
 }

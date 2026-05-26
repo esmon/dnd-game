@@ -17,7 +17,7 @@ import { createClient } from "@/lib/supabase/server";
 // (newest first). RLS on story_campaigns filters by auth.uid(); we
 // rely on it rather than re-filtering in code so a future policy
 // change is the single source of truth.
-export async function GET(_request: NextRequest) {
+export async function GET() {
   const supabase = await createClient();
   const {
     data: { user },

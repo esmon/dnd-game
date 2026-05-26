@@ -43,13 +43,14 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { StoryCombatDialog } from "@/components/story/story-combat-dialog";
+import { StoryLobby } from "@/components/story/story-lobby";
 import { PartyRow } from "@/components/shared/party-row";
 import { PanelLabel } from "@/components/shared/panel-label";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import { useUser } from "@/lib/auth/use-user";
 import type { Character } from "@/lib/db/schema";
 import { findCampaign } from "@/lib/dm/campaigns";
-import type { StoryCampaign, StoryMessage } from "@/lib/dm/db";
+import type { StoryCampaign, StoryMessage, StoryPlayer } from "@/lib/dm/db";
 import {
   FAILURE_END,
   SUCCESS_END,
@@ -63,6 +64,9 @@ import { cn } from "@/lib/utils";
 type Snapshot = {
   campaign: StoryCampaign;
   messages: StoryMessage[];
+  // Party roster — drives the lobby and (later) the coop party
+  // panel. Always present; solo stories have a single entry.
+  players: StoryPlayer[];
   // The character driving this story. Returned by the snapshot
   // route so the party panel renders without a separate fetch.
   // Null if the row vanished (shouldn't normally happen).
@@ -90,6 +94,9 @@ interface PageState {
   // action twice (each fire would re-post the response and re-apply
   // the effect — encounters would double-spawn).
   runningAction: boolean;
+  // True while a lobby join / ready / start POST is in flight, so the
+  // StoryLobby's buttons disable to block double-fires.
+  lobbyBusy: boolean;
 }
 
 type PageAction =
@@ -111,6 +118,8 @@ type PageAction =
   | { type: "TRIGGER_ENCOUNTER_END" }
   | { type: "RUN_ACTION_BEGIN" }
   | { type: "RUN_ACTION_END" }
+  | { type: "LOBBY_BUSY_BEGIN" }
+  | { type: "LOBBY_BUSY_END" }
   | { type: "SET_ACTIVE_COMBAT"; campaignId: string | null };
 
 function pageReducer(state: PageState, action: PageAction): PageState {
@@ -166,6 +175,10 @@ function pageReducer(state: PageState, action: PageAction): PageState {
       return { ...state, runningAction: true };
     case "RUN_ACTION_END":
       return { ...state, runningAction: false };
+    case "LOBBY_BUSY_BEGIN":
+      return { ...state, lobbyBusy: true };
+    case "LOBBY_BUSY_END":
+      return { ...state, lobbyBusy: false };
     case "SET_ACTIVE_COMBAT":
       if (state.load.kind !== "ready") return state;
       return {
@@ -216,6 +229,7 @@ const INITIAL: PageState = {
   advancing: false,
   triggeringEncounter: false,
   runningAction: false,
+  lobbyBusy: false,
 };
 
 export default function StoryPage({
@@ -236,6 +250,7 @@ export default function StoryPage({
     advancing,
     triggeringEncounter,
     runningAction,
+    lobbyBusy,
   } = state;
 
   // Auto-scroll the message log to the bottom whenever a new
@@ -459,6 +474,97 @@ export default function StoryPage({
     [campaignId, advancing],
   );
 
+  // Re-pull the whole snapshot. Used by the lobby (after join / ready
+  // / start) and by the lobby poll. Silently no-ops on failure — the
+  // next poll tick retries.
+  const refetch = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/story/${campaignId}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as Snapshot;
+      dispatch({ type: "SET_LOAD", load: { kind: "ready", data } });
+    } catch (err) {
+      console.error("story refetch threw", err);
+    }
+  }, [campaignId]);
+
+  const handleReady = useCallback(
+    async (ready: boolean) => {
+      dispatch({ type: "LOBBY_BUSY_BEGIN" });
+      try {
+        const res = await fetch(`/api/story/${campaignId}/player`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ready }),
+        });
+        if (!res.ok) {
+          console.error("set ready failed", res.status);
+          return;
+        }
+        await refetch();
+      } catch (err) {
+        console.error("set ready threw", err);
+      } finally {
+        dispatch({ type: "LOBBY_BUSY_END" });
+      }
+    },
+    [campaignId, refetch],
+  );
+
+  const handleStart = useCallback(async () => {
+    dispatch({ type: "LOBBY_BUSY_BEGIN" });
+    try {
+      const res = await fetch(`/api/story/${campaignId}/start`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("start story failed", res.status);
+        return;
+      }
+      // Status flips to 'active' — refetch swaps the lobby for the
+      // play surface (and pulls in the seeded opening narrative).
+      await refetch();
+    } catch (err) {
+      console.error("start story threw", err);
+    } finally {
+      dispatch({ type: "LOBBY_BUSY_END" });
+    }
+  }, [campaignId, refetch]);
+
+  // Join stub. Wired in Phase 4 (POST /api/story/[id]/join). Until
+  // then a non-member can't read the lobby (RLS hides the row), so
+  // this branch is effectively unreachable.
+  const handleJoin = useCallback(async () => {
+    dispatch({ type: "LOBBY_BUSY_BEGIN" });
+    try {
+      const res = await fetch(`/api/story/${campaignId}/join`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        console.error("join story failed", res.status);
+        return;
+      }
+      await refetch();
+    } catch (err) {
+      console.error("join story threw", err);
+    } finally {
+      dispatch({ type: "LOBBY_BUSY_END" });
+    }
+  }, [campaignId, refetch]);
+
+  // While the story sits in the lobby, poll the snapshot so the
+  // roster (and the DM's view of who's readied) stays live without a
+  // realtime channel. Stops as soon as the status leaves 'lobby' —
+  // Phase 5 replaces this with a story:${id} broadcast channel.
+  const inLobby = load.kind === "ready" && load.data.campaign.status === "lobby";
+  useEffect(() => {
+    if (!inLobby) return;
+    const interval = setInterval(() => {
+      void refetch();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [inLobby, refetch]);
+
   if (authLoading || load.kind === "loading") {
     return <CenteredCard>Loading campaign…</CenteredCard>;
   }
@@ -484,8 +590,27 @@ export default function StoryPage({
     );
   }
 
-  const { campaign, messages, character } = load.data;
+  const { campaign, messages, character, players } = load.data;
   const template = findCampaign(campaign.campaign_template_id);
+
+  // Coop story waiting in the lobby: render the assembly screen
+  // (invite link, roster, ready toggles, DM start) instead of the
+  // play surface. Solo stories are created 'active' and skip this.
+  if (campaign.status === "lobby") {
+    return (
+      <StoryLobby
+        campaign={campaign}
+        template={template}
+        players={players}
+        userId={user.id}
+        busy={lobbyBusy}
+        onReady={handleReady}
+        onStart={handleStart}
+        onJoin={handleJoin}
+      />
+    );
+  }
+
   const currentScene =
     template?.scenes.find((s) => s.id === campaign.current_scene_id) ?? null;
   // DM seat check. dm_kind=self means the owner is also the DM —
