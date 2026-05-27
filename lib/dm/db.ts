@@ -44,6 +44,11 @@ export interface StoryCampaign {
   // combat is active. Used by the story page to know whether a
   // locked combat dialog should be open.
   active_combat_campaign_id: string | null;
+  // Coop narrative-phase turn: the roster player whose turn it is to
+  // act. Players take one move (action or message) per turn, then it
+  // auto-advances in roster order. Null for solo (no turns) and until
+  // a coop story starts. The DM is not in the rotation.
+  active_turn_user_id: string | null;
 }
 
 export interface StoryPlayer {
@@ -85,13 +90,19 @@ export interface StoryMessage {
 
 export type NewStoryCampaign = Omit<
   StoryCampaign,
-  "id" | "created_at" | "updated_at" | "active_combat_campaign_id" | "mode"
+  | "id"
+  | "created_at"
+  | "updated_at"
+  | "active_combat_campaign_id"
+  | "active_turn_user_id"
+  | "mode"
 > & {
   id?: string;
   created_at?: string;
   updated_at?: string;
   // SQL defaults these; callers pass them only when overriding.
   active_combat_campaign_id?: string | null;
+  active_turn_user_id?: string | null;
   mode?: StoryMode;
 };
 

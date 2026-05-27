@@ -7,6 +7,7 @@ import type {
   StoryPlayer,
 } from "@/lib/dm/db";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
+import { firstTurnUserId } from "@/lib/dm/turns";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -92,9 +93,12 @@ export async function POST(_request: NextRequest, ctx: RouteContext) {
     (s) => s.id === campaign.current_scene_id,
   ) ?? template.scenes[0];
 
+  // First roster player takes the opening turn; players then rotate
+  // one move at a time through the narrative phase.
+  const firstTurn = firstTurnUserId(players);
   const { error: flipError } = await supabase
     .from("story_campaigns")
-    .update({ status: "active" })
+    .update({ status: "active", active_turn_user_id: firstTurn })
     .eq("id", id);
   if (flipError) {
     return NextResponse.json({ error: flipError.message }, { status: 500 });

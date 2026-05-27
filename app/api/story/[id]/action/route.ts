@@ -6,6 +6,7 @@ import type {
   StoryCampaign,
   StoryCampaignStatus,
   StoryMessage,
+  StoryPlayer,
 } from "@/lib/dm/db";
 import {
   FAILURE_END,
@@ -19,6 +20,7 @@ import { walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { grantSceneRewards } from "@/lib/dm/rewards";
+import { nextTurnUserId } from "@/lib/dm/turns";
 import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import { fetchMonster } from "@/lib/game/dnd5e";
@@ -84,13 +86,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
   const story = storyRow as StoryCampaign;
 
-  // Owner gate. Anyone who can see the story (RLS) can take an
-  // action — this is the player surface. (DM-only actions like
-  // "trigger encounter" used to live on the DM Notes panel; player
-  // actions are explicitly authored as player-facing.)
-  if (story.user_id !== user.id) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
   if (story.status !== "active") {
     return NextResponse.json(
       { error: "campaign is not active" },
@@ -102,6 +97,33 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       { error: "resolve the current encounter first" },
       { status: 409 },
     );
+  }
+
+  // Authorization differs by mode:
+  //   solo — the owner is the lone player; they drive everything.
+  //   coop — the caller must be a roster 'player' AND it must be
+  //          their turn (players take one move each, in order). The
+  //          DM isn't in the rotation; they drive the world from the
+  //          DM panel (combat/start, /advance), not via /action.
+  let roster: StoryPlayer[] = [];
+  if (story.mode === "coop") {
+    const { data: rosterRows, error: rosterError } = await supabase
+      .from("story_players")
+      .select("*")
+      .eq("campaign_id", storyId);
+    if (rosterError) {
+      return NextResponse.json({ error: rosterError.message }, { status: 500 });
+    }
+    roster = (rosterRows ?? []) as StoryPlayer[];
+    const me = roster.find((p) => p.user_id === user.id) ?? null;
+    if (me?.role !== "player") {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (story.active_turn_user_id !== user.id) {
+      return NextResponse.json({ error: "not your turn" }, { status: 409 });
+    }
+  } else if (story.user_id !== user.id) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const template = findCampaign(story.campaign_template_id);
@@ -130,6 +152,19 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         error: `no action "${actionId}" on scene "${currentScene.id}"`,
       },
       { status: 400 },
+    );
+  }
+
+  // In coop the DM owns world-state changes (starting fights, moving
+  // scenes) via the DM panel; player actions are narration/skill
+  // beats only. Solo lets the lone player drive everything.
+  if (
+    story.mode === "coop" &&
+    (action.effect?.kind === "advance" || action.effect?.kind === "encounter")
+  ) {
+    return NextResponse.json(
+      { error: "the DM drives encounters and scene changes" },
+      { status: 403 },
     );
   }
 
@@ -220,6 +255,21 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       ...story,
       active_combat_campaign_id: combatCampaignId,
     };
+  }
+
+  // Coop: the move is spent — pass the turn to the next player in
+  // roster order. (Solo has no turn rotation.)
+  if (story.mode === "coop") {
+    const nextTurn = nextTurnUserId(roster, user.id);
+    const { error: turnError } = await supabase
+      .from("story_campaigns")
+      .update({ active_turn_user_id: nextTurn })
+      .eq("id", storyId);
+    if (turnError) {
+      console.error("turn advance failed", turnError.message);
+    } else {
+      updatedCampaign = { ...updatedCampaign, active_turn_user_id: nextTurn };
+    }
   }
 
   // Narrative + any scene/combat effect just landed — fan out to

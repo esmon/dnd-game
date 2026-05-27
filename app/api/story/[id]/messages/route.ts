@@ -4,8 +4,10 @@ import type {
   NewStoryMessage,
   StoryCampaign,
   StoryMessage,
+  StoryPlayer,
 } from "@/lib/dm/db";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
+import { nextTurnUserId } from "@/lib/dm/turns";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -100,6 +102,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
   }
+  // Coop turn gate: a player speaks only on their turn. The DM's
+  // narration is never turn-gated. Solo has no turns.
+  if (
+    c.mode === "coop" &&
+    role === "player" &&
+    c.active_turn_user_id !== user.id
+  ) {
+    return NextResponse.json({ error: "not your turn" }, { status: 409 });
+  }
   if (c.status !== "active") {
     return NextResponse.json(
       { error: "campaign is not active" },
@@ -129,10 +140,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // surfaces recently-played campaigns first. The story_campaigns
   // touch trigger handles this when we explicitly UPDATE — the
   // world_state assignment is a no-op data-wise but bumps the trigger.
-  await supabase
-    .from("story_campaigns")
-    .update({ world_state: c.world_state })
-    .eq("id", id);
+  //
+  // In coop a player's message spends their turn, so fold the
+  // turn-advance into the same write. (The DM's narration doesn't
+  // move the rotation.)
+  const campaignUpdate: Record<string, unknown> = { world_state: c.world_state };
+  if (c.mode === "coop" && role === "player") {
+    const { data: rosterRows } = await supabase
+      .from("story_players")
+      .select("*")
+      .eq("campaign_id", id);
+    campaignUpdate.active_turn_user_id = nextTurnUserId(
+      (rosterRows ?? []) as StoryPlayer[],
+      user.id,
+    );
+  }
+  await supabase.from("story_campaigns").update(campaignUpdate).eq("id", id);
 
   await broadcastStoryUpdate(id);
   return NextResponse.json(inserted as StoryMessage, { status: 201 });

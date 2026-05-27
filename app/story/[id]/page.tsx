@@ -714,6 +714,19 @@ export default function StoryPage({
     if (p.character_snapshot) nameByUser.set(p.user_id, p.character_snapshot.name);
   }
 
+  // Coop is turn-based: a player may act / speak only on their turn,
+  // and one move auto-passes to the next player. Solo has no turns,
+  // so it's always "your turn". The DM is never turn-gated (they
+  // narrate via the composer, which isn't blocked here).
+  const isMyTurn = isSolo || campaign.active_turn_user_id === user.id;
+  const activeTurnPlayer =
+    players.find((p) => p.user_id === campaign.active_turn_user_id) ?? null;
+  const activeTurnName =
+    activeTurnPlayer?.character_snapshot?.name ?? "another player";
+  // Lock the composer for a player who's off-turn. A DM narrating
+  // (effectiveRole 'narrative') is never turn-gated.
+  const composerLocked = effectiveRole === "player" && !isMyTurn;
+
   // Build the set of action ids already taken in the *current*
   // scene from message metadata. PlayerCommands uses this to hide
   // one-shot actions (the default) and leave repeatable ones in
@@ -818,7 +831,9 @@ export default function StoryPage({
               <PartyRow
                 players={partyMembers}
                 actions={[]}
-                currentTurnUserId={undefined}
+                currentTurnUserId={
+                  isSolo ? undefined : campaign.active_turn_user_id ?? undefined
+                }
                 myUserId={user.id}
               />
             </aside>
@@ -868,14 +883,23 @@ export default function StoryPage({
           ) : (
             <>
               {canPlay && currentScene?.playerActions?.length ? (
-                <PlayerCommands
-                  actions={currentScene.playerActions}
-                  characterClassId={myCharacter?.class ?? null}
-                  takenIds={takenActionIds}
-                  encounterWon={sceneEncounterWon}
-                  onRun={runAction}
-                  busy={runningAction}
-                />
+                isMyTurn ? (
+                  <PlayerCommands
+                    actions={currentScene.playerActions}
+                    characterClassId={myCharacter?.class ?? null}
+                    takenIds={takenActionIds}
+                    encounterWon={sceneEncounterWon}
+                    // Coop: the DM owns encounters + scene changes, so
+                    // players only see narration / skill actions.
+                    hideEffectActions={!isSolo}
+                    onRun={runAction}
+                    busy={runningAction}
+                  />
+                ) : (
+                  <p className="text-center text-xs uppercase tracking-widest text-muted-foreground">
+                    {activeTurnName}&apos;s turn…
+                  </p>
+                )
               ) : null}
               {/* Free-text composer is coop-only — solo plays through
                   the action buttons above. */}
@@ -901,7 +925,7 @@ export default function StoryPage({
                     }
                     rows={3}
                     maxLength={4000}
-                    disabled={submitting}
+                    disabled={submitting || composerLocked}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                         e.preventDefault();
@@ -912,7 +936,9 @@ export default function StoryPage({
                   />
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
-                      Cmd / Ctrl + Enter to send.
+                      {composerLocked
+                        ? `${activeTurnName}'s turn…`
+                        : "Cmd / Ctrl + Enter to send."}
                     </p>
                     <div className="flex items-center gap-2">
                       {isDm && currentScene?.transitions.length ? (
@@ -929,7 +955,7 @@ export default function StoryPage({
                       ) : null}
                       <Button
                         onClick={() => send(effectiveRole)}
-                        disabled={!input.trim() || submitting}
+                        disabled={!input.trim() || submitting || composerLocked}
                       >
                         {submitting ? "Sending…" : "Send"}
                       </Button>
@@ -1065,6 +1091,7 @@ function PlayerCommands({
   characterClassId,
   takenIds,
   encounterWon,
+  hideEffectActions,
   onRun,
   busy,
 }: {
@@ -1077,6 +1104,10 @@ function PlayerCommands({
   // Whether the current scene's encounter has been won. Gates
   // `requiresVictory` actions (claim-the-kill beats).
   encounterWon: boolean;
+  // Coop: hide actions that change shared world state (advance scene
+  // / start encounter) — the DM drives those. Players keep narration
+  // and skill beats. Solo passes false (the lone player drives all).
+  hideEffectActions: boolean;
   onRun: (action: PlayerAction) => void;
   busy: boolean;
 }) {
@@ -1096,13 +1127,19 @@ function PlayerCommands({
   //   3. Victory gate — `requiresVictory` beats stay hidden until the
   //      scene's encounter is actually won, so "claim the kill" can't
   //      fire without the fight.
+  //   4. Effect gate (coop) — actions that advance the scene or start
+  //      a fight are hidden; the DM owns those.
   const visible = actions.filter(
     (a) =>
       (!a.classes ||
         a.classes.length === 0 ||
         (characterClassId !== null && a.classes.includes(characterClassId))) &&
       (a.repeatable === true || !takenIds.has(a.id)) &&
-      (!a.requiresVictory || encounterWon),
+      (!a.requiresVictory || encounterWon) &&
+      !(
+        hideEffectActions &&
+        (a.effect?.kind === "advance" || a.effect?.kind === "encounter")
+      ),
   );
   return (
     <div className="flex flex-col gap-2">
