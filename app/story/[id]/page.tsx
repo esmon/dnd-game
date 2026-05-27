@@ -659,6 +659,11 @@ export default function StoryPage({
   const isDm =
     campaign.dm_kind === "human" && campaign.dm_user_id === user.id;
   const isFinished = campaign.status !== "active";
+  // Solo is button-driven — the player progresses entirely through
+  // the authored action menu, and there's no DM or party to read free
+  // text. So the free-text composer (textarea + Send) is coop-only;
+  // solo keeps just the action buttons.
+  const isSolo = campaign.mode === "solo";
 
   // The party panel renders every roster player (solo = one row,
   // coop = many). The DM seat has no character and is excluded.
@@ -832,60 +837,66 @@ export default function StoryPage({
                   busy={runningAction}
                 />
               ) : null}
-              {showRoleTabs ? (
-                <ComposerRoleTabs
-                  role={composerRole}
-                  onChange={(role) =>
-                    dispatch({ type: "SET_COMPOSER_ROLE", role })
-                  }
-                />
-              ) : null}
-              <textarea
-                value={input}
-                onChange={(e) =>
-                  dispatch({ type: "SET_INPUT", input: e.target.value })
-                }
-                placeholder={
-                  effectiveRole === "narrative"
-                    ? "Describe what happens next."
-                    : "What does your character do?"
-                }
-                rows={3}
-                maxLength={4000}
-                disabled={submitting}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    void send(effectiveRole);
-                  }
-                }}
-                className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">
-                  Cmd / Ctrl + Enter to send.
-                </p>
-                <div className="flex items-center gap-2">
-                  {isDm && currentScene?.transitions.length ? (
-                    <Button
-                      variant="outline"
-                      onClick={() =>
-                        dispatch({ type: "SET_ADVANCE_OPEN", open: true })
+              {/* Free-text composer is coop-only — solo plays through
+                  the action buttons above. */}
+              {!isSolo ? (
+                <>
+                  {showRoleTabs ? (
+                    <ComposerRoleTabs
+                      role={composerRole}
+                      onChange={(role) =>
+                        dispatch({ type: "SET_COMPOSER_ROLE", role })
                       }
-                      disabled={advancing}
-                    >
-                      <CompassIcon className="size-4" />
-                      Advance Scene
-                    </Button>
+                    />
                   ) : null}
-                  <Button
-                    onClick={() => send(effectiveRole)}
-                    disabled={!input.trim() || submitting}
-                  >
-                    {submitting ? "Sending…" : "Send"}
-                  </Button>
-                </div>
-              </div>
+                  <textarea
+                    value={input}
+                    onChange={(e) =>
+                      dispatch({ type: "SET_INPUT", input: e.target.value })
+                    }
+                    placeholder={
+                      effectiveRole === "narrative"
+                        ? "Describe what happens next."
+                        : "What does your character do?"
+                    }
+                    rows={3}
+                    maxLength={4000}
+                    disabled={submitting}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        void send(effectiveRole);
+                      }
+                    }}
+                    className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Cmd / Ctrl + Enter to send.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {isDm && currentScene?.transitions.length ? (
+                        <Button
+                          variant="outline"
+                          onClick={() =>
+                            dispatch({ type: "SET_ADVANCE_OPEN", open: true })
+                          }
+                          disabled={advancing}
+                        >
+                          <CompassIcon className="size-4" />
+                          Advance Scene
+                        </Button>
+                      ) : null}
+                      <Button
+                        onClick={() => send(effectiveRole)}
+                        disabled={!input.trim() || submitting}
+                      >
+                        {submitting ? "Sending…" : "Send"}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </>
           )}
           </div>
