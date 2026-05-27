@@ -70,6 +70,9 @@ export const GOBLIN_WARRENS: Campaign = {
           when: "Both sentries are dead, fled, or no longer a threat.",
         },
       ],
+      // The sentries are the only obstacle here — winning moves the
+      // party straight into the warren, no manual "press on" needed.
+      advanceOnVictory: "scene:warren",
       playerActions: [
         {
           id: "sneak",
@@ -286,6 +289,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "bargain",
           label: "Hear his offer",
           icon: "talk",
+          hideAfterVictory: true,
           response:
             "Grask leans forward, eager. 'Ring. Key. Whatever you want. You walk out, we walk out, no longshanks die today.' He's lying about something — but maybe not the ring. The bodyguards haven't relaxed.",
         },
@@ -293,12 +297,14 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "intimidate",
           label: "Intimidate — \"Hand over the ring\"",
           icon: "intimidate",
+          hideAfterVictory: true,
           response:
             "You take a step in. The bigger bodyguard's knuckles go white on his cleaver. Grask's eyes flicker — once to his goons, once to the back of the cave where there isn't actually a back door. He weighs it. Then his hand goes to the cord at his neck.",
         },
         {
           id: "menace",
           label: "Loom — you fill the chamber",
+          hideAfterVictory: true,
           response:
             "You don't move. You don't draw. You just *grow* in the small chamber, somehow, the torchlight finding the wrong angles on your face. One bodyguard takes a step back without meaning to. Grask says nothing for a long beat. Then, quietly: 'Take the ring. Take the key. Go.'",
           classes: ["barbarian", "fighter", "paladin"],
@@ -307,6 +313,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "pickpocket",
           label: "Pick Grask's pocket while he gestures",
+          hideAfterVictory: true,
           response:
             "He's all hands and teeth, jabbing his finger at the air while he monologues. You lean a little, reach a little, and the strongbox key is in your palm before he's finished his next sentence. The bodyguards never blink. Grask never knows.",
           classes: ["rogue"],
@@ -314,6 +321,7 @@ export const GOBLIN_WARRENS: Campaign = {
         {
           id: "true-name",
           label: "Speak the name on the signet ring aloud",
+          hideAfterVictory: true,
           response:
             "The two syllables echo wrong in the torchlight. Grask flinches like you'd swung at him. The bodyguards exchange a look that says: *he never said that name to us*. The grin is gone. 'Where did you hear that,' Grask asks. He's no longer in charge of this conversation.",
           classes: ["wizard", "warlock", "cleric"],
@@ -322,6 +330,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "demand-ring",
           label: "Take the ring and key, accept the parley",
           icon: "give",
+          hideAfterVictory: true,
           response:
             "Grask snaps the cord and tosses you the iron ring. The key follows from his belt. 'Go,' he says, voice ragged. 'And never come back.' His bodyguards lower their cleavers a hair's breadth.",
           effect: { kind: "advance", to: SUCCESS_END },
@@ -339,6 +348,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "retreat",
           label: "Retreat — this is too much",
           icon: "retreat",
+          hideAfterVictory: true,
           response:
             "You back out of the chamber. Grask's laughter follows you down the tunnel. The strongbox sits where the goblins left it, untouched.",
           effect: { kind: "advance", to: FAILURE_END },

@@ -259,6 +259,10 @@ export default function StoryPage({
   // ancestor (the base-ui Viewport) so the window itself doesn't
   // jump.
   const logBottomRef = useRef<HTMLDivElement>(null);
+  // Scene id we've already auto-advanced from on victory, so the
+  // fight-gate auto-advance fires once (not on every re-render while
+  // the advance request is in flight).
+  const autoAdvancedSceneRef = useRef<string | null>(null);
   const messageCount = load.kind === "ready" ? load.data.messages.length : 0;
   useEffect(() => {
     if (load.kind !== "ready") return;
@@ -619,6 +623,40 @@ export default function StoryPage({
     }, intervalMs);
     return () => clearInterval(interval);
   }, [inMotion, load, refetch]);
+
+  // Fight-gate auto-advance (solo): when a scene declares
+  // advanceOnVictory and its encounter has been won, move the story
+  // on without a manual tap. Fires once per scene via the ref guard.
+  // Solo only — coop's DM drives scene changes.
+  useEffect(() => {
+    if (load.kind !== "ready") return;
+    const { campaign, messages } = load.data;
+    if (
+      campaign.mode !== "solo" ||
+      campaign.status !== "active" ||
+      campaign.active_combat_campaign_id
+    ) {
+      return;
+    }
+    const template = findCampaign(campaign.campaign_template_id);
+    const scene = template?.scenes.find(
+      (s) => s.id === campaign.current_scene_id,
+    );
+    if (!scene?.advanceOnVictory) return;
+    if (autoAdvancedSceneRef.current === scene.id) return;
+    const won = messages.some((m) => {
+      const meta = m.metadata as Record<string, unknown>;
+      return (
+        m.role === "system" &&
+        meta.kind === "encounter_resolved" &&
+        meta.scene_id === scene.id &&
+        meta.outcome === "won"
+      );
+    });
+    if (!won) return;
+    autoAdvancedSceneRef.current = scene.id;
+    void advance(scene.advanceOnVictory);
+  }, [load, advance]);
 
   if (authLoading || load.kind === "loading") {
     return <CenteredCard>Loading campaign…</CenteredCard>;
@@ -1132,6 +1170,9 @@ function PlayerCommands({
   //   5. Spent-encounter gate — once this scene's fight is won, every
   //      encounter-triggering action vanishes (they all spawn the same
   //      fight); the player progresses via the advance action instead.
+  //   6. Hide-after-victory gate — pre-combat / negotiate-the-enemy
+  //      beats disappear once the fight is won (they no longer make
+  //      sense), collapsing the menu to its post-combat options.
   const visible = actions.filter(
     (a) =>
       (!a.classes ||
@@ -1143,7 +1184,8 @@ function PlayerCommands({
         hideEffectActions &&
         (a.effect?.kind === "advance" || a.effect?.kind === "encounter")
       ) &&
-      !(a.effect?.kind === "encounter" && encounterWon),
+      !(a.effect?.kind === "encounter" && encounterWon) &&
+      !(a.hideAfterVictory && encounterWon),
   );
   return (
     <div className="flex flex-col gap-2">

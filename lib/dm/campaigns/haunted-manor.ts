@@ -284,6 +284,7 @@ export const HAUNTED_MANOR: Campaign = {
           id: "speak-girl",
           label: "Speak gently to the girl",
           icon: "talk",
+          hideAfterVictory: true,
           response:
             "You keep your voice low. The child watches you with very tired eyes. 'Mother said I shouldn't go in the cellar,' she offers, almost apologetic. 'I've been looking such a long time. Have you seen it? My locket. Mother's locket.'",
         },
@@ -291,6 +292,7 @@ export const HAUNTED_MANOR: Campaign = {
           id: "give-locket",
           label: "Give Anelise the locket",
           icon: "give",
+          hideAfterVictory: true,
           response:
             "You hold out the locket. She takes it in both small hands, and something forty years tight finally lets go of her. 'Oh,' she breathes. 'You found it.' She smiles — really smiles — says 'thank you, miss,' and is simply not there anymore. All around you, the manor begins, gently, to come apart.",
           effect: { kind: "advance", to: SUCCESS_END },
@@ -316,6 +318,7 @@ export const HAUNTED_MANOR: Campaign = {
           id: "flee-manor",
           label: "Flee the manor with the locket",
           icon: "retreat",
+          hideAfterVictory: true,
           response:
             "You take the stairs two at a time, the locket clenched in your fist. She follows — weeping, calling after you, 'please, please, it's mine' — all the way to the doors and out onto the moor. Behind you the manor still stands. The binding holds. She is still in it.",
           effect: { kind: "advance", to: FAILURE_END },

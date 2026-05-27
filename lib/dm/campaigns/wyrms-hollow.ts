@@ -93,6 +93,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "hail-klick",
           label: "Lead with talk — hail the kobolds",
           icon: "talk",
+          hideAfterVictory: true,
           response:
             "You raise an open hand and call up the scree. The lead kobold tilts her head. 'Klick sees you. Klick is not stupid.' The black-glass dagger stays at her belt — for now. She's listening. That's more than most would give you.",
         },
@@ -100,6 +101,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "offer-deal",
           label: "Offer Klick's clan mercy for the upper path",
           icon: "talk",
+          hideAfterVictory: true,
           response:
             "'You want the high cave.' Klick's lisp drops to almost nothing. 'The burning one's cave.' You promise her clan their lives once the dragon falls. A long pause. Then she scratches a route into the dirt with her dagger — up, around, through the sulfur vent her people won't enter. 'Klick remembers a promise. See that you do too.'",
           effect: { kind: "advance", to: "scene:vent" },
@@ -124,6 +126,7 @@ export const WYRMS_HOLLOW: Campaign = {
           label: "Scout the sulfur tunnel yourself",
           icon: "footprints",
           classes: ["rogue", "ranger"],
+          hideAfterVictory: true,
           response:
             "You slip wide of the kobolds and put your head into the back tunnel. The heat hits first, then the stink. But the draft is unmistakable — it climbs, and it carries the faint, far-off smell of woodsmoke that isn't woodsmoke. This is the way up.",
           effect: { kind: "advance", to: "scene:vent" },
@@ -264,6 +267,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "hear-dragon",
           label: "Hear what the dragon has to say",
           icon: "talk",
+          hideAfterVictory: true,
           response:
             "'Small ones.' The word is a yawn that stirs the cold gold underfoot. 'You climbed all that way.' Vyrkalith watches you with one good eye and one of milk-white glass. 'Three years I have had this valley, and no one has bothered to climb so high to die. Tell me why I shouldn't be impressed. Or insulted.'",
         },
@@ -271,6 +275,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "match-wits",
           label: "Match her, word for word",
           icon: "talk",
+          hideAfterVictory: true,
           response:
             "You meet the amusement in her voice and give it back. Something shifts in the great head — interest, maybe. She quotes your own words back to you, savoring them, and volunteers a name or two of those who came before you. She respects boldness. You have just bought yourself the only currency that matters here.",
         },
@@ -285,6 +290,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "offer-truce",
           label: "Offer Vyrkalith a price to leave the valley",
           icon: "give",
+          hideAfterVictory: true,
           response:
             "You name a price worth her while — a binding oath, a famous blade, a promise heavy enough to bend a dragon's pride. Vyrkalith is quiet for a long, long moment. Then, slowly, she lowers that vast head. 'Done, small one. You are the first in three years worth a bargain. Go. Before I reconsider the novelty.'",
           effect: { kind: "advance", to: SUCCESS_END },
@@ -310,6 +316,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "accept-servitude",
           label: "Trade one of your own for the rest",
           icon: "retreat",
+          hideAfterVictory: true,
           response:
             "She offers the old bargain: one of you stays, and the rest walk free. When you take it, her laugh is the worst part — low, satisfied, certain. The valley keeps its red shadow, and keeps one of you besides. The survivors descend in silence.",
           effect: { kind: "advance", to: FAILURE_END },

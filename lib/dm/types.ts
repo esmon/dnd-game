@@ -79,6 +79,14 @@ export type Scene = {
   // are human-readable ("if players defeat the wight"); the DM
   // judges when one fires. AI DM evaluates with LLM judgment.
   transitions: Transition[];
+  // Fight-gate scenes: when set, winning this scene's encounter
+  // auto-advances to this transition target (a scene id or a
+  // conclusion marker) — the fight *is* the obstacle, so the story
+  // moves on without a manual "press on" tap. Omit for scenes with
+  // post-combat content (loot, a victory beat) that the player
+  // should linger on; those advance manually. Must match one of
+  // `transitions[].to`. Solo only (coop's DM drives the world).
+  advanceOnVictory?: string;
   // Authored player choices for the scene. The story page renders
   // these as a command menu — the player taps one, the system posts
   // the response text as narrative, then applies the effect (move
@@ -148,6 +156,12 @@ export type PlayerAction = {
   // actually fighting. Non-combat wins (intimidation, a truce) are
   // separate actions left ungated.
   requiresVictory?: boolean;
+  // The inverse of requiresVictory: hide this action once the scene's
+  // encounter is won. Use for pre-combat / "deal with the living
+  // enemy" beats (sneak up, negotiate with the chief, flee) that stop
+  // making sense after the fight is over, so a won scene's menu
+  // collapses to its genuine post-combat options.
+  hideAfterVictory?: boolean;
 };
 
 export type PlayerActionEffect =
