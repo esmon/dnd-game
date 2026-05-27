@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { findCampaign } from "@/lib/dm/campaigns";
 import type {
   NewStoryMessage,
   StoryCampaign,
   StoryMessage,
 } from "@/lib/dm/db";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
+import { FAILURE_END } from "@/lib/dm/types";
 import type { Campaign } from "@/lib/coop/types";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
@@ -155,6 +157,39 @@ export async function POST(_request: NextRequest, ctx: RouteContext) {
     // pointer will be cleared on the next /combat/end retry (which
     // is idempotent above).
     console.error("clear active_combat_campaign_id failed", clearError.message);
+  }
+
+  // A lost fight ends the run. Without this the scene stayed active
+  // and the player just saw the same actions again. Conclude to the
+  // failure ending: flip status + post the campaign's failure copy
+  // (same shape as advancing to FAILURE_END).
+  if (outcome === "lost") {
+    const template = findCampaign(story.campaign_template_id);
+    const { error: failError } = await supabase
+      .from("story_campaigns")
+      .update({ status: "completed_failure" })
+      .eq("id", storyId);
+    if (failError) {
+      console.error("conclude-on-loss status update failed", failError.message);
+    } else if (template) {
+      const conclusion: NewStoryMessage = {
+        campaign_id: storyId,
+        role: "narrative",
+        content: template.conclusion.failure,
+        author_user_id: null,
+        metadata: {
+          scene_id: story.current_scene_id,
+          kind: "conclusion",
+          outcome: FAILURE_END,
+        },
+      };
+      const { error: concludeError } = await supabase
+        .from("story_messages")
+        .insert(conclusion);
+      if (concludeError) {
+        console.error("conclude-on-loss message failed", concludeError.message);
+      }
+    }
   }
 
   // Best-effort: delete the coop campaign now that it's resolved.
