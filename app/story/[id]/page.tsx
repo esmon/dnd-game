@@ -48,6 +48,7 @@ import { PartyRow } from "@/components/shared/party-row";
 import { PanelLabel } from "@/components/shared/panel-label";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import { useUser } from "@/lib/auth/use-user";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
 import type { Character } from "@/lib/db/schema";
 import { findCampaign } from "@/lib/dm/campaigns";
 import type { StoryCampaign, StoryMessage, StoryPlayer } from "@/lib/dm/db";
@@ -275,8 +276,8 @@ export default function StoryPage({
     }
   }, [authLoading, user, campaignId, router]);
 
-  // One-shot load. Future phases will swap to a realtime channel
-  // for incoming DM messages.
+  // Initial load. Ongoing updates arrive via the Realtime channel +
+  // polling fallback below; this just fills the page on first mount.
   useEffect(() => {
     if (authLoading || !user) return;
     let cancelled = false;
@@ -558,18 +559,47 @@ export default function StoryPage({
     [campaignId, refetch],
   );
 
-  // While the story sits in the lobby, poll the snapshot so the
-  // roster (and the DM's view of who's readied) stays live without a
-  // realtime channel. Stops as soon as the status leaves 'lobby' —
-  // Phase 5 replaces this with a story:${id} broadcast channel.
-  const inLobby = load.kind === "ready" && load.data.campaign.status === "lobby";
+  // The story is "in motion" (worth syncing) while it's assembling
+  // in the lobby or actively being played. Concluded / abandoned
+  // stories are static, so we stop syncing them.
+  const inMotion =
+    load.kind === "ready" &&
+    (load.data.campaign.status === "lobby" ||
+      load.data.campaign.status === "active");
+
+  // Subscribe to the story's Realtime broadcast channel so any
+  // member's mutating route (message, action, advance, ready, join,
+  // start, combat start/end) refetches us in <100ms. Mirrors coop's
+  // campaign:<id> channel. The poll below is the slow fallback for a
+  // dropped broadcast.
   useEffect(() => {
-    if (!inLobby) return;
+    if (!inMotion) return;
+    const supabase = createSupabaseClient();
+    const channel = supabase
+      .channel(`story:${campaignId}`)
+      .on("broadcast", { event: "updated" }, () => {
+        void refetch();
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [inMotion, campaignId, refetch]);
+
+  // Slow polling fallback. The broadcast does the heavy lifting; this
+  // just guarantees convergence after a missed message. The lobby
+  // ticks a touch faster since readying up is the only signal there.
+  useEffect(() => {
+    if (!inMotion) return;
+    const intervalMs =
+      load.kind === "ready" && load.data.campaign.status === "lobby"
+        ? 5000
+        : 10000;
     const interval = setInterval(() => {
       void refetch();
-    }, 3000);
+    }, intervalMs);
     return () => clearInterval(interval);
-  }, [inLobby, refetch]);
+  }, [inMotion, load, refetch]);
 
   if (authLoading || load.kind === "loading") {
     return <CenteredCard>Loading campaign…</CenteredCard>;

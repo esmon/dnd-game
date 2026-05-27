@@ -10,6 +10,7 @@ import type { Character } from "@/lib/db/schema";
 import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import { fetchMonster } from "@/lib/game/dnd5e";
@@ -322,6 +323,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   await broadcastCampaignUpdate(combatCampaignId);
+  // Also nudge the story page so every member's locked combat
+  // dialog mounts off the new active_combat_campaign_id.
+  await broadcastStoryUpdate(storyId);
   return NextResponse.json(
     {
       combatCampaignId,

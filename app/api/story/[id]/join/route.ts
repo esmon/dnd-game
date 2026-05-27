@@ -7,6 +7,7 @@ import type {
   StoryPlayer,
   StoryPlayerRole,
 } from "@/lib/dm/db";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
@@ -125,6 +126,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         .eq("id", id);
       return NextResponse.json({ error: dmError.message }, { status: 500 });
     }
+    await broadcastStoryUpdate(id);
     return NextResponse.json(dmRow as StoryPlayer, { status: 201 });
   }
 
@@ -174,5 +176,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   if (playerError) {
     return NextResponse.json({ error: playerError.message }, { status: 500 });
   }
+  await broadcastStoryUpdate(id);
   return NextResponse.json(playerRow as StoryPlayer, { status: 201 });
 }

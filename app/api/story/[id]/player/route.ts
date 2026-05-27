@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import type { StoryPlayer } from "@/lib/dm/db";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -49,6 +50,10 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
       { status: 404 },
     );
   }
+
+  // Ping the lobby so the DM (and other players) see the ready
+  // badge flip without waiting on their poll tick.
+  await broadcastStoryUpdate(id);
 
   return NextResponse.json(updated as StoryPlayer);
 }

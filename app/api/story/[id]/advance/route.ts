@@ -7,6 +7,7 @@ import type {
   StoryCampaignStatus,
   StoryMessage,
 } from "@/lib/dm/db";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { FAILURE_END, SUCCESS_END } from "@/lib/dm/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -148,6 +149,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       );
     }
 
+    await broadcastStoryUpdate(id);
     return NextResponse.json({
       campaign: { ...c, status: newStatus } satisfies StoryCampaign,
       newMessages: [insertedClosing as StoryMessage],
@@ -198,6 +200,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     }
   }
 
+  await broadcastStoryUpdate(id);
   return NextResponse.json({
     campaign: {
       ...c,

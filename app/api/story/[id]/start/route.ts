@@ -6,6 +6,7 @@ import type {
   StoryCampaign,
   StoryPlayer,
 } from "@/lib/dm/db";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -118,6 +119,10 @@ export async function POST(_request: NextRequest, ctx: RouteContext) {
       console.error("story start seed failed", seedError.message);
     }
   }
+
+  // Tell every lobby member the story has begun so their page swaps
+  // to the play surface immediately.
+  await broadcastStoryUpdate(id);
 
   return NextResponse.json({
     campaign: { ...campaign, status: "active" } satisfies StoryCampaign,

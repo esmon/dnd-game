@@ -5,6 +5,7 @@ import type {
   StoryCampaign,
   StoryMessage,
 } from "@/lib/dm/db";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import type { Campaign } from "@/lib/coop/types";
 import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
@@ -169,6 +170,10 @@ export async function POST(_request: NextRequest, ctx: RouteContext) {
         console.error("combat campaign GC failed", error.message);
       }
     });
+
+  // Fight resolved — clear the locked dialog on every member's page
+  // and surface the outcome message + updated HP/XP/loot.
+  await broadcastStoryUpdate(storyId);
 
   return NextResponse.json({
     ok: true,

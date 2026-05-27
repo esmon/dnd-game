@@ -5,6 +5,7 @@ import type {
   StoryCampaign,
   StoryMessage,
 } from "@/lib/dm/db";
+import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -121,5 +122,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .update({ world_state: c.world_state })
     .eq("id", id);
 
+  await broadcastStoryUpdate(id);
   return NextResponse.json(inserted as StoryMessage, { status: 201 });
 }
