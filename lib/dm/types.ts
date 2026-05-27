@@ -141,6 +141,13 @@ export type PlayerAction = {
   // scene, not per-campaign: taken state resets when the scene
   // advances since the metadata gate filters by scene_id.
   repeatable?: boolean;
+  // When true, the action only appears after the current scene's
+  // scripted encounter has been resolved with a win. Use for beats
+  // that assert a victory ("Stand over the fallen dragon", "Claim
+  // the ring and leave") so a player can't claim the kill without
+  // actually fighting. Non-combat wins (intimidation, a truce) are
+  // separate actions left ungated.
+  requiresVictory?: boolean;
 };
 
 export type PlayerActionEffect =

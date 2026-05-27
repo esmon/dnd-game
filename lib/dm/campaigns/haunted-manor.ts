@@ -307,6 +307,7 @@ export const HAUNTED_MANOR: Campaign = {
           id: "lay-locket",
           label: "Lay the locket where she fell",
           icon: "give",
+          requiresVictory: true,
           response:
             "It's over, and quiet. You set the locket down in the cold air where she stood. For a moment a lullaby hangs there, faint, and then the binding lets go all the same — grim, graceless, but done. The manor begins to come apart around you.",
           effect: { kind: "advance", to: SUCCESS_END },

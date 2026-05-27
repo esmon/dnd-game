@@ -301,6 +301,7 @@ export const WYRMS_HOLLOW: Campaign = {
           id: "claim-kill",
           label: "Stand over the fallen dragon",
           icon: "trophy",
+          requiresVictory: true,
           response:
             "Vyrkalith's last breath leaves her like a forge going cold, and the hum that haunted the valley for three years finally stops. The hoard is yours to pick through; the proof the lords wanted is undeniable. You came all this way, and the red shadow is gone.",
           effect: { kind: "advance", to: SUCCESS_END },

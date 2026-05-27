@@ -703,15 +703,29 @@ export default function StoryPage({
   // place. Filtering by scene_id means each scene starts with a
   // fresh menu — taken state doesn't leak across transitions.
   const takenActionIds = new Set<string>();
+  // Whether the current scene's scripted encounter has been resolved
+  // with a win. /combat/end posts a system "encounter_resolved"
+  // message tagged with the scene + outcome; PlayerCommands uses this
+  // to gate `requiresVictory` actions (claim-the-kill beats) so a
+  // player can't claim a victory they didn't earn.
+  let sceneEncounterWon = false;
   for (const m of messages) {
-    if (m.role !== "narrative") continue;
     const meta = m.metadata as Record<string, unknown>;
     if (
+      m.role === "narrative" &&
       meta.kind === "player_action_response" &&
       meta.scene_id === campaign.current_scene_id &&
       typeof meta.action_id === "string"
     ) {
       takenActionIds.add(meta.action_id);
+    }
+    if (
+      m.role === "system" &&
+      meta.kind === "encounter_resolved" &&
+      meta.scene_id === campaign.current_scene_id &&
+      meta.outcome === "won"
+    ) {
+      sceneEncounterWon = true;
     }
   }
 
@@ -841,6 +855,7 @@ export default function StoryPage({
                   actions={currentScene.playerActions}
                   characterClassId={myCharacter?.class ?? null}
                   takenIds={takenActionIds}
+                  encounterWon={sceneEncounterWon}
                   onRun={runAction}
                   busy={runningAction}
                 />
@@ -1032,6 +1047,7 @@ function PlayerCommands({
   actions,
   characterClassId,
   takenIds,
+  encounterWon,
   onRun,
   busy,
 }: {
@@ -1041,6 +1057,9 @@ function PlayerCommands({
   // the parent from message metadata; the panel uses it to hide
   // single-use actions after they've fired.
   takenIds: Set<string>;
+  // Whether the current scene's encounter has been won. Gates
+  // `requiresVictory` actions (claim-the-kill beats).
+  encounterWon: boolean;
   onRun: (action: PlayerAction) => void;
   busy: boolean;
 }) {
@@ -1057,12 +1076,16 @@ function PlayerCommands({
   //      unless they're explicitly `repeatable`. Resets when the
   //      scene advances because `takenIds` only collects responses
   //      whose metadata.scene_id matches the current scene.
+  //   3. Victory gate — `requiresVictory` beats stay hidden until the
+  //      scene's encounter is actually won, so "claim the kill" can't
+  //      fire without the fight.
   const visible = actions.filter(
     (a) =>
       (!a.classes ||
         a.classes.length === 0 ||
         (characterClassId !== null && a.classes.includes(characterClassId))) &&
-      (a.repeatable === true || !takenIds.has(a.id)),
+      (a.repeatable === true || !takenIds.has(a.id)) &&
+      (!a.requiresVictory || encounterWon),
   );
   return (
     <div className="flex flex-col gap-2">

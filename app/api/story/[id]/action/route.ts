@@ -132,6 +132,38 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  // Victory gate (mirrors the UI's PlayerCommands filter): a
+  // `requiresVictory` beat can only fire once this scene's encounter
+  // has been resolved with a win. Stops a direct API call from
+  // claiming the kill without the fight.
+  if (action.requiresVictory) {
+    const { data: resolvedRows, error: resolvedError } = await supabase
+      .from("story_messages")
+      .select("metadata")
+      .eq("campaign_id", storyId)
+      .eq("role", "system");
+    if (resolvedError) {
+      return NextResponse.json(
+        { error: resolvedError.message },
+        { status: 500 },
+      );
+    }
+    const won = (resolvedRows ?? []).some((r) => {
+      const meta = (r.metadata ?? {}) as Record<string, unknown>;
+      return (
+        meta.kind === "encounter_resolved" &&
+        meta.scene_id === currentScene.id &&
+        meta.outcome === "won"
+      );
+    });
+    if (!won) {
+      return NextResponse.json(
+        { error: "you haven't won this fight yet" },
+        { status: 409 },
+      );
+    }
+  }
+
   // 1. Post the action's response as narrative. This always runs,
   // regardless of effect — the response IS the player-visible
   // result.

@@ -330,6 +330,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "victory",
           label: "Claim the ring and leave",
           icon: "trophy",
+          requiresVictory: true,
           response:
             "You search Grask's body. The iron signet on its cord. The strongbox key. The shortsword at his belt — well-kept, with a strange sigil etched near the hilt. The warren is silent.",
           effect: { kind: "advance", to: SUCCESS_END },
