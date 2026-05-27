@@ -199,25 +199,24 @@ function pageReducer(state: PageState, action: PageAction): PageState {
 }
 
 // Out of combat the story has no real coop campaign, but PartyRow
-// is shaped around CampaignPlayer. Build a synthetic one from the
-// character row — only fields PartyMember actually reads (snapshot,
-// current_hp, user_id) need real values; the rest are stub-only
+// is shaped around CampaignPlayer. Adapt a story roster row into one
+// — only fields PartyMember actually reads (snapshot, current_hp,
+// user_id, position) need real values; the rest are stub-only
 // because actions=[] means the per-player hit / current-turn paths
-// never execute.
-function characterToPartyMember(
-  c: Character,
-  userId: string,
-): CampaignPlayer {
+// never execute. Returns null for the DM seat (no character).
+function storyPlayerToPartyMember(p: StoryPlayer): CampaignPlayer | null {
+  const snap = p.character_snapshot;
+  if (!snap) return null;
   return {
-    id: c.id,
-    campaign_id: "",
-    user_id: userId,
-    position: 0,
-    character_snapshot: c,
-    current_hp: c.current_hp,
-    is_ready: true,
+    id: p.id,
+    campaign_id: p.campaign_id,
+    user_id: p.user_id,
+    position: p.position,
+    character_snapshot: snap,
+    current_hp: snap.current_hp,
+    is_ready: p.is_ready,
     continue_ready: false,
-    joined_at: c.created_at,
+    joined_at: p.created_at,
   };
 }
 
@@ -314,7 +313,8 @@ export default function StoryPage({
     };
   }, [campaignId, authLoading, user]);
 
-  const send = useCallback(async () => {
+  const send = useCallback(
+    async (role: ComposerRole) => {
     const trimmed = input.trim();
     if (!trimmed || submitting) return;
     dispatch({ type: "SUBMIT_BEGIN" });
@@ -322,7 +322,7 @@ export default function StoryPage({
       const res = await fetch(`/api/story/${campaignId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: composerRole, content: trimmed }),
+        body: JSON.stringify({ role, content: trimmed }),
       });
       if (!res.ok) {
         console.error("post message failed", res.status);
@@ -336,7 +336,9 @@ export default function StoryPage({
     } finally {
       dispatch({ type: "SUBMIT_END" });
     }
-  }, [campaignId, input, composerRole, submitting]);
+  },
+    [campaignId, input, submitting],
+  );
 
   const triggerEncounter = useCallback(
     async (encounter: Encounter) => {
@@ -658,6 +660,38 @@ export default function StoryPage({
     (campaign.dm_kind === "human" && campaign.dm_user_id === user.id);
   const isFinished = campaign.status !== "active";
 
+  // The party panel renders every roster player (solo = one row,
+  // coop = many). The DM seat has no character and is excluded.
+  const partyMembers = players
+    .map(storyPlayerToPartyMember)
+    .filter((p): p is CampaignPlayer => p !== null);
+  const hasParty = partyMembers.length > 0;
+
+  // The viewer's own character drives the action menu's class gate.
+  // Resolved from their roster row, falling back to the legacy
+  // single-character snapshot for solo stories. Null for a coop DM.
+  const myPlayer = players.find((p) => p.user_id === user.id) ?? null;
+  const myCharacter = myPlayer?.character_snapshot ?? character;
+
+  // Composer capabilities. A coop DM can only narrate; a player can
+  // only speak as their character; the solo self-DM does both and so
+  // gets the role toggle. effectiveRole is what a send actually posts.
+  const canPlay = myCharacter !== null && myPlayer?.role !== "dm";
+  const canNarrate = isDm;
+  const showRoleTabs = canNarrate && canPlay;
+  const effectiveRole: ComposerRole = showRoleTabs
+    ? composerRole
+    : canNarrate
+      ? "narrative"
+      : "player";
+
+  // Player-message attribution. Solo shows "You"; coop shows the
+  // author's character name (or "You" for the viewer's own lines).
+  const nameByUser = new Map<string, string>();
+  for (const p of players) {
+    if (p.character_snapshot) nameByUser.set(p.user_id, p.character_snapshot.name);
+  }
+
   // Build the set of action ids already taken in the *current*
   // scene from message metadata. PlayerCommands uses this to hide
   // one-shot actions (the default) and leave repeatable ones in
@@ -726,19 +760,19 @@ export default function StoryPage({
             // Three-column layout when the DM is viewing: party
             // 400px, chat flex, notes 400px. Two-column (party +
             // chat) when not DM. Single column on mobile.
-            character && isDm && currentScene
+            hasParty && isDm && currentScene
               ? "md:grid-cols-[400px_minmax(0,1fr)_400px]"
-              : character
+              : hasParty
                 ? "md:grid-cols-[400px_minmax(0,1fr)]"
                 : isDm && currentScene
                   ? "md:grid-cols-[minmax(0,1fr)_400px]"
                   : null,
           )}
         >
-          {character ? (
+          {hasParty ? (
             <aside className="md:order-1">
               <PartyRow
-                players={[characterToPartyMember(character, user.id)]}
+                players={partyMembers}
                 actions={[]}
                 currentTurnUserId={undefined}
                 myUserId={user.id}
@@ -756,6 +790,15 @@ export default function StoryPage({
                     m.role === "narrative"
                       ? iconForNarrative(m, template)
                       : null
+                  }
+                  authorLabel={
+                    m.role === "player"
+                      ? m.author_user_id === user.id
+                        ? "You"
+                        : (m.author_user_id
+                            ? nameByUser.get(m.author_user_id)
+                            : null) ?? "Player"
+                      : undefined
                   }
                 />
               ))}
@@ -780,16 +823,16 @@ export default function StoryPage({
             </div>
           ) : (
             <>
-              {currentScene?.playerActions?.length ? (
+              {canPlay && currentScene?.playerActions?.length ? (
                 <PlayerCommands
                   actions={currentScene.playerActions}
-                  characterClassId={character?.class ?? null}
+                  characterClassId={myCharacter?.class ?? null}
                   takenIds={takenActionIds}
                   onRun={runAction}
                   busy={runningAction}
                 />
               ) : null}
-              {isDm ? (
+              {showRoleTabs ? (
                 <ComposerRoleTabs
                   role={composerRole}
                   onChange={(role) =>
@@ -803,7 +846,7 @@ export default function StoryPage({
                   dispatch({ type: "SET_INPUT", input: e.target.value })
                 }
                 placeholder={
-                  composerRole === "narrative"
+                  effectiveRole === "narrative"
                     ? "Describe what happens next."
                     : "What does your character do?"
                 }
@@ -813,7 +856,7 @@ export default function StoryPage({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                     e.preventDefault();
-                    void send();
+                    void send(effectiveRole);
                   }
                 }}
                 className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
@@ -835,7 +878,10 @@ export default function StoryPage({
                       Advance Scene
                     </Button>
                   ) : null}
-                  <Button onClick={send} disabled={!input.trim() || submitting}>
+                  <Button
+                    onClick={() => send(effectiveRole)}
+                    disabled={!input.trim() || submitting}
+                  >
                     {submitting ? "Sending…" : "Send"}
                   </Button>
                 </div>
@@ -1268,6 +1314,7 @@ function AdvanceSceneDialog({
 function MessageRow({
   message,
   icon,
+  authorLabel,
 }: {
   message: StoryMessage;
   // Resolved by iconForNarrative in the parent. For action-
@@ -1275,6 +1322,10 @@ function MessageRow({
   // so the click and its narrative consequence visually
   // correspond.
   icon: LucideIcon | null;
+  // Display name for a player message's author ("You" for the
+  // viewer's own lines, the character name for a teammate's).
+  // Undefined for non-player rows.
+  authorLabel?: string;
 }) {
   // Three visual styles. Narrative = DM voice, prose. Player =
   // chat-style bubble. System = small italic stage direction.
@@ -1293,7 +1344,7 @@ function MessageRow({
     return (
       <li className="ml-6 rounded-md bg-emerald-50 p-3 text-sm leading-relaxed dark:bg-emerald-950/40">
         <span className="block text-[10px] font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-300">
-          You
+          {authorLabel ?? "You"}
         </span>
         {message.content}
       </li>

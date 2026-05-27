@@ -74,17 +74,29 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const c = campaign as StoryCampaign;
-  // Role-action gate: 'player' = campaign owner, 'narrative' = the
-  // active DM seat. RLS already proved the caller is one of them;
-  // this just maps role → allowed actor.
-  if (role === "player" && c.user_id !== user.id) {
+
+  // Role-action gate. RLS already proved the caller is a member;
+  // this maps role → allowed actor:
+  //   'player'    — any party player (their roster row is role
+  //                 'player'). In solo the owner is a player too.
+  //   'narrative' — only the active DM seat.
+  const { data: myRow, error: myRowError } = await supabase
+    .from("story_players")
+    .select("role")
+    .eq("campaign_id", id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (myRowError) {
+    return NextResponse.json({ error: myRowError.message }, { status: 500 });
+  }
+  if (role === "player" && myRow?.role !== "player") {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   if (role === "narrative") {
-    const allowed =
+    const isDmSeat =
       (c.dm_kind === "self" && c.user_id === user.id) ||
       (c.dm_kind === "human" && c.dm_user_id === user.id);
-    if (!allowed) {
+    if (!isDmSeat) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
   }
