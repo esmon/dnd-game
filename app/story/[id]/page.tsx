@@ -1129,6 +1129,9 @@ function PlayerCommands({
   //      fire without the fight.
   //   4. Effect gate (coop) — actions that advance the scene or start
   //      a fight are hidden; the DM owns those.
+  //   5. Spent-encounter gate — once this scene's fight is won, every
+  //      encounter-triggering action vanishes (they all spawn the same
+  //      fight); the player progresses via the advance action instead.
   const visible = actions.filter(
     (a) =>
       (!a.classes ||
@@ -1139,7 +1142,8 @@ function PlayerCommands({
       !(
         hideEffectActions &&
         (a.effect?.kind === "advance" || a.effect?.kind === "encounter")
-      ),
+      ) &&
+      !(a.effect?.kind === "encounter" && encounterWon),
   );
   return (
     <div className="flex flex-col gap-2">
