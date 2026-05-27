@@ -26,8 +26,9 @@ export interface StoryCampaign {
   // Legacy: the owner's character for solo stories created before
   // story_players existed. New code reads the roster from
   // story_players; keep this for backward compat / quick solo
-  // lookups. Coop campaigns may not meaningfully use it.
-  character_id: string;
+  // lookups. Null for a coop DM-seat campaign (the DM has no
+  // character).
+  character_id: string | null;
   campaign_template_id: string;
   current_scene_id: string;
   world_state: Record<string, unknown>;

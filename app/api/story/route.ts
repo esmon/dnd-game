@@ -130,8 +130,9 @@ export async function POST(request: NextRequest) {
   const isCoop = mode === "coop";
   const campaignInsert: NewStoryCampaign = {
     user_id: user.id,
-    // Legacy column: keep the owner's character where we have one.
-    character_id: character?.id ?? "",
+    // Legacy column: keep the owner's character where we have one;
+    // null for a coop DM (no character — character_id is nullable).
+    character_id: character?.id ?? null,
     campaign_template_id: campaignTemplateId,
     current_scene_id: firstScene.id,
     world_state: {},
