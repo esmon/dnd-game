@@ -651,13 +651,13 @@ export default function StoryPage({
 
   const currentScene =
     template?.scenes.find((s) => s.id === campaign.current_scene_id) ?? null;
-  // DM seat check. dm_kind=self means the owner is also the DM —
-  // they see notes + the advance affordance + the narrate composer
-  // mode. When dm_kind='human'/'ai' lands later this gates the same
-  // surface correctly without further changes.
+  // DM seat check — only a coop human DM gets the DM surfaces (notes
+  // panel, Advance Scene, Narrate composer). Solo (dm_kind 'self') is
+  // a pure player experience: the campaign's authored player actions
+  // drive scene transitions and encounters, so the solo player never
+  // sees DM tooling or its spoilers.
   const isDm =
-    (campaign.dm_kind === "self" && campaign.user_id === user.id) ||
-    (campaign.dm_kind === "human" && campaign.dm_user_id === user.id);
+    campaign.dm_kind === "human" && campaign.dm_user_id === user.id;
   const isFinished = campaign.status !== "active";
 
   // The party panel renders every roster player (solo = one row,

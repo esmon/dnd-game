@@ -88,6 +88,55 @@ export const WYRMS_HOLLOW: Campaign = {
           when: "The party has the route to the upper lair (combat or diplomacy).",
         },
       ],
+      playerActions: [
+        {
+          id: "hail-klick",
+          label: "Lead with talk — hail the kobolds",
+          icon: "talk",
+          response:
+            "You raise an open hand and call up the scree. The lead kobold tilts her head. 'Klick sees you. Klick is not stupid.' The black-glass dagger stays at her belt — for now. She's listening. That's more than most would give you.",
+        },
+        {
+          id: "offer-deal",
+          label: "Offer Klick's clan mercy for the upper path",
+          icon: "talk",
+          response:
+            "'You want the high cave.' Klick's lisp drops to almost nothing. 'The burning one's cave.' You promise her clan their lives once the dragon falls. A long pause. Then she scratches a route into the dirt with her dagger — up, around, through the sulfur vent her people won't enter. 'Klick remembers a promise. See that you do too.'",
+          effect: { kind: "advance", to: "scene:vent" },
+        },
+        {
+          id: "attack-kobolds",
+          label: "Attack the cave mouth",
+          icon: "sword",
+          response:
+            "The first violent gesture closes the door for good. Klick barks a word and the kobolds break for the chokepoints, slings already spinning. The cave fills with the rattle of stone and the hiss of firetail venom.",
+          effect: { kind: "encounter", monsterIndex: "kobold", count: 8 },
+        },
+        {
+          id: "read-cave",
+          label: "Read the cave for what the kobolds guard",
+          icon: "search",
+          response:
+            "Firetail bones, a half-eaten goat, a tally-stick notched forty-seven times — days since the last raid. These aren't warriors; they're a starving clan keeping watch on a road. And the sulfur tunnel at the back, the one even they won't go near, breathes warm air down from somewhere far above.",
+        },
+        {
+          id: "scout-route",
+          label: "Scout the sulfur tunnel yourself",
+          icon: "footprints",
+          classes: ["rogue", "ranger"],
+          response:
+            "You slip wide of the kobolds and put your head into the back tunnel. The heat hits first, then the stink. But the draft is unmistakable — it climbs, and it carries the faint, far-off smell of woodsmoke that isn't woodsmoke. This is the way up.",
+          effect: { kind: "advance", to: "scene:vent" },
+        },
+        {
+          id: "enter-tunnel",
+          label: "Take the sulfur tunnel up",
+          icon: "advance",
+          response:
+            "The lower cave behind you, you face the narrow black throat of the sulfur vent. The kobolds wouldn't follow even if they could. The heat rolls down to meet you, and you start to climb.",
+          effect: { kind: "advance", to: "scene:vent" },
+        },
+      ],
     },
     {
       id: "scene:vent",
@@ -114,6 +163,46 @@ export const WYRMS_HOLLOW: Campaign = {
         {
           to: FAILURE_END,
           when: "The party retreats and the dragon comes hunting for them.",
+        },
+      ],
+      playerActions: [
+        {
+          id: "press-climb",
+          label: "Press on up the vent",
+          icon: "footprints",
+          repeatable: true,
+          response:
+            "You climb. The passage narrows past your shoulders; the rock turns warm, then hot. Your lantern flame burns yellow, green, yellow. The air bites at your lungs — hold your breath through the bad stretches and keep moving, because stopping here is worse.",
+        },
+        {
+          id: "find-vent",
+          label: "Look for a place to rest",
+          icon: "search",
+          response:
+            "Halfway up, you find it: an outflow vent where clean cold air pours in through a crack in the rock. You can breathe here. You can bind wounds and steady your hands before the last of the climb. Take the moment. You will want it.",
+        },
+        {
+          id: "listen-hum",
+          label: "Listen to the dark ahead",
+          icon: "eye",
+          response:
+            "From the ledge above, where your light dies before it finds a far wall, something is humming. Slowly. To itself. In a language you don't speak. The hum stops — as if it heard you think about it — then starts again, an octave lower. You are, you understand now, badly out of your depth.",
+        },
+        {
+          id: "descend-lair",
+          label: "Descend to the lair",
+          icon: "advance",
+          response:
+            "You climb down off the ledge toward the humming, toward the cold glitter of gold at the edge of the dark. There is no quiet way to do this. There was never going to be.",
+          effect: { kind: "advance", to: "scene:lair" },
+        },
+        {
+          id: "retreat-vent",
+          label: "Turn back",
+          icon: "retreat",
+          response:
+            "You decide the high valley can keep its red shadow. But the hum behind you changes pitch — rises, sharpens, *wakes* — and the rock at your back begins to warm. Something vast has heard you leaving, and it is coming down the mountain to see you off.",
+          effect: { kind: "advance", to: FAILURE_END },
         },
       ],
     },
@@ -168,6 +257,61 @@ export const WYRMS_HOLLOW: Campaign = {
         {
           to: FAILURE_END,
           when: "The party falls, flees, or accepts servitude.",
+        },
+      ],
+      playerActions: [
+        {
+          id: "hear-dragon",
+          label: "Hear what the dragon has to say",
+          icon: "talk",
+          response:
+            "'Small ones.' The word is a yawn that stirs the cold gold underfoot. 'You climbed all that way.' Vyrkalith watches you with one good eye and one of milk-white glass. 'Three years I have had this valley, and no one has bothered to climb so high to die. Tell me why I shouldn't be impressed. Or insulted.'",
+        },
+        {
+          id: "match-wits",
+          label: "Match her, word for word",
+          icon: "talk",
+          response:
+            "You meet the amusement in her voice and give it back. Something shifts in the great head — interest, maybe. She quotes your own words back to you, savoring them, and volunteers a name or two of those who came before you. She respects boldness. You have just bought yourself the only currency that matters here.",
+        },
+        {
+          id: "loot-hoard",
+          label: "Eye the chest at the back of the hoard",
+          icon: "search",
+          response:
+            "Half-buried in cold coin at the back of the vault: a single iron chest. Through the gap in its lid you catch the red gleam of an enameled breastplate and the faint, hot hum of a sword that has not been cold in a hundred years. Getting to it means turning your back on a dragon. Choose your moment.",
+        },
+        {
+          id: "offer-truce",
+          label: "Offer Vyrkalith a price to leave the valley",
+          icon: "give",
+          response:
+            "You name a price worth her while — a binding oath, a famous blade, a promise heavy enough to bend a dragon's pride. Vyrkalith is quiet for a long, long moment. Then, slowly, she lowers that vast head. 'Done, small one. You are the first in three years worth a bargain. Go. Before I reconsider the novelty.'",
+          effect: { kind: "advance", to: SUCCESS_END },
+        },
+        {
+          id: "fight-dragon",
+          label: "Strike at the dragon",
+          icon: "sword",
+          response:
+            "'Ah,' she says, almost pleased, as the first blow leaves your hand. 'You chose the loud way.' Vyrkalith rises off her hoard like a furnace door swinging open, wings cracking the dark, and the cavern fills with the smell of a forge about to vent.",
+          effect: { kind: "encounter", monsterIndex: "adult-red-dragon" },
+        },
+        {
+          id: "claim-kill",
+          label: "Stand over the fallen dragon",
+          icon: "trophy",
+          response:
+            "Vyrkalith's last breath leaves her like a forge going cold, and the hum that haunted the valley for three years finally stops. The hoard is yours to pick through; the proof the lords wanted is undeniable. You came all this way, and the red shadow is gone.",
+          effect: { kind: "advance", to: SUCCESS_END },
+        },
+        {
+          id: "accept-servitude",
+          label: "Trade one of your own for the rest",
+          icon: "retreat",
+          response:
+            "She offers the old bargain: one of you stays, and the rest walk free. When you take it, her laugh is the worst part — low, satisfied, certain. The valley keeps its red shadow, and keeps one of you besides. The survivors descend in silence.",
+          effect: { kind: "advance", to: FAILURE_END },
         },
       ],
     },

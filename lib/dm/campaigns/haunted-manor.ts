@@ -84,6 +84,52 @@ export const HAUNTED_MANOR: Campaign = {
           when: "The party leaves the village and reaches the manor.",
         },
       ],
+      playerActions: [
+        {
+          id: "ask-manor",
+          label: "Ask Granny about the manor",
+          icon: "talk",
+          response:
+            "Granny pours the tea before you ask. 'Burned to the foundation, forty years gone. I watched it go up.' She blows across her cup. 'Three weeks past, it came back. Whole. Lamps in the windows.' She doesn't look at you when she says it.",
+        },
+        {
+          id: "ask-vassards",
+          label: "Ask who lived there",
+          icon: "talk",
+          response:
+            "'Mireille Vassard. A hedge-witch — the kind folk crossed the road to avoid.' Granny's mouth thins. 'She had a daughter. Quiet little thing. I can't bring the name back, try as I might. Strange, that. I knew it once.'",
+        },
+        {
+          id: "ask-fear",
+          label: "Ask why the village won't go up there",
+          icon: "talk",
+          response:
+            "'Because the ones who went up didn't come down,' she says simply. 'And because some nights, when the wind's right, you can hear a child laughing on that hill. A child.' She lets that sit. 'There are no children left in this village.'",
+        },
+        {
+          id: "take-charm",
+          label: "Accept Granny's iron charm",
+          icon: "give",
+          response:
+            "She presses something cold into your palm — an iron-tipped charm on a leather thong, worn smooth. 'It won't stop what's up there,' she says. 'But it'll steady your nerve once. That may be enough. It may not.'",
+        },
+        {
+          id: "examine-charm",
+          label: "Read the old magic in the charm",
+          icon: "search",
+          classes: ["wizard", "cleric", "druid"],
+          response:
+            "You turn the charm over. The iron is bound with a hair of cold-forged silver and a word scratched too small to read. Hedge-craft — crude, genuine, and old. It will hold against fear, once, and then it will be spent.",
+        },
+        {
+          id: "to-manor",
+          label: "Set out for the manor",
+          icon: "advance",
+          response:
+            "Granny doesn't see you to the door. The moor road climbs through fog that thickens with every step, and then the manor is simply there at the top of the hill — lamps lit in the windows, as if it had been waiting up for you.",
+          effect: { kind: "advance", to: "scene:foyer" },
+        },
+      ],
     },
     {
       id: "scene:foyer",
@@ -127,6 +173,47 @@ export const HAUNTED_MANOR: Campaign = {
         {
           to: "scene:cellar",
           when: "The wraith is defeated and the cellar key is recovered.",
+        },
+      ],
+      playerActions: [
+        {
+          id: "search-halls",
+          label: "Search the halls",
+          icon: "search",
+          repeatable: true,
+          response:
+            "Dust over everything, undisturbed for decades, yet the lamps burn. A child laughs in a room upstairs — then in a room downstairs, a heartbeat later. On a mantelpiece, a music box holds a folded scroll, the ink still sharp.",
+        },
+        {
+          id: "examine-ward",
+          label: "Examine the cellar door",
+          icon: "search",
+          classes: ["wizard", "cleric", "druid"],
+          response:
+            "A smear of dried herbs is fixed above the cellar door, bound with the same hedge-craft as Granny's charm — but vast, and decades old, and still humming with intent. It was made to keep something *in* the house out of this one room.",
+        },
+        {
+          id: "press-cellar",
+          label: "Press on toward the cellar door",
+          icon: "sword",
+          response:
+            "The temperature drops between one step and the next. The laughter stops. Out of the dark of the dining hall, a shape in tattered footman's livery resolves — a face that won't hold still no matter how you stare. Caleb has found you.",
+          effect: { kind: "encounter", monsterIndex: "wraith" },
+        },
+        {
+          id: "find-key",
+          label: "Search the sealed drawing room",
+          icon: "search",
+          response:
+            "Behind a door swollen shut you find a small dry room, and in it a long-dead servant curled around a brass key. The tag, in a steward's careful hand, reads simply: cellar. The fingers give it up reluctantly.",
+        },
+        {
+          id: "descend-cellar",
+          label: "Unlock the cellar and descend",
+          icon: "advance",
+          response:
+            "The brass key turns with a groan of forty-year rust. The dried herbs above the door crackle and fall to powder as it swings open, and cold, wet air breathes up at you from the dark below.",
+          effect: { kind: "advance", to: "scene:cellar" },
         },
       ],
     },
@@ -176,6 +263,61 @@ export const HAUNTED_MANOR: Campaign = {
         {
           to: FAILURE_END,
           when: "The party flees with the locket or abandons the manor while Anelise still wanders it.",
+        },
+      ],
+      playerActions: [
+        {
+          id: "take-locket",
+          label: "Take the velvet locket",
+          icon: "search",
+          response:
+            "You lift the locket from the dust beside Mireille's outstretched bones. Silver, tarnished, light as a held breath. When you thumb it open a lullaby spills out — faint, only for a moment — and then it's just a lock of pale brown hair.",
+        },
+        {
+          id: "take-knife",
+          label: "Draw the bone-handled knife",
+          icon: "search",
+          response:
+            "You work the bone-handled knife free of the skeleton's ribs. The grip is warm, which it has no right to be. This is the blade that bound the girl; it remembers the work.",
+        },
+        {
+          id: "speak-girl",
+          label: "Speak gently to the girl",
+          icon: "talk",
+          response:
+            "You keep your voice low. The child watches you with very tired eyes. 'Mother said I shouldn't go in the cellar,' she offers, almost apologetic. 'I've been looking such a long time. Have you seen it? My locket. Mother's locket.'",
+        },
+        {
+          id: "give-locket",
+          label: "Give Anelise the locket",
+          icon: "give",
+          response:
+            "You hold out the locket. She takes it in both small hands, and something forty years tight finally lets go of her. 'Oh,' she breathes. 'You found it.' She smiles — really smiles — says 'thank you, miss,' and is simply not there anymore. All around you, the manor begins, gently, to come apart.",
+          effect: { kind: "advance", to: SUCCESS_END },
+        },
+        {
+          id: "attack-girl",
+          label: "Strike the girl down",
+          icon: "sword",
+          response:
+            "You move on her. She flinches back, terror cracking across that small face — 'no, no, I only—' — and then the gentle thing is gone and something cornered and screaming takes its place, the air howling cold around it.",
+          effect: { kind: "encounter", monsterIndex: "ghost" },
+        },
+        {
+          id: "lay-locket",
+          label: "Lay the locket where she fell",
+          icon: "give",
+          response:
+            "It's over, and quiet. You set the locket down in the cold air where she stood. For a moment a lullaby hangs there, faint, and then the binding lets go all the same — grim, graceless, but done. The manor begins to come apart around you.",
+          effect: { kind: "advance", to: SUCCESS_END },
+        },
+        {
+          id: "flee-manor",
+          label: "Flee the manor with the locket",
+          icon: "retreat",
+          response:
+            "You take the stairs two at a time, the locket clenched in your fist. She follows — weeping, calling after you, 'please, please, it's mine' — all the way to the doors and out onto the moor. Behind you the manor still stands. The binding holds. She is still in it.",
+          effect: { kind: "advance", to: FAILURE_END },
         },
       ],
     },
