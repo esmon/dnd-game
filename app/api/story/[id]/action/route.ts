@@ -18,6 +18,7 @@ import { rollInitiative } from "@/lib/coop/initiative";
 import { walkMonsterChain } from "@/lib/coop/monster-chain";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
+import { grantSceneRewards } from "@/lib/dm/rewards";
 import { nextTurnDeadline } from "@/lib/coop/turn-timer";
 import type { CampaignPlayer } from "@/lib/coop/types";
 import { fetchMonster } from "@/lib/game/dnd5e";
@@ -266,6 +267,26 @@ async function applyAdvance(
     };
   }
 
+  // Completing a scene (advancing to the next scene or the success
+  // ending) pays out its scripted rewards. A failure ending grants
+  // nothing — you didn't earn it.
+  const rewardMessages: StoryMessage[] = [];
+  if (to !== FAILURE_END) {
+    const rewardMsg = await grantSceneRewards(story, currentScene);
+    if (rewardMsg) {
+      const { data: rRow, error: rError } = await supabase
+        .from("story_messages")
+        .insert(rewardMsg)
+        .select()
+        .single();
+      if (rError) {
+        console.error("scene reward message failed", rError.message);
+      } else {
+        rewardMessages.push(rRow as StoryMessage);
+      }
+    }
+  }
+
   if (to === SUCCESS_END || to === FAILURE_END) {
     const newStatus: StoryCampaignStatus =
       to === SUCCESS_END ? "completed_success" : "completed_failure";
@@ -300,7 +321,7 @@ async function applyAdvance(
 
     return {
       campaign: { ...story, status: newStatus },
-      newMessages: [inserted as StoryMessage],
+      newMessages: [...rewardMessages, inserted as StoryMessage],
     };
   }
 
@@ -337,7 +358,7 @@ async function applyAdvance(
 
   return {
     campaign: { ...story, current_scene_id: nextScene.id },
-    newMessages: inserted,
+    newMessages: [...rewardMessages, ...inserted],
   };
 }
 

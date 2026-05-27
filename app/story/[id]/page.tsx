@@ -398,6 +398,35 @@ export default function StoryPage({
     }
   }, [campaignId]);
 
+  // Re-pull the whole snapshot. Used by the lobby (after join / ready
+  // / start), the lobby poll, and after a scene reward grant (to sync
+  // the party panel's level / HP). Silently no-ops on failure — the
+  // next poll tick retries.
+  const refetch = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/story/${campaignId}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as Snapshot;
+      dispatch({ type: "SET_LOAD", load: { kind: "ready", data } });
+    } catch (err) {
+      console.error("story refetch threw", err);
+    }
+  }, [campaignId]);
+
+  // A scene-reward grant mutated the character row (xp / level / loot)
+  // server-side; refetch so the party panel reflects it instead of
+  // waiting on the poll.
+  const syncIfRewarded = useCallback(
+    (newMessages: StoryMessage[]) => {
+      const rewarded = newMessages.some(
+        (m) =>
+          (m.metadata as Record<string, unknown>)?.kind === "scene_rewards",
+      );
+      if (rewarded) void refetch();
+    },
+    [refetch],
+  );
+
   // Resolve an authored player action against the current scene.
   // The route handles posting the response message, applying any
   // effect (advance scene / start encounter), and returns the
@@ -430,6 +459,7 @@ export default function StoryPage({
           campaign: data.campaign,
           newMessages: data.newMessages,
         });
+        syncIfRewarded(data.newMessages);
         if (data.combatCampaignId) {
           dispatch({
             type: "SET_ACTIVE_COMBAT",
@@ -442,7 +472,7 @@ export default function StoryPage({
         dispatch({ type: "RUN_ACTION_END" });
       }
     },
-    [campaignId, runningAction],
+    [campaignId, runningAction, syncIfRewarded],
   );
 
   const advance = useCallback(
@@ -468,28 +498,15 @@ export default function StoryPage({
           campaign: data.campaign,
           newMessages: data.newMessages,
         });
+        syncIfRewarded(data.newMessages);
       } catch (err) {
         console.error("advance threw", err);
       } finally {
         dispatch({ type: "ADVANCE_END" });
       }
     },
-    [campaignId, advancing],
+    [campaignId, advancing, syncIfRewarded],
   );
-
-  // Re-pull the whole snapshot. Used by the lobby (after join / ready
-  // / start) and by the lobby poll. Silently no-ops on failure — the
-  // next poll tick retries.
-  const refetch = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/story/${campaignId}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as Snapshot;
-      dispatch({ type: "SET_LOAD", load: { kind: "ready", data } });
-    } catch (err) {
-      console.error("story refetch threw", err);
-    }
-  }, [campaignId]);
 
   const handleReady = useCallback(
     async (ready: boolean) => {

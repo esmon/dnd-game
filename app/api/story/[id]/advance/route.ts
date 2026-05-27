@@ -8,6 +8,7 @@ import type {
   StoryMessage,
 } from "@/lib/dm/db";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
+import { grantSceneRewards } from "@/lib/dm/rewards";
 import { FAILURE_END, SUCCESS_END } from "@/lib/dm/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -106,6 +107,27 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  // Completing a scene (advancing onward or to the success ending)
+  // pays out its scripted rewards; a failure ending grants nothing.
+  // Granted to the story's character — solo / coop-as-player only;
+  // a DM-seat coop story has no character so this no-ops.
+  const rewardMessages: StoryMessage[] = [];
+  if (to !== FAILURE_END) {
+    const rewardMsg = await grantSceneRewards(c, currentScene);
+    if (rewardMsg) {
+      const { data: rRow, error: rError } = await supabase
+        .from("story_messages")
+        .insert(rewardMsg)
+        .select()
+        .single();
+      if (rError) {
+        console.error("scene reward message failed", rError.message);
+      } else {
+        rewardMessages.push(rRow as StoryMessage);
+      }
+    }
+  }
+
   // Conclusion branch.
   if (to === SUCCESS_END || to === FAILURE_END) {
     const newStatus: StoryCampaignStatus =
@@ -152,7 +174,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     await broadcastStoryUpdate(id);
     return NextResponse.json({
       campaign: { ...c, status: newStatus } satisfies StoryCampaign,
-      newMessages: [insertedClosing as StoryMessage],
+      newMessages: [...rewardMessages, insertedClosing as StoryMessage],
     });
   }
 
@@ -206,6 +228,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       ...c,
       current_scene_id: nextScene.id,
     } satisfies StoryCampaign,
-    newMessages: inserted,
+    newMessages: [...rewardMessages, ...inserted],
   });
 }
