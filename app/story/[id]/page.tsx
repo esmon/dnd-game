@@ -1068,15 +1068,17 @@ function PlayerCommands({
             // Solid (default) variant so the action stack reads as
             // a row of pressable controls, not another set of
             // bordered cards stacked under the narrative log.
+            // min-h-12 matches the fight arena's CommandButton height
+            // so the two action surfaces feel consistent.
             <Button
               key={a.id}
               variant="default"
               size="sm"
               onClick={() => onRun(a)}
               disabled={busy}
-              className="text-left"
+              className="h-auto min-h-12 px-3 py-1.5 text-left"
             >
-              <Icon className="size-3.5 shrink-0" />
+              <Icon className="size-4 shrink-0" />
               {a.label}
             </Button>
           );
