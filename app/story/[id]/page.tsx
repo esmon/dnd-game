@@ -762,16 +762,24 @@ export default function StoryPage({
             // natural stacking — no row height — and the inner
             // ScrollArea reverts to its old h-[55vh] fallback.
             "grid gap-4 md:h-[calc(100vh-9rem)]",
-            // Three-column layout when the DM is viewing: party
-            // 400px, chat flex, notes 400px. Two-column (party +
-            // chat) when not DM. Single column on mobile.
-            hasParty && isDm && currentScene
-              ? "md:grid-cols-[400px_minmax(0,1fr)_400px]"
-              : hasParty
-                ? "md:grid-cols-[400px_minmax(0,1fr)]"
-                : isDm && currentScene
-                  ? "md:grid-cols-[minmax(0,1fr)_400px]"
-                  : null,
+            // Solo is a single reading column — cap the chat at 700px
+            // (so the card hugs the text, not the full viewport) and
+            // center the whole grid. With a party, it sits beside the
+            // capped chat; the pair stays centered.
+            isSolo
+              ? hasParty
+                ? "md:grid-cols-[400px_minmax(0,700px)] md:justify-center"
+                : "md:grid-cols-[minmax(0,700px)] md:justify-center"
+              : // Coop. Three-column when the DM is viewing: party
+                // 400px, chat flex, notes 400px. Two-column (party +
+                // chat) when not DM. Single column on mobile.
+                hasParty && isDm && currentScene
+                ? "md:grid-cols-[400px_minmax(0,1fr)_400px]"
+                : hasParty
+                  ? "md:grid-cols-[400px_minmax(0,1fr)]"
+                  : isDm && currentScene
+                    ? "md:grid-cols-[minmax(0,1fr)_400px]"
+                    : null,
           )}
         >
           {hasParty ? (
@@ -786,16 +794,7 @@ export default function StoryPage({
           ) : null}
           <div className="flex flex-col gap-3 overflow-hidden rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2 md:h-full md:min-h-0">
           <ScrollArea className="h-[55vh] pr-2 md:h-auto md:min-h-0 md:flex-1">
-            {/* Solo has no party / DM-notes columns, so the chat fills
-                a very wide column — cap the reading width at 700px and
-                center it. Coop stays full-width within its narrower
-                column. */}
-            <ul
-              className={cn(
-                "flex flex-col gap-3",
-                isSolo && "mx-auto w-full max-w-[700px]",
-              )}
-            >
+            <ul className="flex flex-col gap-3">
               {messages.map((m) => (
                 <MessageRow
                   key={m.id}
@@ -828,12 +827,7 @@ export default function StoryPage({
           </ScrollArea>
 
           {isFinished ? (
-            <div
-              className={cn(
-                "rounded-md border border-muted-foreground/20 bg-muted/40 p-3 text-center text-sm",
-                isSolo && "mx-auto w-full max-w-[700px]",
-              )}
-            >
+            <div className="rounded-md border border-muted-foreground/20 bg-muted/40 p-3 text-center text-sm">
               This campaign has ended.{" "}
               <Link href="/" className="font-bold underline">
                 Return home
@@ -843,15 +837,13 @@ export default function StoryPage({
           ) : (
             <>
               {canPlay && currentScene?.playerActions?.length ? (
-                <div className={cn(isSolo && "mx-auto w-full max-w-[700px]")}>
-                  <PlayerCommands
-                    actions={currentScene.playerActions}
-                    characterClassId={myCharacter?.class ?? null}
-                    takenIds={takenActionIds}
-                    onRun={runAction}
-                    busy={runningAction}
-                  />
-                </div>
+                <PlayerCommands
+                  actions={currentScene.playerActions}
+                  characterClassId={myCharacter?.class ?? null}
+                  takenIds={takenActionIds}
+                  onRun={runAction}
+                  busy={runningAction}
+                />
               ) : null}
               {/* Free-text composer is coop-only — solo plays through
                   the action buttons above. */}
