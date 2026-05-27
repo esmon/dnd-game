@@ -786,7 +786,16 @@ export default function StoryPage({
           ) : null}
           <div className="flex flex-col gap-3 overflow-hidden rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2 md:h-full md:min-h-0">
           <ScrollArea className="h-[55vh] pr-2 md:h-auto md:min-h-0 md:flex-1">
-            <ul className="flex flex-col gap-3">
+            {/* Solo has no party / DM-notes columns, so the chat fills
+                a very wide column — cap the reading width at 700px and
+                center it. Coop stays full-width within its narrower
+                column. */}
+            <ul
+              className={cn(
+                "flex flex-col gap-3",
+                isSolo && "mx-auto w-full max-w-[700px]",
+              )}
+            >
               {messages.map((m) => (
                 <MessageRow
                   key={m.id}
@@ -819,7 +828,12 @@ export default function StoryPage({
           </ScrollArea>
 
           {isFinished ? (
-            <div className="rounded-md border border-muted-foreground/20 bg-muted/40 p-3 text-center text-sm">
+            <div
+              className={cn(
+                "rounded-md border border-muted-foreground/20 bg-muted/40 p-3 text-center text-sm",
+                isSolo && "mx-auto w-full max-w-[700px]",
+              )}
+            >
               This campaign has ended.{" "}
               <Link href="/" className="font-bold underline">
                 Return home
@@ -829,13 +843,15 @@ export default function StoryPage({
           ) : (
             <>
               {canPlay && currentScene?.playerActions?.length ? (
-                <PlayerCommands
-                  actions={currentScene.playerActions}
-                  characterClassId={myCharacter?.class ?? null}
-                  takenIds={takenActionIds}
-                  onRun={runAction}
-                  busy={runningAction}
-                />
+                <div className={cn(isSolo && "mx-auto w-full max-w-[700px]")}>
+                  <PlayerCommands
+                    actions={currentScene.playerActions}
+                    characterClassId={myCharacter?.class ?? null}
+                    takenIds={takenActionIds}
+                    onRun={runAction}
+                    busy={runningAction}
+                  />
+                </div>
               ) : null}
               {/* Free-text composer is coop-only — solo plays through
                   the action buttons above. */}
