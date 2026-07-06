@@ -147,4 +147,4 @@ Story combat isn't a separate combat engine — it reuses the coop campaign mach
 
 ---
 
-← Back to [README](./README.md) · Next: [Campaigns](./campaigns.md)
+← Back to [README](./README.md) · Next: [Campaigns](./campaigns/README.md)

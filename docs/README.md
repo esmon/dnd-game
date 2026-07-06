@@ -12,7 +12,7 @@ The entry point `/` is not a marketing home — it *is* the game. The **Arena Lo
 
 1. **[Play modes](./play-modes.md)** — Solo Combat, Coop Combat, Solo Story, Coop Story: what each is, how to reach it, how it flows.
 2. **[Story mode](./story-mode.md)** — Create flow, the scene loop, solo/coop/DM play surfaces, and cross-cutting mechanics.
-3. **[Campaigns](./campaigns.md)** — The three story campaigns (Goblin Warrens, Haunted Manor, Wyrm's Hollow) with scene-by-scene flows.
+3. **[Campaigns](./campaigns/README.md)** — The three story campaigns (Goblin Warrens, Haunted Manor, Wyrm's Hollow) with scene-by-scene flows. One file per campaign.
 4. **[Reference](./reference.md)** — Data model, auth & persistence, known gaps, and the file map for where things live.
 
 ## Top-level user flow

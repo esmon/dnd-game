@@ -129,4 +129,4 @@ Where to look when a mode misbehaves or you want to extend it.
 
 ---
 
-← Back to [README](./README.md) · Previous: [Campaigns](./campaigns.md)
+← Back to [README](./README.md) · Previous: [Campaigns](./campaigns/README.md)
