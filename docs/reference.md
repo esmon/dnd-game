@@ -81,7 +81,7 @@ Where to look when a mode misbehaves or you want to extend it.
 
 - `app/page.tsx` — entry
 - `components/arena/arena.tsx` — the big lobby + combat component
-- `components/arena/fight-mode-dialog.tsx` · `components/arena/campaign-picker-dialog.tsx`
+- `components/arena/fight-mode-dialog.tsx`
 - `components/arena/lobby-outcome-panel.tsx` · `components/arena/level-up-dialog.tsx` · `components/arena/inventory-dialog.tsx`
 - Persistence: `lib/arena/use-arena-persistence.ts` · `lib/arena/use-arena-bootstrap.ts`
 
