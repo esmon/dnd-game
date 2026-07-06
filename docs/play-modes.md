@@ -86,7 +86,7 @@ See [Story mode](./story-mode.md) for the full scene mechanics.
 6. **Encounter** — the DM taps **Trigger** on the DM Notes panel; combat opens for everyone via the coop combat engine. On resolve, the story page refetches and narrative turns resume.
 7. **Conclusion** — the DM advances the scene to a conclusion, or the campaign concludes on a loss.
 
-See [Story mode](./story-mode.md#solo-vs-coop-play-surface) for what each seat (solo player / coop player / coop DM) actually sees on screen.
+See the "Solo vs coop play surface" section in [Story mode](./story-mode.md) for what each seat (solo player / coop player / coop DM) actually sees on screen.
 
 ### Key files
 

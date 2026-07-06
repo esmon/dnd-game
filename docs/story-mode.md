@@ -143,7 +143,7 @@ Story combat isn't a separate combat engine — it reuses the coop campaign mach
 6. Story page refetches; the outcome message renders. If the scene declared `advanceOnVictory` and the outcome was `won`, the story auto-advances.
 
 > [!WARNING]
-> **Party combat is not wired yet.** Both `combat/start` and the `action` route's `applyEncounter` only enroll the story's *owner* character, not the whole party. A DM triggering an encounter in a coop story where they hold the DM seat (no character) currently 404s. Making encounters a real multi-player fight is the natural next follow-up. See [gaps](./reference.md#known-gaps).
+> **Party combat is not wired yet.** Both `combat/start` and the `action` route's `applyEncounter` only enroll the story's *owner* character, not the whole party. A DM triggering an encounter in a coop story where they hold the DM seat (no character) currently 404s. Making encounters a real multi-player fight is the natural next follow-up — see the "Known gaps" section in [Reference](./reference.md).
 
 ---
 

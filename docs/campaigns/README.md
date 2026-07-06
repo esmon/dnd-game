@@ -15,7 +15,7 @@ Every campaign closes at `SUCCESS_END` or `FAILURE_END` (see `lib/dm/types.ts`).
 ## Shape shared by all three
 
 - **Three scenes** each. Scenes carry `dmBackground` (context for the DM), `readAloud` (boxed text to publish verbatim as narrative), `scripted.encounters` (monster spawns), `scripted.rewards` (XP + loot on completion), and `transitions` (allowed next-scene targets).
-- **Player actions** are authored per scene. Each action posts a canned narrative response and optionally fires an effect (`narrate` / `advance` / `encounter`). See [Story mode → Anatomy of a scene](../story-mode.md#anatomy-of-a-scene) for the shared mechanics.
+- **Player actions** are authored per scene. Each action posts a canned narrative response and optionally fires an effect (`narrate` / `advance` / `encounter`). See the "Anatomy of a scene" section in [Story mode](../story-mode.md) for the shared mechanics.
 - **Class-flavor beats** — most scenes have at least one class-gated action (rogue's "Pick a lock", wizard's "Speak the true name") that only appears for the matching class.
 - **Multiple endings per campaign** — every one has both a peaceful/social win path and a combat win path, plus a way to fail.
 
@@ -26,7 +26,7 @@ The templates are TypeScript modules exporting a `Campaign` object. Steps:
 1. Create `lib/dm/campaigns/<slug>.ts` following the shape of an existing campaign (imports from `../types`, `SUCCESS_END`, `FAILURE_END`).
 2. Register it in `lib/dm/campaigns/index.ts` (add to `CAMPAIGNS` array) so the picker picks it up.
 3. Ensure every scene has at least one `advance` action (or set `advanceOnVictory`) so the run can progress solo.
-4. Mark claim-the-kill beats with `requiresVictory: true` and social/pre-combat beats with `hideAfterVictory: true` where relevant — see [gates in story-mode.md](../story-mode.md#action-visibility-gates).
+4. Mark claim-the-kill beats with `requiresVictory: true` and social/pre-combat beats with `hideAfterVictory: true` where relevant — see the "Action visibility gates" section in [Story mode](../story-mode.md).
 
 ---
 
