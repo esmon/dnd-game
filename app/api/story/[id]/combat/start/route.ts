@@ -1,21 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { findCampaign } from "@/lib/dm/campaigns";
-import type {
-  NewStoryMessage,
-  StoryCampaign,
-  StoryMessage,
-} from "@/lib/dm/db";
-import type { Character } from "@/lib/db/schema";
-import { rollInitiative } from "@/lib/coop/initiative";
-import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import type { StoryCampaign } from "@/lib/dm/db";
+import { spawnStoryEncounter } from "@/lib/dm/combat";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
-import { nextTurnDeadline } from "@/lib/coop/turn-timer";
-import type { CampaignPlayer } from "@/lib/coop/types";
-import { fetchMonster } from "@/lib/game/dnd5e";
-import type { Monster } from "@/lib/game/types";
-import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -137,199 +126,30 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  // Load the player's character. characters has no RLS yet, so
-  // explicit ownership check (story.user_id is the owner per RLS
-  // above; we trust it here).
-  const { data: charRow, error: charError } = await supabaseAdmin
-    .from("characters")
-    .select("*")
-    .eq("id", story.character_id)
-    .maybeSingle();
-  if (charError) {
-    return NextResponse.json({ error: charError.message }, { status: 500 });
-  }
-  if (!charRow) {
-    return NextResponse.json({ error: "character not found" }, { status: 404 });
-  }
-  const character = charRow as Character;
-
-  // Fetch the monster from dnd5eapi once; instantiate `count` copies
-  // since multiple identical monsters in coop's array is fine (each
-  // tracked by position index).
-  let monsterTemplate: Monster;
-  try {
-    monsterTemplate = await fetchMonster(encounter.monsterIndex);
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: `monster fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-      },
-      { status: 502 },
-    );
-  }
-  const monsterCount = Math.max(1, encounter.count ?? 1);
-  const monsters: Monster[] = Array.from({ length: monsterCount }, () => ({
-    ...monsterTemplate,
-  }));
-
-  // Insert the coop campaign already in `active` state. No lobby
-  // phase — the story owns who's playing and there's only one
-  // player. encounter_number = 1, max-encounters is implicit.
-  const campaignInsert = await supabaseAdmin
-    .from("campaigns")
-    .insert({
-      status: "active",
-      created_by: user.id,
-      monsters,
-      turn_pointer: 0,
-      // No difficulty roll — story encounters are pre-authored.
-      current_difficulty: null,
-    })
-    .select("*")
-    .single();
-  if (campaignInsert.error) {
-    return NextResponse.json(
-      { error: campaignInsert.error.message },
-      { status: 500 },
-    );
-  }
-  const combatCampaign = campaignInsert.data as {
-    id: string;
-    encounter_number: number;
-  };
-  const combatCampaignId = combatCampaign.id;
-
-  // Insert the player snapshot + freeze the character's current HP
-  // at the moment the fight begins. (Coop pulls current_hp into the
-  // player row so each fight starts from where solo left off.)
-  const playerInsert = await supabaseAdmin
-    .from("campaign_players")
-    .insert({
-      campaign_id: combatCampaignId,
-      user_id: user.id,
-      position: 0,
-      character_snapshot: character,
-      current_hp: character.current_hp,
-      // Pre-readied — there's no lobby to ready up in.
-      is_ready: true,
-    })
-    .select("*")
-    .single();
-  if (playerInsert.error) {
-    // Roll back the orphan campaign.
-    await supabaseAdmin.from("campaigns").delete().eq("id", combatCampaignId);
-    return NextResponse.json(
-      { error: playerInsert.error.message },
-      { status: 500 },
-    );
-  }
-  const players: CampaignPlayer[] = [playerInsert.data as CampaignPlayer];
-
-  // Roll initiative + walk any leading monster chain so the player
-  // doesn't land on a stuck "monster's turn" if their DEX lost the
-  // roll. Same pattern as /campaign/[id]/start.
-  const initiativeOrder = rollInitiative(players, monsters);
-  await supabaseAdmin
-    .from("campaigns")
-    .update({
-      initiative_order: initiativeOrder,
-      turn_pointer: 0,
-    })
-    .eq("id", combatCampaignId);
-
-  const playerHp: Record<string, number> = Object.fromEntries(
-    players.map((p) => [p.id, p.current_hp]),
-  );
-  const activeCampaign = {
-    id: combatCampaignId,
-    status: "active" as const,
-    created_by: user.id,
-    monsters,
-    turn_pointer: 0,
-    turn_deadline: null,
-    outcome: null,
-    initiative_order: initiativeOrder,
-    encounter_number: combatCampaign.encounter_number,
-    current_difficulty: null,
-    created_at: "",
-    updated_at: "",
-  };
-  const chain = await walkMonsterChain({
-    campaignId: combatCampaignId,
-    campaign: activeCampaign,
-    players,
-    monsters,
-    playerHp,
-    pointer: 0,
-    nextTurnNumber: 0,
+  // Spawn the fight for the whole story party (shared helper). The
+  // triggering DM is created_by + author; the roster supplies the
+  // combatants. In solo this is just the owner's single roster row.
+  const result = await spawnStoryEncounter({
+    story,
+    sceneId: currentScene.id,
+    monsterIndex: encounter.monsterIndex,
+    count: encounter.count,
+    createdBy: user.id,
+    authorUserId: user.id,
+    intent: encounter.intent ?? intent ?? null,
   });
-  const finalUpdate: Record<string, unknown> = {
-    turn_pointer: chain.pointer,
-    turn_deadline: chain.defeat ? null : nextTurnDeadline(),
-  };
-  if (chain.defeat) {
-    finalUpdate.status = "finished";
-    finalUpdate.outcome = "lost";
-  }
-  await supabaseAdmin
-    .from("campaigns")
-    .update(finalUpdate)
-    .eq("id", combatCampaignId);
-
-  // Stamp the coop campaign id onto the story campaign. Use the SSR
-  // client so RLS confirms the caller still owns the story row.
-  const { error: stampError } = await supabase
-    .from("story_campaigns")
-    .update({ active_combat_campaign_id: combatCampaignId })
-    .eq("id", storyId);
-  if (stampError) {
-    return NextResponse.json({ error: stampError.message }, { status: 500 });
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
-  // Visible signal in the story log that combat has begun. Carries
-  // the combat campaign id in metadata so a follow-up /combat/end
-  // can correlate the resolution back to this trigger.
-  const summaryCount = monsterCount > 1
-    ? `${monsterCount} × ${encounter.monsterIndex}`
-    : encounter.monsterIndex;
-  const intentNote = encounter.intent ?? intent ?? null;
-  const content = intentNote
-    ? `⚔ Encounter — ${summaryCount}. ${intentNote}`
-    : `⚔ Encounter — ${summaryCount}.`;
-  const storyMsg: NewStoryMessage = {
-    campaign_id: storyId,
-    role: "system",
-    content,
-    author_user_id: user.id,
-    metadata: {
-      scene_id: currentScene.id,
-      kind: "encounter_started",
-      combat_campaign_id: combatCampaignId,
-      monsterIndex: encounter.monsterIndex,
-      count: monsterCount,
-      intent: encounter.intent ?? null,
-    },
-  };
-  const { data: insertedMsg, error: msgError } = await supabase
-    .from("story_messages")
-    .insert(storyMsg)
-    .select()
-    .single();
-  if (msgError) {
-    // Combat is live; the story-log marker just didn't post. Log
-    // and continue — the dialog will still open from the stamped
-    // active_combat_campaign_id.
-    console.error("story encounter message failed", msgError.message);
-  }
-
-  await broadcastCampaignUpdate(combatCampaignId);
+  await broadcastCampaignUpdate(result.combatCampaignId);
   // Also nudge the story page so every member's locked combat
   // dialog mounts off the new active_combat_campaign_id.
   await broadcastStoryUpdate(storyId);
   return NextResponse.json(
     {
-      combatCampaignId,
-      message: (insertedMsg ?? null) as StoryMessage | null,
+      combatCampaignId: result.combatCampaignId,
+      message: result.encounterMessage,
     },
     { status: 201 },
   );

@@ -14,18 +14,14 @@ import {
   type PlayerAction,
   type PlayerActionEffect,
 } from "@/lib/dm/types";
-import type { Character } from "@/lib/db/schema";
-import { rollInitiative } from "@/lib/coop/initiative";
-import { walkMonsterChain } from "@/lib/coop/monster-chain";
+import {
+  spawnStoryEncounter,
+  type SpawnEncounterResult,
+} from "@/lib/dm/combat";
 import { broadcastCampaignUpdate } from "@/lib/coop/realtime";
 import { broadcastStoryUpdate } from "@/lib/dm/realtime";
 import { grantSceneRewards } from "@/lib/dm/rewards";
 import { nextTurnUserId } from "@/lib/dm/turns";
-import { nextTurnDeadline } from "@/lib/coop/turn-timer";
-import type { CampaignPlayer } from "@/lib/coop/types";
-import { fetchMonster } from "@/lib/game/dnd5e";
-import type { Monster } from "@/lib/game/types";
-import { supabaseAdmin } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -238,7 +234,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     updatedCampaign = result.campaign;
   } else if (effect?.kind === "encounter") {
     const result = await applyEncounter(
-      supabase,
       story,
       currentScene.id,
       effect.monsterIndex,
@@ -413,162 +408,27 @@ async function applyAdvance(
 }
 
 // ─── encounter helper ───────────────────────────────────────────
-// Duplicates the spawn-coop-campaign logic in /combat/start.
-
-type EncounterResult =
-  | { error: string; status: number }
-  | {
-      combatCampaignId: string;
-      encounterMessage: StoryMessage | null;
-    };
+// Thin wrapper over the shared spawnStoryEncounter (lib/dm/combat.ts),
+// which enrolls the whole story party. For a solo action the owner is
+// the lone roster player; created_by / author are the owner.
 
 async function applyEncounter(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   story: StoryCampaign,
   sceneId: string,
   monsterIndex: string,
   count: number | undefined,
-): Promise<EncounterResult> {
-  const { data: charRow, error: charError } = await supabaseAdmin
-    .from("characters")
-    .select("*")
-    .eq("id", story.character_id)
-    .maybeSingle();
-  if (charError) return { error: charError.message, status: 500 };
-  if (!charRow) return { error: "character not found", status: 404 };
-  const character = charRow as Character;
-
-  let monsterTemplate: Monster;
-  try {
-    monsterTemplate = await fetchMonster(monsterIndex);
-  } catch (err) {
-    return {
-      error: `monster fetch failed: ${err instanceof Error ? err.message : String(err)}`,
-      status: 502,
-    };
-  }
-  const monsterCount = Math.max(1, count ?? 1);
-  const monsters: Monster[] = Array.from({ length: monsterCount }, () => ({
-    ...monsterTemplate,
-  }));
-
-  const campaignInsert = await supabaseAdmin
-    .from("campaigns")
-    .insert({
-      status: "active",
-      created_by: story.user_id,
-      monsters,
-      turn_pointer: 0,
-      current_difficulty: null,
-    })
-    .select("*")
-    .single();
-  if (campaignInsert.error) {
-    return { error: campaignInsert.error.message, status: 500 };
-  }
-  const combat = campaignInsert.data as {
-    id: string;
-    encounter_number: number;
-  };
-  const combatCampaignId = combat.id;
-
-  const playerInsert = await supabaseAdmin
-    .from("campaign_players")
-    .insert({
-      campaign_id: combatCampaignId,
-      user_id: story.user_id,
-      position: 0,
-      character_snapshot: character,
-      current_hp: character.current_hp,
-      is_ready: true,
-    })
-    .select("*")
-    .single();
-  if (playerInsert.error) {
-    await supabaseAdmin.from("campaigns").delete().eq("id", combatCampaignId);
-    return { error: playerInsert.error.message, status: 500 };
-  }
-  const players: CampaignPlayer[] = [playerInsert.data as CampaignPlayer];
-
-  const initiativeOrder = rollInitiative(players, monsters);
-  await supabaseAdmin
-    .from("campaigns")
-    .update({ initiative_order: initiativeOrder, turn_pointer: 0 })
-    .eq("id", combatCampaignId);
-
-  const playerHp: Record<string, number> = Object.fromEntries(
-    players.map((p) => [p.id, p.current_hp]),
-  );
-  const activeCampaign = {
-    id: combatCampaignId,
-    status: "active" as const,
-    created_by: story.user_id,
-    monsters,
-    turn_pointer: 0,
-    turn_deadline: null,
-    outcome: null,
-    initiative_order: initiativeOrder,
-    encounter_number: combat.encounter_number,
-    current_difficulty: null,
-    created_at: "",
-    updated_at: "",
-  };
-  const chain = await walkMonsterChain({
-    campaignId: combatCampaignId,
-    campaign: activeCampaign,
-    players,
-    monsters,
-    playerHp,
-    pointer: 0,
-    nextTurnNumber: 0,
+): Promise<SpawnEncounterResult> {
+  const result = await spawnStoryEncounter({
+    story,
+    sceneId,
+    monsterIndex,
+    count,
+    createdBy: story.user_id,
+    authorUserId: story.user_id,
+    intent: null,
   });
-  const finalUpdate: Record<string, unknown> = {
-    turn_pointer: chain.pointer,
-    turn_deadline: chain.defeat ? null : nextTurnDeadline(),
-  };
-  if (chain.defeat) {
-    finalUpdate.status = "finished";
-    finalUpdate.outcome = "lost";
+  if (!("error" in result)) {
+    await broadcastCampaignUpdate(result.combatCampaignId);
   }
-  await supabaseAdmin
-    .from("campaigns")
-    .update(finalUpdate)
-    .eq("id", combatCampaignId);
-
-  const { error: stampError } = await supabase
-    .from("story_campaigns")
-    .update({ active_combat_campaign_id: combatCampaignId })
-    .eq("id", story.id);
-  if (stampError) return { error: stampError.message, status: 500 };
-
-  const summaryCount =
-    monsterCount > 1 ? `${monsterCount} × ${monsterIndex}` : monsterIndex;
-  const storyMsg: NewStoryMessage = {
-    campaign_id: story.id,
-    role: "system",
-    content: `⚔ Encounter — ${summaryCount}.`,
-    author_user_id: story.user_id,
-    metadata: {
-      scene_id: sceneId,
-      kind: "encounter_started",
-      combat_campaign_id: combatCampaignId,
-      monsterIndex,
-      count: monsterCount,
-    },
-  };
-  const { data: insertedMsg, error: msgError } = await supabase
-    .from("story_messages")
-    .insert(storyMsg)
-    .select()
-    .single();
-  if (msgError) {
-    console.error("story encounter message failed", msgError.message);
-  }
-
-  await broadcastCampaignUpdate(combatCampaignId);
-
-  return {
-    combatCampaignId,
-    encounterMessage: (insertedMsg ?? null) as StoryMessage | null,
-  };
+  return result;
 }
