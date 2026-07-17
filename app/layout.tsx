@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 
-import { AuthButton } from "@/components/auth/auth-button";
 import { AuthClaimer } from "@/components/auth/auth-claimer";
-import { ThemeSwitcher } from "@/components/theme-switcher";
+import { TopChrome } from "@/components/top-chrome";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { THEME_STORAGE_KEY } from "@/lib/theme";
 import "./globals.css";
@@ -43,9 +42,8 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <TooltipProvider>
           <AuthClaimer />
-          <div className="fixed right-6 top-6 z-50 flex items-center gap-2">
-            <ThemeSwitcher />
-            <AuthButton />
+          <div className="fixed right-4 top-4 z-50 md:right-6 md:top-6">
+            <TopChrome />
           </div>
           {children}
         </TooltipProvider>
