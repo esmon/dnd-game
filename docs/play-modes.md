@@ -60,7 +60,7 @@ Every mode is combat-driven at some level, and every mode reuses the same battle
 1. **Create** — home **Story Mode** opens the campaign picker. Pick a template (Goblin Warrens / Haunted Manor / Wyrm's Hollow), pick **Solo** mode, tap **Begin Campaign**. `POST /api/story` creates the story with `status: "active"` and drops straight into play.
 2. **Play** — `/story/[id]` renders the narrative log (scene read-aloud on top), the party panel with the solo character, and the authored action buttons for the current scene. **No free-text composer in solo** — the player drives entirely through the buttons.
 3. **Take an action** — click a button; the route posts the authored response as a narrative message and applies the action's effect (narrate / advance / encounter).
-4. **Encounter fires** — locks the page in the combat dialog until the fight resolves. Combat runs against the same coop machinery as standalone coop combat (currently single-player).
+4. **Encounter fires** — locks the page in the combat dialog until the fight resolves. Combat runs against the same coop machinery as standalone coop combat; the whole party is enrolled.
 5. **Scene advance** — advancing pays out the leaving scene's scripted rewards to the character and posts the next scene's read-aloud. Fight-gate scenes with `advanceOnVictory` auto-advance on a won encounter.
 6. **Conclusion** — advancing to `SUCCESS_END` or `FAILURE_END` flips the story to `completed_success` / `completed_failure` and posts the campaign's conclusion text.
 

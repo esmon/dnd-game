@@ -62,16 +62,21 @@ The middleware refreshes Supabase auth cookies on every non-static request. Sign
 
 ## Known gaps
 
-Follow-ups flagged during recent work, ordered by likely value to fix next.
+### Open
 
 | Gap | Impact | Notes |
 |---|---|---|
-| **Party combat in story mode** | Coop combat isn't playable | `combat/start` and `applyEncounter` only enroll one character; a DM-seat coop story has no character and 404s. |
-| **Coop scene-reward distribution** | Only one player rewarded | `grantSceneRewards` grants to `story.character_id`. Fine in solo; in coop it's null (DM seat) or just the owner. |
-| **No home listing of active stories/campaigns** | Resume UX gap | Coop / story resume is entirely link-based today. A "my adventures" section on `/` would close the loop. |
-| **`armor_inventory` schema-cache** | Character PATCHes 500 | Environmental — migration `20260504182211` either isn't applied or PostgREST's cache is stale. |
-| **Flee outcome doesn't end the run** | Minor | Only *lost* concludes to failure today; *fled* leaves the scene active. Deliberate for now. |
+| **`armor_inventory` schema-cache** | Character PATCHes 500 | Environmental, not code — migration `20260504182211` (idempotent) either isn't applied or PostgREST's cache is stale. Apply it or reload the schema cache. |
 | **AI DM (`dm_kind = 'ai'`)** | Solo experience ceiling | Data model + briefings already shaped for it; deferred by cost decision. Scripted-only for now. |
+
+### Closed
+
+| Gap | Resolution |
+|---|---|
+| ~~Party combat in story mode~~ | Encounters now enroll the whole `story_players` roster via `lib/dm/combat.ts#spawnStoryEncounter`; fixed the DM-seat 404 too. |
+| ~~Coop scene-reward distribution~~ | `grantSceneRewards` grants to every roster player; the log message notes level-ups per character. |
+| ~~No home listing of active adventures~~ | "Continue Your Adventure" panel on the home dashboard lists in-progress stories (`components/arena/continue-adventures.tsx`). |
+| ~~Flee outcome doesn't end the run~~ | A fled encounter now concludes the story to `completed_failure`, same as a defeat. |
 
 ## File map
 
@@ -83,6 +88,7 @@ Where to look when a mode misbehaves or you want to extend it.
 - `components/arena/arena.tsx` — the big lobby + combat component
 - `components/arena/fight-mode-dialog.tsx`
 - `components/arena/lobby-outcome-panel.tsx` · `components/arena/level-up-dialog.tsx` · `components/arena/inventory-dialog.tsx`
+- `components/arena/continue-adventures.tsx` — home "resume in-progress stories" panel
 - Persistence: `lib/arena/use-arena-persistence.ts` · `lib/arena/use-arena-bootstrap.ts`
 
 ### Coop combat
@@ -100,7 +106,8 @@ Where to look when a mode misbehaves or you want to extend it.
 - `lib/dm/types.ts` — Scene / PlayerAction / Encounter / Reward / Transition types
 - `lib/dm/db.ts` — StoryCampaign / StoryPlayer / StoryMessage row types
 - `lib/dm/turns.ts` — turn order helpers
-- `lib/dm/rewards.ts` — scripted reward application + persistence
+- `lib/dm/rewards.ts` — scripted reward application + per-party persistence
+- `lib/dm/combat.ts` — `spawnStoryEncounter` (roster-aware encounter spawn)
 - `lib/dm/realtime.ts` — broadcast helper
 - Campaign templates: `lib/dm/campaigns/goblin-warrens.ts` · `haunted-manor.ts` · `wyrms-hollow.ts` · `index.ts`
 

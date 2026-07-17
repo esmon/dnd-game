@@ -121,9 +121,9 @@ Completing a scene (advancing onward or to the success ending) pays out the leav
 
 Implementation in `lib/dm/rewards.ts`. Combat XP still banks separately via the coop victory path.
 
-### Losing ends the run
+### Losing or fleeing ends the run
 
-A lost encounter concludes the story to `completed_failure` and posts the campaign's failure conclusion. The scene doesn't stay live for re-attempts — the run is over. Flee (`fled` outcome) is not fatal; you disengage and the scene continues.
+A lost *or* fled encounter concludes the story to `completed_failure` and posts the campaign's failure conclusion. The scene doesn't stay live for re-attempts — losing is a defeat, fleeing is a retreat, and both end the run.
 
 ### Realtime + polling
 
@@ -131,19 +131,18 @@ Every member's play page subscribes to `story:<id>`; every mutating route (messa
 
 ## Combat integration
 
-Story combat isn't a separate combat engine — it reuses the coop campaign machinery. When a scene's encounter fires, a fresh coop campaign is spawned and the player's story page opens a locked *combat dialog* that renders the coop battle inline. On resolution, the story page refetches and the outcome message lands in the narrative log.
+Story combat isn't a separate combat engine — it reuses the coop campaign machinery. When a scene's encounter fires, a fresh coop campaign is spawned and every member's story page opens a locked *combat dialog* that renders the coop battle inline. On resolution, the story page refetches and the outcome message lands in the narrative log.
+
+The spawn logic is shared: both the solo action route's `applyEncounter` and the DM's `/combat/start` call `lib/dm/combat.ts#spawnStoryEncounter`, which enrolls the **whole party** — every `story_players` row with `role='player'` (their fresh character, ordered by position) becomes a `campaign_players` row. In solo that's the lone owner; in coop it's the full party. The DM seat has no character and never enrolls (which is why a DM-created coop story no longer 404s — the roster, not the nullable `story.character_id`, supplies the combatants).
 
 ### Sequence
 
-1. Player triggers an encounter (solo action button, or DM Trigger from the DM Notes panel).
-2. `POST /api/story/[id]/combat/start` creates a coop `campaigns` row (status `active`), inserts a `campaign_players` row with the character snapshot, rolls initiative, and sets `active_combat_campaign_id` on the story.
-3. Story page opens `StoryCombatDialog`, which mounts the shared `CampaignBattle`. Combat runs turn-by-turn against `/api/campaign/[id]/action`.
-4. On the killing blow, the coop action route calls `persistVictoryRewards()` — XP, level-ups, loot, and full HP restore all bank to the persistent character row. Coop campaign flips to `between_encounters`.
-5. Player taps **Return to Story**; `POST /api/story/[id]/combat/end` maps the outcome to a system message (`encounter_resolved` with `won` / `lost` / `fled`), clears `active_combat_campaign_id`, and — on a `lost` — flips the story to `completed_failure` and posts the failure conclusion.
-6. Story page refetches; the outcome message renders. If the scene declared `advanceOnVictory` and the outcome was `won`, the story auto-advances.
-
-> [!WARNING]
-> **Party combat is not wired yet.** Both `combat/start` and the `action` route's `applyEncounter` only enroll the story's *owner* character, not the whole party. A DM triggering an encounter in a coop story where they hold the DM seat (no character) currently 404s. Making encounters a real multi-player fight is the natural next follow-up — see the "Known gaps" section in [Reference](./reference.md).
+1. A player triggers an encounter (solo action button), or the DM taps Trigger on the DM Notes panel.
+2. `spawnStoryEncounter` creates a coop `campaigns` row (status `active`), inserts a `campaign_players` row for **each party player**, rolls initiative, and sets `active_combat_campaign_id` on the story.
+3. Every member's story page opens `StoryCombatDialog`, which mounts the shared `CampaignBattle`. Combat runs turn-by-turn against `/api/campaign/[id]/action`.
+4. On the killing blow, the coop action route calls `persistVictoryRewards()` — XP, level-ups, loot, and full HP restore bank to **each** player's character row. Coop campaign flips to `between_encounters`.
+5. A member taps **Return to Story**; `POST /api/story/[id]/combat/end` maps the outcome to a system message (`encounter_resolved` with `won` / `lost` / `fled`), clears `active_combat_campaign_id`, and — on a `lost` **or** `fled` — flips the story to `completed_failure` and posts the failure conclusion.
+6. Story page refetches; the outcome message renders. If the scene declared `advanceOnVictory` and the outcome was `won`, the story auto-advances (solo).
 
 ---
 
