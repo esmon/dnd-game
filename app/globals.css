@@ -155,8 +155,10 @@
   /* accent = muted dusty mauve (their banner + icon chips) */
   --accent: #ddcaca;
   --accent-foreground: #7a4a4a;
-  --action: #996868;
-  --action-foreground: #f6f1ee;
+  /* action = the site's light banner/chip mauve (#cebebe), with dark
+     text since the fill is light */
+  --action: #cebebe;
+  --action-foreground: #3a2020;
   --destructive: #a5382f;
   --border: #cec7bb;
   --input: #cec7bb;
@@ -192,8 +194,8 @@
   --muted-foreground: #cebebe;
   --accent: #33292b;
   --accent-foreground: #cebebe;
-  --action: #b98a8a;
-  --action-foreground: #1c2129;
+  --action: #cebebe;
+  --action-foreground: #262c35;
   --destructive: #d0685f;
   --border: rgba(232, 228, 223, 0.12);
   --input: rgba(232, 228, 223, 0.16);
