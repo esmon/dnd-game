@@ -3,7 +3,7 @@
 // attribute needed) so it maps to the bare :root block.
 export const THEMES = [
   { id: "classic", label: "Classic" },
-  { id: "prism", label: "Prism" },
+  { id: "wine", label: "Wine" },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]["id"];

@@ -126,7 +126,7 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* ── Theme: Prism ─────────────────────────────────────────────────
+/* ── Theme: Wine ──────────────────────────────────────────────────
    Palette matched to what prismml.com actually renders: a muted,
    monochrome slate + warm off-white base with a dusty-mauve accent.
    (Their CSS also *defines* bright purple/indigo vars, but the site
@@ -135,8 +135,8 @@
    Colors: negative #e8e4df (ground) · positive #262c35 (ink/CTA) ·
    positive-muted #4c5159 (secondary text) · mauve ramp #d8cccc →
    #cebebe → #bda8a8 → #a87878 → #8b5a5a (accent + charts).
-   Selected via <html data-theme="prism">. */
-[data-theme="prism"] {
+   Selected via <html data-theme="wine">. */
+[data-theme="wine"] {
   --background: #e8e4df;
   --foreground: #262c35;
   /* cards share the page's warm greige — no near-white panels; the
@@ -178,7 +178,7 @@
   --sidebar-ring: #bda8a8;
 }
 
-[data-theme="prism"].dark {
+[data-theme="wine"].dark {
   --background: #12151a;
   --foreground: #e8e4df;
   --card: #1c2129;
