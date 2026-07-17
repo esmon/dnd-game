@@ -512,7 +512,7 @@ function Lobby({
               <input
                 readOnly
                 value={inviteUrl}
-                className="flex-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                 onFocus={(e) => e.currentTarget.select()}
               />
               <Button onClick={copyInvite}>
@@ -532,7 +532,7 @@ function Lobby({
               return (
                 <li
                   key={p.id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
                 >
                   <div className="flex flex-1 flex-col">
                     <span className="font-bold">
@@ -565,7 +565,7 @@ function Lobby({
             {Array.from({ length: MAX_PLAYERS - slotsFilled }).map((_, i) => (
               <li
                 key={`empty-${i}`}
-                className="rounded-md border border-dashed border-zinc-300 px-3 py-2 text-sm"
+                className="rounded-md border border-dashed border-border px-3 py-2 text-sm"
               >
                 Waiting for a player…
               </li>
@@ -578,7 +578,7 @@ function Lobby({
             <Button
               onClick={handleStart}
               disabled={!canStart || starting}
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
             >
               {starting ? "Starting…" : "Start Campaign"}
             </Button>
@@ -602,7 +602,7 @@ function Lobby({
             <Button
               onClick={markReady}
               disabled={togglingReady || !myPlayer || myPlayer.is_ready}
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
             >
               {togglingReady
                 ? "Saving…"

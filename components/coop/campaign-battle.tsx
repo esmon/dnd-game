@@ -668,7 +668,7 @@ export function CampaignBattle({
             onClick={skipItem.onClick}
             disabled={skipItem.disabled}
             title={skipItem.disabledReason ?? undefined}
-            className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-foreground disabled:opacity-50 dark:border-zinc-700"
+            className="mx-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-foreground disabled:opacity-50 dark:border-zinc-700"
           >
             <FootprintsIcon className="size-3.5 shrink-0" />
             Skip Turn

@@ -105,7 +105,7 @@ export function CharacterPickerDialog({
                     {isCurrent ? (
                       <span
                         aria-label="Current character"
-                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-action text-action-foreground"
                       >
                         <CheckIcon className="size-4" />
                       </span>

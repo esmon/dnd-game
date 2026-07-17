@@ -29,6 +29,8 @@
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
+  --color-action-foreground: var(--action-foreground);
+  --color-action: var(--action);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -66,6 +68,8 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
+  --action: #10b981;
+  --action-foreground: #ffffff;
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -101,6 +105,8 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
+  --action: #10b981;
+  --action-foreground: #ffffff;
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
@@ -149,6 +155,8 @@
   /* accent = muted dusty mauve (their banner + icon chips) */
   --accent: #ddcaca;
   --accent-foreground: #7a4a4a;
+  --action: #996868;
+  --action-foreground: #f6f1ee;
   --destructive: #a5382f;
   --border: #cec7bb;
   --input: #cec7bb;
@@ -184,6 +192,8 @@
   --muted-foreground: #cebebe;
   --accent: #33292b;
   --accent-foreground: #cebebe;
+  --action: #b98a8a;
+  --action-foreground: #1c2129;
   --destructive: #d0685f;
   --border: rgba(232, 228, 223, 0.12);
   --input: rgba(232, 228, 223, 0.16);

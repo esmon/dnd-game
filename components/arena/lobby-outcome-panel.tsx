@@ -138,7 +138,7 @@ export function LobbyOutcomePanel({
           <p className="text-center text-xs font-bold uppercase tracking-widest">
             Loot
           </p>
-          <div className="flex items-center justify-between rounded-md border border-zinc-300 bg-background px-3 py-2 dark:border-zinc-700">
+          <div className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2 dark:border-zinc-700">
             <span className="text-sm font-bold uppercase tracking-widest">
               {loot.name}
             </span>
@@ -154,7 +154,7 @@ export function LobbyOutcomePanel({
             </Button>
             <Button
               onClick={outcome.onKeep}
-              className="flex-1 justify-center bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="flex-1 justify-center bg-action text-action-foreground hover:bg-action/90"
             >
               Keep
             </Button>

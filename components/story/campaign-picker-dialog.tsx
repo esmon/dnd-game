@@ -88,7 +88,7 @@ export function CampaignPickerDialog({
                     className="relative flex flex-col gap-1 rounded-xl border-2 border-foreground bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40"
                   >
                     {isSelected ? (
-                      <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-action text-action-foreground">
                         <CheckIcon className="size-4" />
                       </span>
                     ) : null}

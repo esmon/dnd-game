@@ -33,7 +33,7 @@ export function ClassStep({ selectedId, onSelect }: Props) {
               )}
             >
               {selected ? (
-                <span className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <span className="absolute right-3 top-3 flex size-6 items-center justify-center rounded-full bg-action text-action-foreground">
                   <CheckIcon className="size-4" />
                 </span>
               ) : null}

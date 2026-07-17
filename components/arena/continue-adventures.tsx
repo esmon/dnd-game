@@ -58,7 +58,7 @@ export function ContinueAdventures() {
               <Link
                 href={`/story/${s.id}`}
                 className={cn(
-                  "group flex items-center gap-3 rounded-md border border-zinc-300 bg-background px-3 py-2",
+                  "group flex items-center gap-3 rounded-md border border-border bg-background px-3 py-2",
                   "transition-colors hover:border-foreground hover:bg-muted/40",
                 )}
               >

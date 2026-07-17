@@ -98,7 +98,7 @@ export function StoryLobby({
             <input
               readOnly
               value={inviteUrl}
-              className="flex-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm"
+              className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
               onFocus={(e) => e.currentTarget.select()}
             />
             <Button onClick={copyInvite}>{copied ? "Copied" : "Copy"}</Button>
@@ -110,7 +110,7 @@ export function StoryLobby({
           <PanelLabel>Party</PanelLabel>
 
           {/* DM seat */}
-          <div className="flex items-center justify-between gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm">
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm">
             <span className="flex flex-col">
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-300">
                 Dungeon Master
@@ -139,7 +139,7 @@ export function StoryLobby({
               return (
                 <li
                   key={p.id}
-                  className="flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
                 >
                   <CharacterAvatar
                     src={snap?.avatar_url ?? null}
@@ -171,7 +171,7 @@ export function StoryLobby({
               );
             })}
             {partyPlayers.length === 0 ? (
-              <li className="rounded-md border border-dashed border-zinc-300 px-3 py-2 text-sm">
+              <li className="rounded-md border border-dashed border-border px-3 py-2 text-sm">
                 Waiting for players…
               </li>
             ) : null}
@@ -184,7 +184,7 @@ export function StoryLobby({
           // player picks a character first; claiming the DM seat (if
           // open) is the button on the DM row above.
           <Button
-            className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+            className="bg-action text-action-foreground hover:bg-action/90"
             onClick={() => setPickerOpen(true)}
             disabled={busy}
           >
@@ -193,7 +193,7 @@ export function StoryLobby({
         ) : isDm ? (
           <div className="flex flex-col gap-2">
             <Button
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
               onClick={onStart}
               disabled={busy || !allReady}
             >
@@ -213,7 +213,7 @@ export function StoryLobby({
           // I'm a player — ready toggle.
           <div className="flex flex-col gap-2">
             <Button
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
               onClick={() => onReady(!me.is_ready)}
               disabled={busy}
             >

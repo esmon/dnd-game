@@ -213,7 +213,7 @@ export function RestScreen({
             <Button
               onClick={next}
               disabled={busy}
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
             >
               {busy ? "Loading…" : `Encounter ${campaign.encounter_number + 1}`}
             </Button>
