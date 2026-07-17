@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
+import { CommandButton } from "@/components/shared/command-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,30 +56,24 @@ export function TopChrome() {
 
         {!inBattle ? (
           <div className="flex flex-col gap-2 border-t border-border pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-start"
+            <CommandButton
+              kind="neutral"
+              icon={UserPlusIcon}
+              label="Create New Character"
               onClick={() => router.push("/create")}
-            >
-              <UserPlusIcon className="size-3.5 shrink-0" />
-              Create New Character
-            </Button>
+            />
 
             {process.env.NODE_ENV === "development" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="justify-start opacity-70"
+              <CommandButton
+                kind="dev"
+                icon={ChevronsUpIcon}
+                label="[DEV] +1 Level"
                 // Dev-only. Signals the arena reducer via a window event
                 // (this menu lives in the global layout, out of its tree).
                 onClick={() =>
                   window.dispatchEvent(new CustomEvent("dnd:dev-next-level"))
                 }
-              >
-                <ChevronsUpIcon className="size-3.5 shrink-0" />
-                [DEV] +1 Level
-              </Button>
+              />
             ) : null}
 
             {!loading &&
@@ -87,25 +82,20 @@ export function TopChrome() {
                   <span className="truncate text-xs text-muted-foreground">
                     {user.email}
                   </span>
-                  <Button
-                    size="sm"
-                    className="justify-start"
+                  <CommandButton
+                    kind="neutral"
+                    icon={LogOutIcon}
+                    label="Sign Out"
                     onClick={handleSignOut}
-                  >
-                    <LogOutIcon className="size-3.5 shrink-0" />
-                    Sign Out
-                  </Button>
+                  />
                 </>
               ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
+                <CommandButton
+                  kind="neutral"
+                  icon={LogInIcon}
+                  label="Sign In"
                   onClick={() => router.push("/auth/sign-in")}
-                >
-                  <LogInIcon className="size-3.5 shrink-0" />
-                  Sign In
-                </Button>
+                />
               ))}
           </div>
         ) : null}
