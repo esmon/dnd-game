@@ -1,6 +1,5 @@
 "use client";
 
-import { PaletteIcon } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 import {
@@ -30,11 +29,7 @@ export function ThemeSwitcher() {
   }
 
   return (
-    <div className="flex items-center gap-1 rounded-md border border-input bg-card/80 p-0.5 font-mono text-xs uppercase tracking-widest shadow-xs backdrop-blur">
-      <PaletteIcon
-        className="ml-1 size-3.5 shrink-0 text-muted-foreground"
-        aria-hidden
-      />
+    <div className="flex items-center gap-1 rounded-md border border-input bg-muted/30 p-0.5 font-mono text-xs uppercase tracking-widest">
       {THEMES.map((t) => {
         const active = theme === t.id;
         return (
@@ -44,7 +39,9 @@ export function ThemeSwitcher() {
             onClick={() => choose(t.id)}
             aria-pressed={active}
             className={cn(
-              "rounded-sm px-2.5 py-1 transition-colors",
+              // flex-1 so the options split the row evenly and fill it
+              // — no trailing whitespace inside the menu.
+              "flex-1 rounded-sm px-2.5 py-1 text-center transition-colors",
               active
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:bg-muted/60",
