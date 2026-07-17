@@ -37,6 +37,7 @@ import {
   type BattleTile,
 } from "@/components/shared/battle-commands";
 import { LobbyOutcomePanel } from "@/components/arena/lobby-outcome-panel";
+import { ContinueAdventures } from "@/components/arena/continue-adventures";
 import { PlayerPanel } from "@/components/arena/player-panel";
 import {
   CampaignPickerDialog,
@@ -1432,6 +1433,10 @@ export function Arena() {
           />
         </div>
       )}
+
+      {/* Resume in-progress stories. Signed-in + out-of-combat only;
+          the component self-hides when there's nothing to resume. */}
+      {status !== "fighting" && user ? <ContinueAdventures /> : null}
 
       <div className="hidden md:block">
         <CombatLog turns={turns} />
