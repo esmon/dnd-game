@@ -31,6 +31,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${jetbrainsMono.variable} h-full antialiased`}
+      // The no-flash script below stamps data-theme on <html> before
+      // React hydrates, so the client <html> intentionally differs
+      // from the server's. Scope the hydration-warning suppression to
+      // this element's attributes (the next-themes pattern).
+      suppressHydrationWarning
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_THEME }} />
