@@ -22,7 +22,7 @@ import type { Reward, Scene } from "./types";
 export function applyRewards(
   character: Character,
   rewards: Reward[],
-): { character: Character; summary: string[] } {
+): { character: Character; summary: string[]; leveledTo: number | null } {
   let c: Character = { ...character };
   const summary: string[] = [];
   let xpGained = 0;
@@ -82,51 +82,30 @@ export function applyRewards(
 
   // Bank any xp into levels the same way combat does, so a quest XP
   // bonus that crosses a threshold bumps level / max_hp / spells.
+  // The level result is returned separately from the item/xp summary
+  // because reward *content* is identical across a party but each
+  // member crosses (or doesn't cross) a threshold on their own.
+  let leveledTo: number | null = null;
   if (xpGained > 0) {
-    const fromLevel = c.level;
     const result = applyCharacterLevelUps(c);
     if (result.levelsGained.length > 0) {
       c = result.character;
-      summary.push(
-        c.level - fromLevel === 1
-          ? `Reached level ${c.level}`
-          : `Reached level ${c.level} (+${c.level - fromLevel})`,
-      );
+      leveledTo = c.level;
     }
   }
 
-  return { character: c, summary };
+  return { character: c, summary, leveledTo };
 }
 
-// Grant the scene's scripted rewards to the story's character and
-// return a system message summarizing them (to drop into the log).
-// No-op (returns null) when the scene has no rewards, the story has no
-// character (a coop DM seat), the character row is missing, or nothing
-// mechanical was granted. characters has no RLS — supabaseAdmin.
-export async function grantSceneRewards(
-  story: StoryCampaign,
-  scene: Scene,
-): Promise<NewStoryMessage | null> {
-  const rewards = scene.scripted.rewards;
-  if (!rewards || rewards.length === 0 || !story.character_id) return null;
-
-  const { data: charRow, error: charError } = await supabaseAdmin
-    .from("characters")
-    .select("*")
-    .eq("id", story.character_id)
-    .maybeSingle();
-  if (charError) {
-    console.error("scene reward character load failed", charError.message);
-    return null;
-  }
-  if (!charRow) return null;
-
-  const { character, summary } = applyRewards(charRow as Character, rewards);
-  if (summary.length === 0) return null;
-
-  // Only touch armor_inventory when an armor reward actually dropped,
-  // so xp / weapon / potion / scroll grants don't depend on that
-  // column existing (see the known armor_inventory schema-cache gap).
+// Persist one character's post-reward state. Only touches
+// armor_inventory when an armor reward dropped, so xp / weapon / potion
+// / scroll grants don't depend on that column existing (see the known
+// armor_inventory schema-cache gap). characters has no RLS —
+// supabaseAdmin.
+async function persistRewardedCharacter(
+  character: Character,
+  hasArmorReward: boolean,
+): Promise<boolean> {
   const update: Record<string, unknown> = {
     xp: character.xp,
     level: character.level,
@@ -138,23 +117,98 @@ export async function grantSceneRewards(
     inventory: character.inventory,
     consumables: character.consumables,
   };
-  if (rewards.some((r) => r.kind === "armor")) {
+  if (hasArmorReward) {
     update.armor_inventory = character.armor_inventory ?? [];
   }
-
-  const { error: updateError } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from("characters")
     .update(update)
     .eq("id", character.id);
-  if (updateError) {
-    console.error("scene reward persist failed", updateError.message);
+  if (error) {
+    console.error("scene reward persist failed", error.message);
+    return false;
+  }
+  return true;
+}
+
+// Grant the scene's scripted rewards to *every* party player and return
+// a system message summarizing them (to drop into the log). Rewards are
+// scene-scripted, so the item/xp payout is identical for each player;
+// only level-ups differ, so the message notes those per character.
+//
+// No-op (returns null) when the scene has no rewards, there are no
+// player characters (e.g. a coop DM-only view before anyone joined), or
+// nothing mechanical was granted. characters has no RLS — supabaseAdmin.
+export async function grantSceneRewards(
+  story: StoryCampaign,
+  scene: Scene,
+): Promise<NewStoryMessage | null> {
+  const rewards = scene.scripted.rewards;
+  if (!rewards || rewards.length === 0) return null;
+
+  // Target characters: every roster player (role='player'). Fall back
+  // to the legacy single story.character_id for pre-roster rows.
+  const { data: rosterRows, error: rosterError } = await supabaseAdmin
+    .from("story_players")
+    .select("character_id")
+    .eq("campaign_id", story.id)
+    .eq("role", "player");
+  if (rosterError) {
+    console.error("scene reward roster load failed", rosterError.message);
     return null;
+  }
+  const characterIds = ((rosterRows ?? []) as { character_id: string | null }[])
+    .map((r) => r.character_id)
+    .filter((id): id is string => !!id);
+  if (characterIds.length === 0 && story.character_id) {
+    characterIds.push(story.character_id);
+  }
+  if (characterIds.length === 0) return null;
+
+  const { data: charRows, error: charError } = await supabaseAdmin
+    .from("characters")
+    .select("*")
+    .in("id", characterIds);
+  if (charError) {
+    console.error("scene reward character load failed", charError.message);
+    return null;
+  }
+  const characters = (charRows ?? []) as Character[];
+  if (characters.length === 0) return null;
+
+  const hasArmorReward = rewards.some((r) => r.kind === "armor");
+
+  // Item/xp summary is identical for every player; capture it once.
+  // Level-up notes are per character.
+  let itemSummary: string[] | null = null;
+  const levelNotes: string[] = [];
+  let persistedAny = false;
+
+  for (const original of characters) {
+    const { character, summary, leveledTo } = applyRewards(original, rewards);
+    if (summary.length === 0) continue;
+    const ok = await persistRewardedCharacter(character, hasArmorReward);
+    if (!ok) continue;
+    persistedAny = true;
+    if (itemSummary === null) itemSummary = summary;
+    if (leveledTo !== null) {
+      levelNotes.push(`${character.name} reached level ${leveledTo}`);
+    }
+  }
+
+  if (!persistedAny || itemSummary === null) return null;
+
+  const solo = characters.length === 1;
+  const lead = solo ? "Rewards" : "The party receives";
+  let content = `${lead}: ${itemSummary.join(" · ")}.`;
+  if (levelNotes.length > 0) {
+    content += ` ${levelNotes.join(" · ")}.`;
   }
 
   return {
     campaign_id: story.id,
     role: "system",
-    content: `Rewards: ${summary.join(" · ")}.`,
+    content,
     author_user_id: null,
     metadata: { scene_id: scene.id, kind: "scene_rewards" },
   };
