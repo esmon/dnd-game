@@ -271,7 +271,7 @@ export default function CreatePage() {
   const isLastStep = state.step === 4;
 
   return (
-    <main className="flex min-h-screen flex-1 items-start justify-center bg-zinc-50 p-6 dark:bg-black">
+    <main className="flex min-h-screen flex-1 items-start justify-center bg-background p-6">
       <div className="flex w-full max-w-5xl flex-col gap-4">
         <h1 className="text-center font-mono text-2xl font-bold uppercase tracking-widest">
           DND 5e — Character Creation
