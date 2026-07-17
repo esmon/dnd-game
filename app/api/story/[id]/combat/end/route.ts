@@ -159,18 +159,19 @@ export async function POST(_request: NextRequest, ctx: RouteContext) {
     console.error("clear active_combat_campaign_id failed", clearError.message);
   }
 
-  // A lost fight ends the run. Without this the scene stayed active
-  // and the player just saw the same actions again. Conclude to the
-  // failure ending: flip status + post the campaign's failure copy
-  // (same shape as advancing to FAILURE_END).
-  if (outcome === "lost") {
+  // A lost OR fled fight ends the run. Without this the scene stayed
+  // active and the player just saw the same actions again. Losing is a
+  // defeat; fleeing is a retreat — both conclude to the failure ending:
+  // flip status + post the campaign's failure copy (same shape as
+  // advancing to FAILURE_END).
+  if (outcome === "lost" || outcome === "fled") {
     const template = findCampaign(story.campaign_template_id);
     const { error: failError } = await supabase
       .from("story_campaigns")
       .update({ status: "completed_failure" })
       .eq("id", storyId);
     if (failError) {
-      console.error("conclude-on-loss status update failed", failError.message);
+      console.error("conclude-on-fail status update failed", failError.message);
     } else if (template) {
       const conclusion: NewStoryMessage = {
         campaign_id: storyId,
@@ -187,7 +188,7 @@ export async function POST(_request: NextRequest, ctx: RouteContext) {
         .from("story_messages")
         .insert(conclusion);
       if (concludeError) {
-        console.error("conclude-on-loss message failed", concludeError.message);
+        console.error("conclude-on-fail message failed", concludeError.message);
       }
     }
   }
