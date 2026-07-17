@@ -64,7 +64,7 @@ export function CampaignPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
+      <DialogContent className="border-2 border-foreground sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
             Choose a Campaign
@@ -85,7 +85,7 @@ export function CampaignPickerDialog({
                     key={c.id}
                     type="button"
                     onClick={() => setSelected(c.id)}
-                    className="relative flex flex-col gap-1 rounded-xl border-2 border-zinc-900 bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                    className="relative flex flex-col gap-1 rounded-xl border-2 border-foreground bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40"
                   >
                     {isSelected ? (
                       <span className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full bg-emerald-500 text-white">
@@ -190,7 +190,7 @@ function Segmented<T extends string>({
               onClick={() => onChange(o.value)}
               className={cn(
                 "rounded-sm px-3 py-1 transition-colors",
-                active ? "bg-zinc-900 text-white" : "hover:bg-muted/60",
+                active ? "bg-foreground text-white" : "hover:bg-muted/60",
               )}
             >
               {o.label}

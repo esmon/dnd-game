@@ -1026,7 +1026,7 @@ function MonsterRow({
   currentTurnMonsterIndex: number | undefined;
 }) {
   return (
-    <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
+    <div className="relative flex flex-col gap-2 rounded-md border-2 border-foreground bg-card p-3 font-mono">
       <PanelLabel>Monsters</PanelLabel>
       <div className="flex flex-col gap-2 pt-2">
         {monsters.map((m, i) => (
@@ -1078,7 +1078,7 @@ function MonsterButton({
       className={cn(
         "relative flex flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
         acting
-          ? "border-2 border-zinc-900"
+          ? "border-2 border-foreground"
           : selected && !dead
             ? "border-2 border-rose-500"
             : "border-muted-foreground/20",
@@ -1272,7 +1272,7 @@ function InitiativeStrip({
                 isMyActive
                   ? "border-2 border-blue-600 bg-blue-600 font-bold text-white"
                   : isCurrent
-                    ? "border-2 border-zinc-900 bg-card font-bold"
+                    ? "border-2 border-foreground bg-card font-bold"
                     : "border-muted-foreground/20 bg-card/50",
                 dead ? "line-through opacity-50" : "",
               )}
@@ -1324,7 +1324,7 @@ function CombatLogPanel({
   return (
     <div
       className={cn(
-        "relative h-auto min-h-0 w-full rounded-md border-2 border-zinc-900 bg-card",
+        "relative h-auto min-h-0 w-full rounded-md border-2 border-foreground bg-card",
         className,
       )}
     >

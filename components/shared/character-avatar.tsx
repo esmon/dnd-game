@@ -69,11 +69,11 @@ export function CharacterAvatar({
     </span>
   );
 
-  // Matches the dark zinc-900 borders used throughout the panel
+  // Matches the dark foreground borders used throughout the panel
   // chrome, so the avatar reads as a contained slot (not a separate
   // brand color).
   const boxClass = cn(
-    "flex items-center justify-center overflow-hidden rounded-md bg-zinc-900",
+    "flex items-center justify-center overflow-hidden rounded-md bg-foreground",
     dims.box,
     className,
   );
@@ -124,7 +124,7 @@ export function CharacterAvatar({
             the user knows the click registered. */}
         <span
           className={cn(
-            "absolute bottom-1 right-1 flex items-center justify-center rounded-full border border-zinc-900 bg-white text-zinc-900 shadow-sm transition-transform group-hover:scale-110",
+            "absolute bottom-1 right-1 flex items-center justify-center rounded-full border border-foreground bg-white text-foreground shadow-sm transition-transform group-hover:scale-110",
             size === "lg" ? "size-7" : "size-4",
           )}
         >

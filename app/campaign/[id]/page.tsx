@@ -503,7 +503,7 @@ function Lobby({
         </h1>
 
         {isCreator ? (
-          <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+          <div className="relative flex flex-col gap-3 rounded-md border-2 border-foreground bg-card p-6 font-mono">
             <p className="text-sm">
               Share this link with a friend. They&apos;ll need to be signed in to
               join.
@@ -522,7 +522,7 @@ function Lobby({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+        <div className="flex flex-col gap-3 rounded-md border-2 border-foreground bg-card p-6 font-mono">
           <p className="text-sm font-bold uppercase tracking-widest">
             Players ({slotsFilled}/{MAX_PLAYERS})
           </p>
@@ -703,7 +703,7 @@ function JoinPrompt({
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 text-center font-mono">
+      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border-2 border-foreground bg-card p-6 text-center font-mono">
         {children}
       </div>
     </main>

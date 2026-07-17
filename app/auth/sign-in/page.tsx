@@ -67,7 +67,7 @@ function SignInForm() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="flex w-full max-w-sm flex-col gap-4 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+      <div className="flex w-full max-w-sm flex-col gap-4 rounded-md border-2 border-foreground bg-card p-6 font-mono">
         <div className="flex flex-col gap-1 text-center">
           <h1 className="text-xl font-bold uppercase tracking-widest">
             {isCoopInvite ? "Sign In To Play Co-op" : "Sign In"}

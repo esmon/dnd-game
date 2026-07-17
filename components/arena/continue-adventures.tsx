@@ -45,7 +45,7 @@ export function ContinueAdventures() {
   if (resumable.length === 0) return null;
 
   return (
-    <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
+    <div className="relative flex flex-col gap-2 rounded-md border-2 border-foreground bg-card p-3 font-mono">
       <PanelLabel>Continue Your Adventure</PanelLabel>
       <ul className="flex flex-col gap-2 pt-1">
         {resumable.map((s) => {
@@ -59,7 +59,7 @@ export function ContinueAdventures() {
                 href={`/story/${s.id}`}
                 className={cn(
                   "group flex items-center gap-3 rounded-md border border-zinc-300 bg-background px-3 py-2",
-                  "transition-colors hover:border-zinc-900 hover:bg-muted/40",
+                  "transition-colors hover:border-foreground hover:bg-muted/40",
                 )}
               >
                 <BookOpenIcon className="size-4 shrink-0 text-muted-foreground" />

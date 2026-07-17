@@ -26,7 +26,7 @@ export function MobileCombatLog({
   return (
     <div
       className={cn(
-        "relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 md:hidden",
+        "relative flex flex-col gap-2 rounded-md border-2 border-foreground bg-card p-3 md:hidden",
         className,
       )}
     >

@@ -184,7 +184,7 @@ export function StoryCombatDialog({
     <Dialog open onOpenChange={() => {}}>
       <DialogContent
         showCloseButton={false}
-        className="border-2 border-zinc-900 sm:max-w-5xl"
+        className="border-2 border-foreground sm:max-w-5xl"
       >
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-base uppercase tracking-widest">

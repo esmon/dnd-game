@@ -33,10 +33,10 @@ export function MonsterCard({
   return (
     <div
       ref={shakeRef}
-      className="relative flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono"
+      className="relative flex h-full flex-col gap-1 rounded-md border-2 border-foreground bg-card px-4 py-3 font-mono"
     >
       <PanelLabel>{monster.name}</PanelLabel>
-      <div className="mx-auto mb-1 flex size-24 items-center justify-center overflow-hidden rounded-md bg-zinc-900">
+      <div className="mx-auto mb-1 flex size-24 items-center justify-center overflow-hidden rounded-md bg-foreground">
         {monster.avatar ? (
           <Image
             src={monster.avatar}

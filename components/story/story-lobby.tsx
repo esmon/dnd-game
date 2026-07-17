@@ -90,7 +90,7 @@ export function StoryLobby({
         </header>
 
         {/* Invite — any member can share the link. */}
-        <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+        <div className="relative flex flex-col gap-3 rounded-md border-2 border-foreground bg-card p-6 font-mono">
           <p className="text-sm">
             Share this link. Anyone signed in can join as a player.
           </p>
@@ -106,7 +106,7 @@ export function StoryLobby({
         </div>
 
         {/* Roster */}
-        <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+        <div className="relative flex flex-col gap-3 rounded-md border-2 border-foreground bg-card p-6 font-mono">
           <PanelLabel>Party</PanelLabel>
 
           {/* DM seat */}

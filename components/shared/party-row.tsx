@@ -30,7 +30,7 @@ export function PartyRow({
   myUserId: string;
 }) {
   return (
-    <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
+    <div className="relative flex flex-col gap-2 rounded-md border-2 border-foreground bg-card p-3 font-mono">
       <PanelLabel>Party</PanelLabel>
       <div className="flex flex-col gap-2 pt-2">
         {players.map((p) => (
@@ -80,7 +80,7 @@ export function PartyMember({
         isMyActive
           ? "border-2 border-blue-600"
           : isCurrent
-            ? "border-2 border-zinc-900"
+            ? "border-2 border-foreground"
             : "border-muted-foreground/20",
         dead ? "opacity-50" : "",
       )}

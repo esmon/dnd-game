@@ -16,7 +16,7 @@ export function LobbyResultFrame({
   return (
     <div
       className={cn(
-        "flex h-full flex-col justify-center rounded-md border-2 border-zinc-900 bg-card px-4 py-6 font-mono",
+        "flex h-full flex-col justify-center rounded-md border-2 border-foreground bg-card px-4 py-6 font-mono",
         className,
       )}
     >

@@ -5,7 +5,7 @@ import type { Turn } from "@/lib/game/types";
 
 export function CombatLog({ turns }: { turns: Turn[] }) {
   return (
-    <div className="relative h-80 w-full rounded-md border-2 border-zinc-900 bg-card">
+    <div className="relative h-80 w-full rounded-md border-2 border-foreground bg-card">
       <PanelLabel>Logs</PanelLabel>
       <ScrollArea className="h-full w-full p-3">
         {turns.length === 0 ? (

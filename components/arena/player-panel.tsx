@@ -68,7 +68,7 @@ export function PlayerPanel({
     <div
       ref={shakeRef}
       className={cn(
-        "relative flex h-full flex-col gap-1 rounded-md border-2 border-zinc-900 bg-card px-4 py-3 font-mono",
+        "relative flex h-full flex-col gap-1 rounded-md border-2 border-foreground bg-card px-4 py-3 font-mono",
         className,
       )}
     >

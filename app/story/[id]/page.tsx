@@ -876,7 +876,7 @@ export default function StoryPage({
               />
             </aside>
           ) : null}
-          <div className="flex flex-col gap-3 overflow-hidden rounded-xl border-2 border-zinc-900 bg-card p-4 font-mono md:order-2 md:h-full md:min-h-0">
+          <div className="flex flex-col gap-3 overflow-hidden rounded-xl border-2 border-foreground bg-card p-4 font-mono md:order-2 md:h-full md:min-h-0">
           <ScrollArea className="h-[55vh] pr-2 md:h-auto md:min-h-0 md:flex-1">
             <ul className="flex flex-col gap-3">
               {messages.map((m) => (
@@ -1242,7 +1242,7 @@ function ComposerRoleTabs({
             onClick={() => onChange(tab.key)}
             className={cn(
               "rounded-sm px-3 py-1 transition-colors",
-              active ? "bg-zinc-900 text-white" : "hover:bg-muted/60",
+              active ? "bg-foreground text-white" : "hover:bg-muted/60",
             )}
           >
             {tab.label}
@@ -1274,9 +1274,9 @@ function DmNotesPanel({
   // whatever's left after the static header so long scenes scroll
   // rather than bleed past the container.
   return (
-    <div className="relative flex h-full max-h-[70vh] flex-col rounded-xl border-2 border-zinc-900 bg-amber-50/60 font-mono dark:bg-amber-950/20 md:max-h-none">
+    <div className="relative flex h-full max-h-[70vh] flex-col rounded-xl border-2 border-foreground bg-amber-50/60 font-mono dark:bg-amber-950/20 md:max-h-none">
       <PanelLabel>DM Notes</PanelLabel>
-      <div className="border-b border-zinc-900/20 px-4 py-3">
+      <div className="border-b border-foreground/20 px-4 py-3">
         <span className="text-sm font-bold">{scene.title}</span>
       </div>
       <ScrollArea className="min-h-0 flex-1">
@@ -1331,7 +1331,7 @@ function DmNotesPanel({
                           type="button"
                           onClick={() => onTriggerEncounter(e)}
                           disabled={triggering}
-                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-zinc-900 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
+                          className="inline-flex shrink-0 items-center gap-1 rounded-md bg-foreground px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-white transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
                         >
                           <PlayIcon className="size-3" />
                           Trigger
@@ -1410,7 +1410,7 @@ function AdvanceSceneDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
+      <DialogContent className="border-2 border-foreground sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
             Advance the Story
@@ -1426,7 +1426,7 @@ function AdvanceSceneDialog({
                 onClick={() => onAdvance(t.to)}
                 disabled={busy}
                 className={cn(
-                  "rounded-xl border-2 border-zinc-900 bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40 disabled:cursor-wait disabled:opacity-60",
+                  "rounded-xl border-2 border-foreground bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40 disabled:cursor-wait disabled:opacity-60",
                 )}
               >
                 <span className="block text-xs uppercase tracking-widest text-muted-foreground">
@@ -1504,7 +1504,7 @@ function MessageRow({
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 text-center font-mono">
+      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border-2 border-foreground bg-card p-6 text-center font-mono">
         {children}
       </div>
     </main>
