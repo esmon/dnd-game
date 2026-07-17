@@ -42,7 +42,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <TooltipProvider>
           <AuthClaimer />
-          <div className="fixed right-4 top-4 z-50 md:right-6 md:top-6">
+          <div className="fixed left-4 top-4 z-50 md:left-6 md:top-6">
             <TopChrome />
           </div>
           {children}

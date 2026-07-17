@@ -69,7 +69,7 @@ export function StoryLobby({
         aria-label="Back to home"
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
-          "absolute left-6 top-6",
+          "absolute right-6 top-6",
         )}
       >
         <ArrowLeftIcon className="size-3.5 shrink-0" />

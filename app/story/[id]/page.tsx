@@ -804,7 +804,7 @@ export default function StoryPage({
         aria-label="Back to home"
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
-          "absolute left-4 top-4 md:left-6 md:top-6",
+          "absolute right-4 top-4 md:right-6 md:top-6",
         )}
       >
         <ArrowLeftIcon className="size-3.5 shrink-0" />

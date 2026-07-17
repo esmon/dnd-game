@@ -180,6 +180,23 @@ export function Arena() {
     };
   }, [state.player?.level]);
 
+  // Dev-only bridge. The "[DEV] +1 Level" control now also lives in the
+  // global top-left menu, which can't reach this reducer directly — it
+  // fires a window event instead. Reads live state via stateRef so the
+  // same guard (below max level, no pending ASI) applies without deps.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    function onDevLevel() {
+      const s = stateRef.current;
+      if ((s.player?.level ?? 0) >= MAX_LEVEL) return;
+      if ((s.asiPending?.length ?? 0) > 0) return;
+      dispatch({ type: "DEV_NEXT_LEVEL" });
+      needsPersistRef.current = true;
+    }
+    window.addEventListener("dnd:dev-next-level", onDevLevel);
+    return () => window.removeEventListener("dnd:dev-next-level", onDevLevel);
+  }, []);
+
   const fetchAndSetMonster = useCallback(async () => {
     const indices = stateRef.current.monsterIndices;
     const pick = pickRandomMonsterIndex(indices);
