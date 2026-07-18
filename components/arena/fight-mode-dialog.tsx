@@ -32,7 +32,7 @@ export function FightModeDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-2 border-zinc-900 sm:max-w-sm">
+      <DialogContent className="border-2 border-foreground sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
             Choose a Fight

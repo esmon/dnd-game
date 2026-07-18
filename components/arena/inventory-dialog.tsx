@@ -130,7 +130,7 @@ export function InventoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
+      <DialogContent className="border-2 border-foreground sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
             Inventory
@@ -179,7 +179,7 @@ export function InventoryDialog({
                         className={cn(
                           "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
                           isEquipped
-                            ? "border-2 border-zinc-900"
+                            ? "border-2 border-foreground"
                             : "border border-muted-foreground/20",
                         )}
                       >
@@ -261,7 +261,7 @@ export function InventoryDialog({
                         className={cn(
                           "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
                           isEquipped
-                            ? "border-2 border-zinc-900"
+                            ? "border-2 border-foreground"
                             : "border border-muted-foreground/20",
                         )}
                       >
@@ -321,7 +321,7 @@ export function InventoryDialog({
                     return (
                       <div
                         key={c.id}
-                        className="flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                        className="flex flex-col gap-2 rounded-md border-2 border-foreground bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="flex min-w-0 flex-col">
                           <span className="truncate font-mono text-sm font-bold uppercase tracking-widest">
@@ -393,10 +393,10 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "cursor-pointer rounded-md border-2 border-zinc-900 px-3 py-1 font-mono text-xs uppercase tracking-widest",
+        "cursor-pointer rounded-md border-2 border-foreground px-3 py-1 font-mono text-xs uppercase tracking-widest",
         active
-          ? "bg-zinc-900 text-white"
-          : "bg-card text-zinc-900 dark:text-zinc-100",
+          ? "bg-foreground text-white"
+          : "bg-card text-foreground dark:text-zinc-100",
       )}
     >
       {children}
@@ -473,7 +473,7 @@ function ArmorTab({
               className={cn(
                 "flex flex-col gap-2 rounded-md bg-card px-3 py-2 sm:flex-row sm:items-center sm:justify-between",
                 isEquipped
-                  ? "border-2 border-zinc-900"
+                  ? "border-2 border-foreground"
                   : "border border-muted-foreground/20",
               )}
             >

@@ -45,7 +45,7 @@ const KIND_STYLE: Record<
     className: "bg-teal-400 text-foreground hover:bg-teal-400/90",
   },
   primary: {
-    className: "bg-emerald-500 text-foreground hover:bg-emerald-500/90",
+    className: "bg-action text-action-foreground hover:bg-action/90",
   },
   danger: {
     className: "bg-red-600 text-white hover:bg-red-600/90",

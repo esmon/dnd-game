@@ -62,7 +62,7 @@ export function CharacterPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-2 border-zinc-900 sm:max-w-lg">
+      <DialogContent className="border-2 border-foreground sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-center font-mono text-lg uppercase tracking-widest">
             {title}
@@ -89,7 +89,7 @@ export function CharacterPickerDialog({
                     className={cn(
                       "flex items-center justify-between gap-2 rounded-md bg-card px-3 py-2",
                       isCurrent
-                        ? "border-2 border-zinc-900"
+                        ? "border-2 border-foreground"
                         : "border border-muted-foreground/20",
                     )}
                   >
@@ -105,7 +105,7 @@ export function CharacterPickerDialog({
                     {isCurrent ? (
                       <span
                         aria-label="Current character"
-                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white"
+                        className="flex size-6 shrink-0 items-center justify-center rounded-full bg-action text-action-foreground"
                       >
                         <CheckIcon className="size-4" />
                       </span>

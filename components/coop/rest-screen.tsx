@@ -139,7 +139,7 @@ export function RestScreen({
             </p>
           </div>
 
-          <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
+          <div className="relative flex flex-col gap-2 rounded-md border-2 border-foreground bg-card p-3 font-mono">
             <PanelLabel>Party</PanelLabel>
             <div className="flex flex-col gap-2 pt-2">
               {players.map((p) => {
@@ -213,7 +213,7 @@ export function RestScreen({
             <Button
               onClick={next}
               disabled={busy}
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
             >
               {busy ? "Loading…" : `Encounter ${campaign.encounter_number + 1}`}
             </Button>
