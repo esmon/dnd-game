@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 
-import { LobbyResultFrame } from "@/components/game/lobby-result-frame";
+import { LobbyResultFrame } from "@/components/shared/lobby-result-frame";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { readApiError } from "@/lib/coop/api-error";
 import {
@@ -83,7 +83,7 @@ export function CampaignOutcomePanel({
               {recaps.map((recap) => (
                 <div
                   key={recap.encounterNumber}
-                  className="flex flex-col gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm dark:border-zinc-700"
+                  className="flex flex-col gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm dark:border-zinc-700"
                 >
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-bold uppercase tracking-widest">
@@ -126,7 +126,7 @@ export function CampaignOutcomePanel({
                   return (
                     <li
                       key={p.id}
-                      className="flex flex-col gap-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm dark:border-zinc-700"
+                      className="flex flex-col gap-1 rounded-md border border-border bg-background px-3 py-2 text-sm dark:border-zinc-700"
                     >
                       <div className="flex items-baseline justify-between">
                         <span className="font-bold uppercase tracking-widest">
@@ -229,7 +229,7 @@ function PlayAgainBlock({
           return (
             <li
               key={p.id}
-              className="flex items-center justify-between gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm dark:border-zinc-700"
+              className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm dark:border-zinc-700"
             >
               <span className="font-bold uppercase tracking-widest">
                 {p.character_snapshot.name}

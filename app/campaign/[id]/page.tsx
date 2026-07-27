@@ -11,7 +11,7 @@ import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { CampaignOutcomePanel } from "@/components/coop/campaign-outcome-panel";
 import { RestScreen } from "@/components/coop/rest-screen";
 import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import { CharacterPickerDialog } from "@/components/game/character-picker-dialog";
+import { CharacterPickerDialog } from "@/components/shared/character-picker-dialog";
 import { useUser } from "@/lib/auth/use-user";
 import { cn } from "@/lib/utils";
 import type {
@@ -491,7 +491,7 @@ function Lobby({
         aria-label="Back to home"
         className={cn(
           buttonVariants({ variant: "outline", size: "sm" }),
-          "absolute left-6 top-6",
+          "absolute right-6 top-6",
         )}
       >
         <ArrowLeftIcon className="size-3.5 shrink-0" />
@@ -503,7 +503,7 @@ function Lobby({
         </h1>
 
         {isCreator ? (
-          <div className="relative flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+          <div className="relative flex flex-col gap-3 rounded-md border-2 border-foreground bg-card p-6 font-mono">
             <p className="text-sm">
               Share this link with a friend. They&apos;ll need to be signed in to
               join.
@@ -512,7 +512,7 @@ function Lobby({
               <input
                 readOnly
                 value={inviteUrl}
-                className="flex-1 rounded-md border border-zinc-300 bg-background px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm"
                 onFocus={(e) => e.currentTarget.select()}
               />
               <Button onClick={copyInvite}>
@@ -522,7 +522,7 @@ function Lobby({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 font-mono">
+        <div className="flex flex-col gap-3 rounded-md border-2 border-foreground bg-card p-6 font-mono">
           <p className="text-sm font-bold uppercase tracking-widest">
             Players ({slotsFilled}/{MAX_PLAYERS})
           </p>
@@ -532,7 +532,7 @@ function Lobby({
               return (
                 <li
                   key={p.id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-zinc-300 px-3 py-2 text-sm"
+                  className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-sm"
                 >
                   <div className="flex flex-1 flex-col">
                     <span className="font-bold">
@@ -565,7 +565,7 @@ function Lobby({
             {Array.from({ length: MAX_PLAYERS - slotsFilled }).map((_, i) => (
               <li
                 key={`empty-${i}`}
-                className="rounded-md border border-dashed border-zinc-300 px-3 py-2 text-sm"
+                className="rounded-md border border-dashed border-border px-3 py-2 text-sm"
               >
                 Waiting for a player…
               </li>
@@ -578,7 +578,7 @@ function Lobby({
             <Button
               onClick={handleStart}
               disabled={!canStart || starting}
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
             >
               {starting ? "Starting…" : "Start Campaign"}
             </Button>
@@ -602,7 +602,7 @@ function Lobby({
             <Button
               onClick={markReady}
               disabled={togglingReady || !myPlayer || myPlayer.is_ready}
-              className="bg-emerald-500 text-foreground hover:bg-emerald-500/90"
+              className="bg-action text-action-foreground hover:bg-action/90"
             >
               {togglingReady
                 ? "Saving…"
@@ -703,7 +703,7 @@ function JoinPrompt({
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border-2 border-zinc-900 bg-card p-6 text-center font-mono">
+      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-md border-2 border-foreground bg-card p-6 text-center font-mono">
         {children}
       </div>
     </main>

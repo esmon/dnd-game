@@ -20,17 +20,16 @@ import { useHideAuthButton } from "@/lib/ui/auth-button-visibility";
 import {
   BattleCommands,
   type BattleTile,
-} from "@/components/game/battle-commands";
-import { CharacterAvatar } from "@/components/game/character-avatar";
-import { CommandButton } from "@/components/game/command-button";
-import { type CommandItem } from "@/components/game/command-panel";
-import { HealthBar } from "@/components/game/health-bar";
-import { MobileCombatLog } from "@/components/game/mobile-combat-log";
-import { PanelLabel } from "@/components/game/panel-label";
-import { TurnLine } from "@/components/game/turn-line";
+} from "@/components/shared/battle-commands";
+import { CommandButton } from "@/components/shared/command-button";
+import { type CommandItem } from "@/components/shared/command-panel";
+import { HealthBar } from "@/components/shared/health-bar";
+import { MobileCombatLog } from "@/components/shared/mobile-combat-log";
+import { PanelLabel } from "@/components/shared/panel-label";
+import { TurnLine } from "@/components/shared/turn-line";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PartyRow } from "@/components/shared/party-row";
 import { findClass, prefersSpellsForClass } from "@/lib/dnd/classes";
-import { playerAC } from "@/lib/dnd/combat";
 import { findLowestSlot, isAoeSpell } from "@/lib/dnd/spells";
 import { useShakeOnNonce } from "@/lib/use-shake-on-nonce";
 import { cn } from "@/lib/utils";
@@ -669,7 +668,7 @@ export function CampaignBattle({
             onClick={skipItem.onClick}
             disabled={skipItem.disabled}
             title={skipItem.disabledReason ?? undefined}
-            className="mx-auto inline-flex items-center gap-2 rounded-md border border-zinc-300 bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-foreground disabled:opacity-50 dark:border-zinc-700"
+            className="mx-auto inline-flex items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-xs uppercase tracking-widest transition-colors hover:border-foreground disabled:opacity-50 dark:border-zinc-700"
           >
             <FootprintsIcon className="size-3.5 shrink-0" />
             Skip Turn
@@ -1013,110 +1012,6 @@ function buildBattleTiles({
   ];
 }
 
-function PartyRow({
-  players,
-  actions,
-  currentTurnUserId,
-  myUserId,
-}: {
-  players: CampaignPlayer[];
-  actions: CampaignAction[];
-  currentTurnUserId: string | undefined;
-  myUserId: string;
-}) {
-  return (
-    <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
-      <PanelLabel>Party</PanelLabel>
-      <div className="flex flex-col gap-2 pt-2">
-        {players.map((p) => (
-          <PartyMember
-            key={p.id}
-            player={p}
-            actions={actions}
-            isCurrent={p.user_id === currentTurnUserId}
-            isMe={p.user_id === myUserId}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// One row in the party panel. Pulls its own shake nonce/intensity out of
-// the action log so a hit on this player jiggles only this card, scaled
-// to the damage it took.
-function PartyMember({
-  player,
-  actions,
-  isCurrent,
-  isMe,
-}: {
-  player: CampaignPlayer;
-  actions: CampaignAction[];
-  isCurrent: boolean;
-  isMe: boolean;
-}) {
-  const dead = player.current_hp <= 0;
-  const hits = actions.filter(
-    (a) => a.target_kind === "player" && a.target_player_id === player.id,
-  );
-  const ref = useShakeOnNonce(hits.length);
-  const snap = player.character_snapshot;
-  // Blue border when it's the viewer's own active turn — same hue
-  // the InitiativeStrip's "you" pill uses, so the eye traces the
-  // "this is you, act now" cue from the strip down to the party row
-  // without a color shift.
-  const isMyActive = isCurrent && isMe;
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        "flex items-center gap-2 rounded-md border px-3 py-2",
-        isMyActive
-          ? "border-2 border-blue-600"
-          : isCurrent
-            ? "border-2 border-zinc-900"
-            : "border-muted-foreground/20",
-        dead ? "opacity-50" : "",
-      )}
-    >
-      <CharacterAvatar
-        src={snap.avatar_url ?? null}
-        name={snap.name}
-        size="sm"
-        className="shrink-0"
-      />
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-bold uppercase tracking-widest">
-            {snap.name}
-            {isMe ? (
-              <span className="ml-2 text-xs">(You)</span>
-            ) : null}
-          </span>
-          <span className="font-mono text-xs tabular-nums">
-            {player.current_hp}/{snap.max_hp}
-          </span>
-        </div>
-        <HealthBar
-          current={player.current_hp}
-          max={snap.max_hp}
-          className="h-2"
-        />
-        <p className="text-[10px] uppercase tracking-widest">
-          {snap.race} · {snap.class} · Lv: {snap.level} · AC:{" "}
-          {playerAC(
-            findClass(snap.class) ?? null,
-            snap.ability_scores,
-            snap.equipped_armor ?? null,
-            snap.equipped_shield ?? null,
-          )}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function MonsterRow({
   monsters,
   actions,
@@ -1131,7 +1026,7 @@ function MonsterRow({
   currentTurnMonsterIndex: number | undefined;
 }) {
   return (
-    <div className="relative flex flex-col gap-2 rounded-md border-2 border-zinc-900 bg-card p-3 font-mono">
+    <div className="relative flex flex-col gap-2 rounded-md border-2 border-foreground bg-card p-3 font-mono">
       <PanelLabel>Monsters</PanelLabel>
       <div className="flex flex-col gap-2 pt-2">
         {monsters.map((m, i) => (
@@ -1183,7 +1078,7 @@ function MonsterButton({
       className={cn(
         "relative flex flex-col gap-1 rounded-md border px-3 py-2 text-left transition-colors",
         acting
-          ? "border-2 border-zinc-900"
+          ? "border-2 border-foreground"
           : selected && !dead
             ? "border-2 border-rose-500"
             : "border-muted-foreground/20",
@@ -1377,7 +1272,7 @@ function InitiativeStrip({
                 isMyActive
                   ? "border-2 border-blue-600 bg-blue-600 font-bold text-white"
                   : isCurrent
-                    ? "border-2 border-zinc-900 bg-card font-bold"
+                    ? "border-2 border-foreground bg-card font-bold"
                     : "border-muted-foreground/20 bg-card/50",
                 dead ? "line-through opacity-50" : "",
               )}
@@ -1429,7 +1324,7 @@ function CombatLogPanel({
   return (
     <div
       className={cn(
-        "relative h-auto min-h-0 w-full rounded-md border-2 border-zinc-900 bg-card",
+        "relative h-auto min-h-0 w-full rounded-md border-2 border-foreground bg-card",
         className,
       )}
     >

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { CharacterAvatar } from "@/components/game/character-avatar";
+import { CharacterAvatar } from "@/components/shared/character-avatar";
 import { ALIGNMENTS, type Alignment } from "@/lib/dnd/alignments";
 import type { Background } from "@/lib/dnd/backgrounds";
 import type { DnDClass } from "@/lib/dnd/classes";
