@@ -81,6 +81,9 @@ export interface StoryMessage {
   id: string;
   created_at: string;
   updated_at: string;
+  // Monotonic insertion order — the log is ordered by this, not
+  // created_at (batch-inserted read-aloud shares a created_at).
+  seq: number;
   campaign_id: string;
   role: StoryMessageRole;
   content: string;
@@ -108,7 +111,7 @@ export type NewStoryCampaign = Omit<
 
 export type NewStoryMessage = Omit<
   StoryMessage,
-  "id" | "created_at" | "updated_at"
+  "id" | "created_at" | "updated_at" | "seq"
 > & {
   id?: string;
   created_at?: string;

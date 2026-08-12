@@ -59,9 +59,12 @@ export async function GET(_request: NextRequest, ctx: RouteContext) {
 
   const { data: messages, error: messagesError } = await supabase
     .from("story_messages")
+    // Order by the monotonic seq, not created_at: a scene's read-aloud
+    // passages batch-insert with identical created_at, so ordering on it
+    // alone lets a refetch reshuffle the log (see the seq migration).
     .select("*")
     .eq("campaign_id", id)
-    .order("created_at", { ascending: true });
+    .order("seq", { ascending: true });
 
   if (messagesError) {
     return NextResponse.json({ error: messagesError.message }, { status: 500 });
