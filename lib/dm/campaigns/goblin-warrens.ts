@@ -78,6 +78,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "sneak",
           label: "Sneak closer along the scree",
           icon: "footprints",
+          hideAfterVictory: true,
           response:
             "You pick your way through the loose stone, soft-footed. The goblins are still arguing — they don't see you. You're within a stone's throw, and they have their backs half-turned.",
         },
@@ -101,6 +102,7 @@ export const GOBLIN_WARRENS: Campaign = {
           id: "throw-rock",
           label: "Throw a rock into the brush to distract them",
           icon: "eye",
+          hideAfterVictory: true,
           response:
             "You scoop a stone and lob it into the brush downhill. The goblins both turn, peering. You've bought yourself a clean opening — whatever you do next, you do first.",
         },
@@ -117,6 +119,7 @@ export const GOBLIN_WARRENS: Campaign = {
           label: "Wait and watch",
           icon: "wait",
           repeatable: true,
+          hideAfterVictory: true,
           response:
             "You settle into cover. The goblins drink, argue, drink. The light fails. After a while one of them yawns hugely and slides down to nap; the other settles in to whittle a stick. Their guard, what little there was, is gone.",
         },
