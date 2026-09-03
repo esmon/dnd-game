@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { readApiError } from "@/lib/coop/api-error";
+import { buildEncounterRecaps } from "@/lib/coop/encounter-recap";
 import type {
   Campaign,
   CampaignAction,
@@ -203,6 +204,14 @@ export function StoryCombatDialog({
               Retry
             </Button>
           </div>
+        ) : isFinished ? (
+          // Once resolved, replace the live-combat grid (which still
+          // reads "your turn" / commands) with a clear outcome + loot
+          // summary so the win and the drops are obvious.
+          <CombatOutcome
+            campaign={load.data.campaign}
+            actions={load.data.actions}
+          />
         ) : (
           <div className="max-h-[80vh] overflow-y-auto">
             <CampaignBattle
@@ -224,5 +233,92 @@ export function StoryCombatDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Story combat resolves to `between_encounters` on a win (single
+// encounter, so no next-fight flow), `finished`+outcome on a
+// forced end. Map both to a player-facing verdict.
+function combatVerdict(c: Campaign): "won" | "lost" | "fled" {
+  if (c.status === "between_encounters") return "won";
+  if (c.outcome === "won") return "won";
+  if (c.outcome === "lost") return "lost";
+  return "fled";
+}
+
+// Post-fight summary shown in place of the combat grid once resolved:
+// a clear VICTORY/DEFEAT verdict plus the XP and loot from this
+// encounter (pulled from the same recap the coop rest screen uses).
+function CombatOutcome({
+  campaign,
+  actions,
+}: {
+  campaign: Campaign;
+  actions: CampaignAction[];
+}) {
+  const verdict = combatVerdict(campaign);
+  const recaps = buildEncounterRecaps(actions);
+  const recap =
+    recaps.find((r) => r.encounterNumber === campaign.encounter_number) ??
+    recaps[recaps.length - 1];
+  const xp = recap?.xpPerPlayer ?? 0;
+  const loot = recap ? Array.from(recap.lootByPlayer.values()).flat() : [];
+  // Group killed monsters into "3 × Goblin" rather than repeating names.
+  const killed = Object.entries(
+    (recap?.killed ?? []).reduce<Record<string, number>>((m, n) => {
+      m[n] = (m[n] ?? 0) + 1;
+      return m;
+    }, {}),
+  ).map(([name, count]) => (count > 1 ? `${count} × ${name}` : name));
+
+  return (
+    <div className="flex flex-col items-center gap-5 py-8 font-mono">
+      {verdict === "won" ? (
+        <span className="rounded-md bg-action px-6 py-2.5 text-2xl font-bold uppercase tracking-[0.2em] text-action-foreground">
+          Victory
+        </span>
+      ) : verdict === "lost" ? (
+        <span className="rounded-md bg-rose-600 px-6 py-2.5 text-2xl font-bold uppercase tracking-[0.2em] text-white">
+          Defeat
+        </span>
+      ) : (
+        <span className="rounded-md border-2 border-foreground px-6 py-2.5 text-xl font-bold uppercase tracking-[0.2em]">
+          You Slip Away
+        </span>
+      )}
+
+      {killed.length > 0 ? (
+        <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          Defeated {killed.join(" · ")}
+        </p>
+      ) : null}
+
+      {verdict === "won" ? (
+        <>
+          {xp > 0 ? (
+            <p className="text-lg font-bold tracking-widest">+{xp} XP</p>
+          ) : null}
+          {loot.length > 0 ? (
+            <div className="w-full max-w-sm rounded-md border-2 border-foreground bg-card p-4">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Loot
+              </p>
+              <ul className="flex flex-col gap-1">
+                {loot.map((name, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm">
+                    <span className="text-action">◆</span>
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No loot this time.</p>
+          )}
+        </>
+      ) : verdict === "lost" ? (
+        <p className="text-sm text-muted-foreground">Your party has fallen.</p>
+      ) : null}
+    </div>
   );
 }
