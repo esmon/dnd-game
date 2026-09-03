@@ -232,6 +232,10 @@
   --card-foreground: oklch(18% 0.005 60);
   --popover: oklch(93% 0.003 60);
   --popover-foreground: oklch(18% 0.005 60);
+  /* Sharp corners — PunchKit is a hard brutalist grid, not soft
+     rounded cards. Overriding --radius here reflows every rounded-*
+     utility (they're calc(var(--radius) * n)) under this theme only. */
+  --radius: 0.125rem;
   /* primary = bold black chrome, to pair with the black panel borders */
   --primary: oklch(18% 0.005 60);
   --primary-foreground: oklch(95% 0.003 60);
@@ -246,8 +250,10 @@
   --action: oklch(68% 0.22 38);
   --action-foreground: oklch(22% 0.03 40);
   --destructive: oklch(58% 0.24 27);
-  --border: oklch(72% 0.004 60);
-  --input: oklch(72% 0.004 60);
+  /* near-black borders everywhere — PunchKit outlines every panel,
+     button, and row in hard black, not subtle grey */
+  --border: oklch(24% 0.006 60);
+  --input: oklch(24% 0.006 60);
   --ring: oklch(68% 0.22 38);
   --chart-1: oklch(64.6% 0.222 41.116);
   --chart-2: oklch(69.6% 0.17 162.48);
@@ -260,7 +266,7 @@
   --sidebar-primary-foreground: oklch(95% 0.003 60);
   --sidebar-accent: oklch(91% 0.04 55);
   --sidebar-accent-foreground: oklch(50% 0.18 40);
-  --sidebar-border: oklch(72% 0.004 60);
+  --sidebar-border: oklch(24% 0.006 60);
   --sidebar-ring: oklch(68% 0.22 38);
 }
 
