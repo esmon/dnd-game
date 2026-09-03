@@ -232,10 +232,6 @@
   --card-foreground: oklch(18% 0.005 60);
   --popover: oklch(93% 0.003 60);
   --popover-foreground: oklch(18% 0.005 60);
-  /* Sharp corners — PunchKit is a hard brutalist grid, not soft
-     rounded cards. Overriding --radius here reflows every rounded-*
-     utility (they're calc(var(--radius) * n)) under this theme only. */
-  --radius: 0.125rem;
   /* primary = bold black chrome, to pair with the black panel borders */
   --primary: oklch(18% 0.005 60);
   --primary-foreground: oklch(95% 0.003 60);
