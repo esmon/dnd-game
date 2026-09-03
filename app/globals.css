@@ -215,6 +215,92 @@
   --sidebar-ring: #bda8a8;
 }
 
+/* ── Theme: Punch ─────────────────────────────────────────────────
+   Palette from punchkit.dev — warm paper + bold black + a vivid
+   orange (their EP-133 sampler-screen accent). Kept in oklch, the
+   values PunchKit ships: paper oklch(88% .003 60) · warm ink
+   oklch(18% .005 60) · punch orange oklch(68% .22 38).
+   Mapping to this app: primary = the black chrome (pairs with the
+   bold border-foreground panels), action = the orange for the hero
+   CTAs (Fight/Ready), ring + accent-tint also orange.
+   Selected via <html data-theme="punch">. */
+[data-theme="punch"] {
+  --background: oklch(88% 0.003 60);
+  --foreground: oklch(18% 0.005 60);
+  /* cards lift a touch above the paper (PunchKit's 88→92) */
+  --card: oklch(93% 0.003 60);
+  --card-foreground: oklch(18% 0.005 60);
+  --popover: oklch(93% 0.003 60);
+  --popover-foreground: oklch(18% 0.005 60);
+  /* primary = bold black chrome, to pair with the black panel borders */
+  --primary: oklch(18% 0.005 60);
+  --primary-foreground: oklch(95% 0.003 60);
+  --secondary: oklch(80% 0.003 60);
+  --secondary-foreground: oklch(18% 0.005 60);
+  --muted: oklch(83% 0.003 60);
+  --muted-foreground: oklch(42% 0.005 60);
+  /* accent = pale peach hover surface + a deep-orange ink */
+  --accent: oklch(91% 0.04 55);
+  --accent-foreground: oklch(50% 0.18 40);
+  /* action = the punch orange (Fight / Ready); dark text since it's bright */
+  --action: oklch(68% 0.22 38);
+  --action-foreground: oklch(22% 0.03 40);
+  --destructive: oklch(58% 0.24 27);
+  --border: oklch(72% 0.004 60);
+  --input: oklch(72% 0.004 60);
+  --ring: oklch(68% 0.22 38);
+  --chart-1: oklch(64.6% 0.222 41.116);
+  --chart-2: oklch(69.6% 0.17 162.48);
+  --chart-3: oklch(76.9% 0.188 70.08);
+  --chart-4: oklch(82.8% 0.189 84.429);
+  --chart-5: oklch(64.5% 0.246 16.439);
+  --sidebar: oklch(93% 0.003 60);
+  --sidebar-foreground: oklch(18% 0.005 60);
+  --sidebar-primary: oklch(18% 0.005 60);
+  --sidebar-primary-foreground: oklch(95% 0.003 60);
+  --sidebar-accent: oklch(91% 0.04 55);
+  --sidebar-accent-foreground: oklch(50% 0.18 40);
+  --sidebar-border: oklch(72% 0.004 60);
+  --sidebar-ring: oklch(68% 0.22 38);
+}
+
+[data-theme="punch"].dark {
+  --background: oklch(16% 0.006 60);
+  --foreground: oklch(92% 0.003 60);
+  --card: oklch(21% 0.006 60);
+  --card-foreground: oklch(92% 0.003 60);
+  --popover: oklch(21% 0.006 60);
+  --popover-foreground: oklch(92% 0.003 60);
+  /* on dark, chrome buttons flip to light paper */
+  --primary: oklch(92% 0.003 60);
+  --primary-foreground: oklch(18% 0.005 60);
+  --secondary: oklch(30% 0.006 60);
+  --secondary-foreground: oklch(92% 0.003 60);
+  --muted: oklch(30% 0.006 60);
+  --muted-foreground: oklch(68% 0.004 60);
+  --accent: oklch(32% 0.05 45);
+  --accent-foreground: oklch(80% 0.15 55);
+  --action: oklch(70% 0.21 40);
+  --action-foreground: oklch(18% 0.03 40);
+  --destructive: oklch(70% 0.19 27);
+  --border: oklch(100% 0 0 / 0.12);
+  --input: oklch(100% 0 0 / 0.16);
+  --ring: oklch(70% 0.21 40);
+  --chart-1: oklch(70% 0.2 41);
+  --chart-2: oklch(70% 0.17 162);
+  --chart-3: oklch(77% 0.19 70);
+  --chart-4: oklch(83% 0.19 84);
+  --chart-5: oklch(65% 0.25 16);
+  --sidebar: oklch(21% 0.006 60);
+  --sidebar-foreground: oklch(92% 0.003 60);
+  --sidebar-primary: oklch(92% 0.003 60);
+  --sidebar-primary-foreground: oklch(18% 0.005 60);
+  --sidebar-accent: oklch(32% 0.05 45);
+  --sidebar-accent-foreground: oklch(80% 0.15 55);
+  --sidebar-border: oklch(100% 0 0 / 0.12);
+  --sidebar-ring: oklch(70% 0.21 40);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
