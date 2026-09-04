@@ -64,7 +64,7 @@ export function FightMenu({
         // desktop (into the open middle column), below on mobile.
         side={isDesktop ? "left" : "bottom"}
         align={isDesktop ? "start" : "center"}
-        className="flex w-72 flex-col gap-2"
+        className="flex w-80 flex-col gap-2"
         // A tap inside picks a mode and closes the menu.
         onClick={() => setOpen(false)}
       >
@@ -72,14 +72,14 @@ export function FightMenu({
           kind="primary"
           icon={SwordsIcon}
           label="Solo"
-          subtitle="One character against one monster"
+          subtitle="One hero vs. one monster"
           onClick={onSolo}
         />
         <CommandButton
           kind="primary"
           icon={CompassIcon}
           label={creatingCampaign ? "Starting Co-op…" : "Co-op"}
-          subtitle="Invite a friend to fight beside you"
+          subtitle="Fight beside a friend"
           onClick={onCoop}
           disabled={creatingCampaign}
         />

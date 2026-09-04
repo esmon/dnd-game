@@ -242,9 +242,10 @@
   /* accent = pale peach hover surface + a deep-orange ink */
   --accent: oklch(91% 0.04 55);
   --accent-foreground: oklch(50% 0.18 40);
-  /* action = the punch orange (Fight / Ready); dark text since it's bright */
+  /* action = the punch orange (Fight / Ready), white label like the
+     orange highlights on punchkit.dev */
   --action: oklch(68% 0.22 38);
-  --action-foreground: oklch(22% 0.03 40);
+  --action-foreground: #ffffff;
   --destructive: oklch(58% 0.24 27);
   /* near-black borders everywhere — PunchKit outlines every panel,
      button, and row in hard black, not subtle grey */
@@ -283,7 +284,7 @@
   --accent: oklch(32% 0.05 45);
   --accent-foreground: oklch(80% 0.15 55);
   --action: oklch(70% 0.21 40);
-  --action-foreground: oklch(18% 0.03 40);
+  --action-foreground: #ffffff;
   --destructive: oklch(70% 0.19 27);
   --border: oklch(100% 0 0 / 0.12);
   --input: oklch(100% 0 0 / 0.16);
