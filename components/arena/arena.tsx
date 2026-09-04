@@ -43,7 +43,7 @@ import {
   CampaignPickerDialog,
   type StoryStartConfig,
 } from "@/components/story/campaign-picker-dialog";
-import { FightModeDialog } from "@/components/arena/fight-mode-dialog";
+import { FightMenu } from "@/components/arena/fight-menu";
 import { InventoryDialog } from "@/components/arena/inventory-dialog";
 import { LevelUpDialog } from "@/components/arena/level-up-dialog";
 import { MonsterCard } from "@/components/arena/monster-card";
@@ -139,7 +139,6 @@ export function Arena() {
   // Fight-mode picker (Solo vs Co-op). Only opens for signed-in
   // players; anonymous players start solo directly since co-op
   // needs an account.
-  const [fightMenuOpen, setFightMenuOpen] = useState(false);
 
   useArenaBootstrap({
     dispatch,
@@ -1355,19 +1354,32 @@ export function Arena() {
           <CommandPanel
             className="md:col-start-3"
             commands={[
-              {
-                key: "fight",
-                kind: "primary",
-                icon: SwordsIcon,
-                label: "Fight",
-                // Signed-in players get the Solo / Co-op picker;
-                // anonymous players have no co-op option, so the
-                // button just starts a solo fight directly.
-                onClick: () =>
-                  user ? setFightMenuOpen(true) : startFight(),
-                disabled: asiPending.length > 0 || creatingCampaign,
-                disabledReason: lobbyActionReason,
-              },
+              // Signed-in players get the Solo / Co-op menu popping out
+              // the side of the button (like the combat command menus);
+              // anonymous players have no co-op option, so the button
+              // just starts a solo fight directly.
+              user
+                ? {
+                  key: "fight",
+                  render: (
+                    <FightMenu
+                      onSolo={startFight}
+                      onCoop={handleStartCampaign}
+                      creatingCampaign={creatingCampaign}
+                      disabled={asiPending.length > 0 || creatingCampaign}
+                      disabledReason={lobbyActionReason}
+                    />
+                  ),
+                }
+                : {
+                  key: "fight",
+                  kind: "primary",
+                  icon: SwordsIcon,
+                  label: "Fight",
+                  onClick: startFight,
+                  disabled: asiPending.length > 0,
+                  disabledReason: lobbyActionReason,
+                },
               ...(user
                 ? [
                   {
@@ -1522,16 +1534,6 @@ export function Arena() {
         busy={startingStory}
       />
 
-      <FightModeDialog
-        open={fightMenuOpen}
-        onOpenChange={setFightMenuOpen}
-        onSolo={() => {
-          setFightMenuOpen(false);
-          startFight();
-        }}
-        onCoop={handleStartCampaign}
-        creatingCampaign={creatingCampaign}
-      />
     </div>
   );
 }
