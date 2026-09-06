@@ -12,6 +12,7 @@ import {
 import { CampaignBattle } from "@/components/coop/campaign-battle";
 import { readApiError } from "@/lib/coop/api-error";
 import { buildEncounterRecaps } from "@/lib/coop/encounter-recap";
+import { playSfx } from "@/lib/audio/sfx";
 import type {
   Campaign,
   CampaignAction,
@@ -270,6 +271,13 @@ function CombatOutcome({
       return m;
     }, {}),
   ).map(([name, count]) => (count > 1 ? `${count} × ${name}` : name));
+
+  // Play the outcome sound once when the resolved panel appears.
+  useEffect(() => {
+    playSfx(
+      verdict === "won" ? "victory" : verdict === "lost" ? "defeat" : "flee",
+    );
+  }, [verdict]);
 
   return (
     <div className="flex flex-col items-center gap-5 py-8 font-mono">

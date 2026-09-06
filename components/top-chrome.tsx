@@ -6,8 +6,11 @@ import {
   LogOutIcon,
   MenuIcon,
   UserPlusIcon,
+  Volume2Icon,
+  VolumeXIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSyncExternalStore } from "react";
 
 import { CommandButton } from "@/components/shared/command-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -17,6 +20,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  isSoundEnabled,
+  playSfx,
+  serverSoundEnabled,
+  setSoundEnabled,
+  subscribeSound,
+} from "@/lib/audio/sfx";
 import { useUser } from "@/lib/auth/use-user";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthButtonHidden } from "@/lib/ui/auth-button-visibility";
@@ -30,6 +40,11 @@ export function TopChrome() {
   // Mirror the old AuthButton: hide the nav/auth actions mid-battle so
   // they don't pull the player out of a fight. Theme stays available.
   const inBattle = useAuthButtonHidden();
+  const soundOn = useSyncExternalStore(
+    subscribeSound,
+    isSoundEnabled,
+    serverSoundEnabled,
+  );
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -53,6 +68,19 @@ export function TopChrome() {
           </span>
           <ThemeSwitcher />
         </div>
+
+        <CommandButton
+          kind="neutral"
+          icon={soundOn ? Volume2Icon : VolumeXIcon}
+          label={soundOn ? "Sound On" : "Sound Off"}
+          // Toggle SFX; a blip on enable confirms it's working (and
+          // unlocks the AudioContext from this click).
+          onClick={() => {
+            const next = !soundOn;
+            setSoundEnabled(next);
+            if (next) playSfx("loot");
+          }}
+        />
 
         {!inBattle ? (
           <div className="flex flex-col gap-2 border-t border-border pt-3">

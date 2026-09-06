@@ -74,6 +74,7 @@ import {
 } from "@/lib/dnd/class-features";
 import { abilityModifier } from "@/lib/dnd/derive";
 import { MAX_LEVEL } from "@/lib/dnd/leveling";
+import { playSfx } from "@/lib/audio/sfx";
 import { RACES } from "@/lib/dnd/races";
 import { findLowestSlot, slotsForLevel } from "@/lib/dnd/spells";
 import {
@@ -210,6 +211,46 @@ export function Arena() {
     }
   }, []);
 
+  // ── SFX: play on combat state transitions (mute-aware; the sounds
+  // no-op when muted). Refs guard against replays on unrelated
+  // re-renders and against firing on the initial mount. ──
+  const sfxRef = useRef({
+    monsterNonce: state.lastMonsterAttack.nonce,
+    won: false,
+    lost: false,
+    fled: false,
+    level: state.player?.level ?? 1,
+  });
+  useEffect(() => {
+    if (state.lastMonsterAttack.nonce !== sfxRef.current.monsterNonce) {
+      sfxRef.current.monsterNonce = state.lastMonsterAttack.nonce;
+      playSfx("hurt");
+    }
+  }, [state.lastMonsterAttack.nonce]);
+  useEffect(() => {
+    const won = !!state.victory;
+    if (won && !sfxRef.current.won) {
+      playSfx("victory");
+      if (state.victory?.loot) window.setTimeout(() => playSfx("loot"), 550);
+    }
+    sfxRef.current.won = won;
+  }, [state.victory]);
+  useEffect(() => {
+    const lost = !!state.lastDefeatedBy;
+    if (lost && !sfxRef.current.lost) playSfx("defeat");
+    sfxRef.current.lost = lost;
+  }, [state.lastDefeatedBy]);
+  useEffect(() => {
+    const fled = !!state.lastFledFrom;
+    if (fled && !sfxRef.current.fled) playSfx("flee");
+    sfxRef.current.fled = fled;
+  }, [state.lastFledFrom]);
+  useEffect(() => {
+    const lvl = state.player?.level ?? 1;
+    if (lvl > sfxRef.current.level) playSfx("levelUp");
+    sfxRef.current.level = lvl;
+  }, [state.player?.level]);
+
   const startFight = useCallback(() => {
     // Default-keep any unresolved loot before kicking off the fight, so
     // pressing FIGHT mid-victory doesn't silently discard a drop.
@@ -278,6 +319,7 @@ export function Arena() {
 
   const handleAttack = useCallback(
     (weapon: Weapon) => {
+      playSfx("attack");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -466,6 +508,7 @@ export function Arena() {
       damageDice: string,
       damageType: string,
     ) => {
+      playSfx("spell");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -547,6 +590,7 @@ export function Arena() {
 
   const handleSmite = useCallback(
     (weapon: Weapon, smiteSlotLevel: number) => {
+      playSfx("attack");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -648,6 +692,7 @@ export function Arena() {
 
   const handleUseScroll = useCallback(
     (scrollId: string, damageDice: string, damageType: string) => {
+      playSfx("spell");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -718,6 +763,7 @@ export function Arena() {
 
   const handleUsePotion = useCallback(
     (potionId: string, healDice: string) => {
+      playSfx("heal");
       const snap = stateRef.current;
       if (!snap.player) return;
       if (snap.monsterPending) return;
