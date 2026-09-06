@@ -1,12 +1,15 @@
 // Procedural retro SFX via the Web Audio API — every sound is
-// synthesized from oscillators + noise at call time, so there are no
-// audio files to host and nothing copyrighted. Fits the game's 8-bit /
-// mono aesthetic.
+// synthesized at call time, so there are no audio files to host and
+// nothing copyrighted.
+//
+// The goal is *character*: each event uses a distinct synthesis method
+// (metallic FM clangs, filtered-noise whooshes, low LFO growls, bell
+// sparkles, real multi-note fanfares) so you can tell what happened
+// with your eyes closed — not just slightly different blips.
 //
 // Browsers block audio until a user gesture, so the AudioContext is
-// created lazily and resumed on the first pointer/key event (and again
-// whenever a sound plays from within a gesture). All of it is guarded
-// for SSR.
+// created lazily and resumed on the first pointer/key event. All of it
+// is SSR-guarded and wrapped so audio can never break gameplay.
 
 export type SfxName =
   | "attack"
@@ -20,7 +23,8 @@ export type SfxName =
   | "flee"
   | "loot"
   | "levelUp"
-  | "battleStart";
+  | "battleStart"
+  | "monster";
 
 // ── enabled preference (persisted) + tiny store for the toggle UI ──
 const STORAGE_KEY = "dnd-sound";
@@ -86,9 +90,6 @@ function audio(): AudioContext | null {
   return ctx;
 }
 
-// Resume the context on the first user gesture so effect-driven sounds
-// (a won fight, a level-up) can play even though they don't originate
-// from a click themselves.
 function bindUnlock() {
   if (unlockBound || typeof window === "undefined") return;
   unlockBound = true;
@@ -98,9 +99,12 @@ function bindUnlock() {
 }
 
 // ── synth primitives ───────────────────────────────────────────────
+// Each takes a `start` offset (seconds) so a sound can layer notes.
+
+// Simple oscillator blip with an optional pitch sweep.
 function tone(
   ac: AudioContext,
-  opts: {
+  o: {
     freq: number;
     type?: OscillatorType;
     start?: number;
@@ -109,19 +113,15 @@ function tone(
     sweepTo?: number;
   },
 ) {
-  const { freq, type = "square", start = 0, dur = 0.1, gain = 0.12 } = opts;
+  const { freq, type = "square", start = 0, dur = 0.1, gain = 0.12 } = o;
   const t0 = ac.currentTime + start;
   const osc = ac.createOscillator();
   const g = ac.createGain();
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t0);
-  if (opts.sweepTo) {
-    osc.frequency.exponentialRampToValueAtTime(
-      Math.max(1, opts.sweepTo),
-      t0 + dur,
-    );
+  if (o.sweepTo) {
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, o.sweepTo), t0 + dur);
   }
-  // quick attack, exponential decay — the classic blip envelope
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(gain, t0 + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
@@ -130,11 +130,153 @@ function tone(
   osc.stop(t0 + dur + 0.03);
 }
 
-function noiseBurst(
+// FM: a modulator detunes the carrier. High modulation index + an
+// inharmonic ratio = metallic/bell timbres (clangs, coins, chimes).
+// The index decays over the note so the attack is bright and the tail
+// mellows — the signature of a struck metal sound.
+function fm(
   ac: AudioContext,
-  opts: { start?: number; dur?: number; gain?: number; filter?: number },
+  o: {
+    freq: number;
+    ratio?: number;
+    index?: number;
+    type?: OscillatorType;
+    start?: number;
+    dur?: number;
+    gain?: number;
+    sweepTo?: number;
+  },
 ) {
-  const { start = 0, dur = 0.08, gain = 0.08, filter = 1200 } = opts;
+  const {
+    freq,
+    ratio = 2,
+    index = 120,
+    type = "sine",
+    start = 0,
+    dur = 0.2,
+    gain = 0.12,
+  } = o;
+  const t0 = ac.currentTime + start;
+  const carrier = ac.createOscillator();
+  const mod = ac.createOscillator();
+  const modGain = ac.createGain();
+  const g = ac.createGain();
+  carrier.type = type;
+  mod.type = "sine";
+  carrier.frequency.setValueAtTime(freq, t0);
+  mod.frequency.setValueAtTime(freq * ratio, t0);
+  if (o.sweepTo) {
+    carrier.frequency.exponentialRampToValueAtTime(Math.max(1, o.sweepTo), t0 + dur);
+    mod.frequency.exponentialRampToValueAtTime(Math.max(1, o.sweepTo * ratio), t0 + dur);
+  }
+  modGain.gain.setValueAtTime(index * freq, t0);
+  modGain.gain.exponentialRampToValueAtTime(Math.max(1, freq), t0 + dur);
+  mod.connect(modGain).connect(carrier.frequency);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  carrier.connect(g).connect(ac.destination);
+  carrier.start(t0);
+  mod.start(t0);
+  carrier.stop(t0 + dur + 0.05);
+  mod.stop(t0 + dur + 0.05);
+}
+
+// A tone with an LFO on its pitch — vibrato at high freqs, a guttural
+// growl at low freqs (monster, ominous rumble).
+function wobble(
+  ac: AudioContext,
+  o: {
+    freq: number;
+    type?: OscillatorType;
+    start?: number;
+    dur?: number;
+    gain?: number;
+    lfoHz?: number;
+    lfoDepth?: number;
+    sweepTo?: number;
+  },
+) {
+  const {
+    freq,
+    type = "sawtooth",
+    start = 0,
+    dur = 0.3,
+    gain = 0.12,
+    lfoHz = 16,
+    lfoDepth = 18,
+  } = o;
+  const t0 = ac.currentTime + start;
+  const osc = ac.createOscillator();
+  const lfo = ac.createOscillator();
+  const lfoGain = ac.createGain();
+  const g = ac.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (o.sweepTo) {
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, o.sweepTo), t0 + dur);
+  }
+  lfo.frequency.setValueAtTime(lfoHz, t0);
+  lfoGain.gain.setValueAtTime(lfoDepth, t0);
+  lfo.connect(lfoGain).connect(osc.frequency);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g).connect(ac.destination);
+  osc.start(t0);
+  lfo.start(t0);
+  osc.stop(t0 + dur + 0.05);
+  lfo.stop(t0 + dur + 0.05);
+}
+
+// Filtered white noise with a moving band-pass — a whoosh/swish.
+// Sweeping the filter down = a fading swoosh (miss); up = a rising one.
+function whoosh(
+  ac: AudioContext,
+  o: {
+    start?: number;
+    dur?: number;
+    gain?: number;
+    fromFreq?: number;
+    toFreq?: number;
+    q?: number;
+  },
+) {
+  const {
+    start = 0,
+    dur = 0.22,
+    gain = 0.1,
+    fromFreq = 5000,
+    toFreq = 500,
+    q = 0.9,
+  } = o;
+  const t0 = ac.currentTime + start;
+  const frames = Math.floor(ac.sampleRate * dur);
+  const buffer = ac.createBuffer(1, frames, ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.Q.setValueAtTime(q, t0);
+  bp.frequency.setValueAtTime(fromFreq, t0);
+  bp.frequency.exponentialRampToValueAtTime(Math.max(1, toFreq), t0 + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.linearRampToValueAtTime(gain, t0 + dur * 0.25);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(bp).connect(g).connect(ac.destination);
+  src.start(t0);
+  src.stop(t0 + dur + 0.02);
+}
+
+// short filtered-noise transient — an impact "chh" / low rumble
+function noise(
+  ac: AudioContext,
+  o: { start?: number; dur?: number; gain?: number; filter?: number },
+) {
+  const { start = 0, dur = 0.06, gain = 0.06, filter = 1200 } = o;
   const t0 = ac.currentTime + start;
   const frames = Math.floor(ac.sampleRate * dur);
   const buffer = ac.createBuffer(1, frames, ac.sampleRate);
@@ -153,74 +295,133 @@ function noiseBurst(
   src.stop(t0 + dur + 0.02);
 }
 
-// ── the sounds ─────────────────────────────────────────────────────
+// Play a sequence of notes — an original little melody. Each note is
+// { f: frequency, at: start offset, dur, gain, type }.
+function melody(
+  ac: AudioContext,
+  notes: {
+    f: number;
+    at: number;
+    dur?: number;
+    gain?: number;
+    type?: OscillatorType;
+  }[],
+) {
+  for (const n of notes) {
+    tone(ac, {
+      freq: n.f,
+      start: n.at,
+      dur: n.dur ?? 0.14,
+      gain: n.gain ?? 0.1,
+      type: n.type ?? "square",
+    });
+  }
+}
+
+// ── the sounds — each a distinct timbre ────────────────────────────
 const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
-  // sword swing: a short downward zap + a little impact noise
+  // sword clang: inharmonic metallic FM hit + a swing "chh"
   attack: (ac) => {
-    tone(ac, { freq: 240, type: "square", dur: 0.08, gain: 0.12, sweepTo: 120 });
-    noiseBurst(ac, { start: 0.02, dur: 0.06, gain: 0.07, filter: 900 });
+    noise(ac, { dur: 0.04, gain: 0.06, filter: 3200 });
+    fm(ac, { freq: 760, ratio: 1.6, index: 6, type: "sawtooth", dur: 0.11, gain: 0.14 });
   },
-  // crit: two stacked hits, brighter
+  // critical: two rising metallic clangs — bigger, brighter
   crit: (ac) => {
-    tone(ac, { freq: 300, type: "square", dur: 0.07, gain: 0.13, sweepTo: 150 });
-    tone(ac, { freq: 500, type: "square", start: 0.06, dur: 0.1, gain: 0.13, sweepTo: 260 });
-    noiseBurst(ac, { start: 0.02, dur: 0.09, gain: 0.09, filter: 1600 });
+    noise(ac, { dur: 0.05, gain: 0.08, filter: 4200 });
+    fm(ac, { freq: 820, ratio: 1.5, index: 7, type: "sawtooth", dur: 0.1, gain: 0.14 });
+    fm(ac, { freq: 1320, ratio: 2, index: 6, type: "sawtooth", start: 0.09, dur: 0.18, gain: 0.14 });
   },
-  // whiff: an airy filtered-noise swish with no impact — a clean miss
+  // miss: an airy filtered-noise swoosh, no tone
   miss: (ac) => {
-    noiseBurst(ac, { dur: 0.14, gain: 0.05, filter: 2600 });
-    tone(ac, { freq: 520, type: "sine", dur: 0.1, gain: 0.04, sweepTo: 240 });
+    whoosh(ac, { dur: 0.24, gain: 0.11, fromFreq: 5200, toFreq: 480, q: 0.7 });
   },
-  // spellcast: a bright rising triangle arpeggio
+  // spellcast: a rising FM bell + a high shimmering vibrato sparkle
   spell: (ac) => {
-    [523, 659, 784].forEach((f, i) =>
-      tone(ac, { freq: f, type: "triangle", start: i * 0.05, dur: 0.13, gain: 0.1 }),
-    );
+    fm(ac, { freq: 520, ratio: 3.5, index: 4, type: "sine", dur: 0.32, gain: 0.11, sweepTo: 1040 });
+    wobble(ac, { freq: 1250, type: "triangle", start: 0.05, dur: 0.28, gain: 0.05, lfoHz: 24, lfoDepth: 30 });
   },
-  // heal / potion: soft warm rise
+  // heal: three warm, soft ascending bells
   heal: (ac) => {
-    [440, 587, 740].forEach((f, i) =>
-      tone(ac, { freq: f, type: "sine", start: i * 0.06, dur: 0.16, gain: 0.11 }),
+    [440, 587, 784].forEach((f, i) =>
+      fm(ac, { freq: f, ratio: 2, index: 1.5, type: "sine", start: i * 0.09, dur: 0.34, gain: 0.1 }),
     );
   },
-  // taking a hit: a low sawtooth thud
+  // taking a hit: a low downward buzzy "oof" + a dull thump
   hurt: (ac) => {
-    tone(ac, { freq: 180, type: "sawtooth", dur: 0.14, gain: 0.12, sweepTo: 70 });
-    noiseBurst(ac, { dur: 0.05, gain: 0.05, filter: 500 });
+    tone(ac, { freq: 220, type: "sawtooth", dur: 0.16, gain: 0.14, sweepTo: 80 });
+    noise(ac, { dur: 0.07, gain: 0.05, filter: 380 });
   },
-  // victory fanfare: rising major run
+  // victory: an original rising fanfare melody landing on a held chord
   victory: (ac) => {
-    [523, 659, 784, 1047].forEach((f, i) =>
-      tone(ac, { freq: f, type: "square", start: i * 0.1, dur: 0.18, gain: 0.12 }),
+    melody(ac, [
+      { f: 523, at: 0, dur: 0.12 },
+      { f: 659, at: 0.12, dur: 0.12 },
+      { f: 784, at: 0.24, dur: 0.12 },
+      { f: 1047, at: 0.36, dur: 0.14 },
+      { f: 784, at: 0.52, dur: 0.1 },
+      { f: 1047, at: 0.62, dur: 0.42 },
+    ]);
+    [523, 659].forEach((f) =>
+      tone(ac, { freq: f, type: "triangle", start: 0.62, dur: 0.42, gain: 0.06 }),
     );
   },
-  // defeat: descending minor tones
+  // defeat: a slow descending, wobbly "game over" wah
   defeat: (ac) => {
-    [392, 330, 262, 196].forEach((f, i) =>
-      tone(ac, { freq: f, type: "sawtooth", start: i * 0.12, dur: 0.2, gain: 0.12 }),
+    [330, 294, 247, 185].forEach((f, i) =>
+      wobble(ac, {
+        freq: f,
+        type: "sawtooth",
+        start: i * 0.15,
+        dur: 0.24,
+        gain: 0.11,
+        lfoHz: 6,
+        lfoDepth: 7,
+        sweepTo: f * 0.93,
+      }),
     );
   },
-  // slip away: two quick soft blips
+  // slip away: a quick rising swoosh + light scampering blips
   flee: (ac) => {
-    tone(ac, { freq: 660, type: "triangle", dur: 0.06, gain: 0.09 });
-    tone(ac, { freq: 440, type: "triangle", start: 0.07, dur: 0.1, gain: 0.09 });
-  },
-  // loot pickup: coin sparkle
-  loot: (ac) => {
-    tone(ac, { freq: 988, type: "square", dur: 0.05, gain: 0.1 });
-    tone(ac, { freq: 1319, type: "square", start: 0.05, dur: 0.11, gain: 0.1 });
-  },
-  // level up: bright ascending run
-  levelUp: (ac) => {
-    [523, 659, 784, 1047, 1319].forEach((f, i) =>
-      tone(ac, { freq: f, type: "square", start: i * 0.07, dur: 0.15, gain: 0.11 }),
+    whoosh(ac, { dur: 0.2, gain: 0.06, fromFreq: 500, toFreq: 3200, q: 1 });
+    [660, 880, 1100].forEach((f, i) =>
+      tone(ac, { freq: f, type: "triangle", start: i * 0.05, dur: 0.05, gain: 0.07 }),
     );
   },
-  // battle begins: a short tense rising sting
+  // loot: a bright two-note metallic coin "cha-ching"
+  loot: (ac) => {
+    fm(ac, { freq: 1180, ratio: 2, index: 3, type: "square", dur: 0.07, gain: 0.11 });
+    fm(ac, { freq: 1560, ratio: 2, index: 3, type: "square", start: 0.07, dur: 0.16, gain: 0.11 });
+  },
+  // level up: an original ascending run resolving on a held high chord
+  levelUp: (ac) => {
+    melody(ac, [
+      { f: 392, at: 0, dur: 0.1 },
+      { f: 523, at: 0.1, dur: 0.1 },
+      { f: 659, at: 0.2, dur: 0.1 },
+      { f: 784, at: 0.3, dur: 0.1 },
+      { f: 880, at: 0.4, dur: 0.1 },
+      { f: 1047, at: 0.5, dur: 0.4 },
+    ]);
+    [659, 784].forEach((f) =>
+      tone(ac, { freq: f, type: "triangle", start: 0.5, dur: 0.4, gain: 0.06 }),
+    );
+  },
+  // battle begins: a low ominous rumble under a rising two-tone alarm
   battleStart: (ac) => {
-    tone(ac, { freq: 196, type: "square", dur: 0.1, gain: 0.11 });
-    tone(ac, { freq: 262, type: "square", start: 0.1, dur: 0.1, gain: 0.11 });
-    tone(ac, { freq: 392, type: "square", start: 0.2, dur: 0.18, gain: 0.12 });
+    wobble(ac, { freq: 90, type: "sawtooth", dur: 0.36, gain: 0.1, lfoHz: 8, lfoDepth: 12 });
+    tone(ac, { freq: 440, type: "square", start: 0.06, dur: 0.12, gain: 0.09, sweepTo: 660 });
+    tone(ac, { freq: 660, type: "square", start: 0.2, dur: 0.16, gain: 0.1, sweepTo: 880 });
+  },
+  // new monster: an ominous descending three-note motif, then a low
+  // guttural growl + subterranean rumble under the final note
+  monster: (ac) => {
+    melody(ac, [
+      { f: 233, at: 0, dur: 0.14, type: "sawtooth", gain: 0.12 },
+      { f: 220, at: 0.16, dur: 0.14, type: "sawtooth", gain: 0.12 },
+      { f: 165, at: 0.32, dur: 0.34, type: "sawtooth", gain: 0.13 },
+    ]);
+    wobble(ac, { freq: 120, type: "sawtooth", start: 0.32, dur: 0.42, gain: 0.11, lfoHz: 17, lfoDepth: 24, sweepTo: 70 });
+    noise(ac, { start: 0.34, dur: 0.34, gain: 0.04, filter: 220 });
   },
 };
 

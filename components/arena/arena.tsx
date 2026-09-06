@@ -206,6 +206,7 @@ export function Arena() {
       if (!res.ok) throw new Error(`monster ${pick.index} ${res.status}`);
       const monster = (await res.json()) as Monster;
       dispatch({ type: "SET_MONSTER", monster });
+      playSfx("monster");
     } catch (err) {
       console.error("monster fetch failed", err);
     }
