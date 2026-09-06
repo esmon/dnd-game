@@ -11,6 +11,7 @@
 export type SfxName =
   | "attack"
   | "crit"
+  | "miss"
   | "spell"
   | "heal"
   | "hurt"
@@ -18,7 +19,8 @@ export type SfxName =
   | "defeat"
   | "flee"
   | "loot"
-  | "levelUp";
+  | "levelUp"
+  | "battleStart";
 
 // ── enabled preference (persisted) + tiny store for the toggle UI ──
 const STORAGE_KEY = "dnd-sound";
@@ -164,6 +166,11 @@ const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
     tone(ac, { freq: 500, type: "square", start: 0.06, dur: 0.1, gain: 0.13, sweepTo: 260 });
     noiseBurst(ac, { start: 0.02, dur: 0.09, gain: 0.09, filter: 1600 });
   },
+  // whiff: an airy filtered-noise swish with no impact — a clean miss
+  miss: (ac) => {
+    noiseBurst(ac, { dur: 0.14, gain: 0.05, filter: 2600 });
+    tone(ac, { freq: 520, type: "sine", dur: 0.1, gain: 0.04, sweepTo: 240 });
+  },
   // spellcast: a bright rising triangle arpeggio
   spell: (ac) => {
     [523, 659, 784].forEach((f, i) =>
@@ -208,6 +215,12 @@ const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
     [523, 659, 784, 1047, 1319].forEach((f, i) =>
       tone(ac, { freq: f, type: "square", start: i * 0.07, dur: 0.15, gain: 0.11 }),
     );
+  },
+  // battle begins: a short tense rising sting
+  battleStart: (ac) => {
+    tone(ac, { freq: 196, type: "square", dur: 0.1, gain: 0.11 });
+    tone(ac, { freq: 262, type: "square", start: 0.1, dur: 0.1, gain: 0.11 });
+    tone(ac, { freq: 392, type: "square", start: 0.2, dur: 0.18, gain: 0.12 });
   },
 };
 

@@ -260,6 +260,7 @@ export function Arena() {
       forceSyncRef.current = true;
       dispatch({ type: "RESOLVE_LOOT", keepLoot: true });
     }
+    playSfx("battleStart");
     dispatch({ type: "START_FIGHT" });
     void fetchAndSetMonster();
   }, [fetchAndSetMonster]);
@@ -319,7 +320,6 @@ export function Arena() {
 
   const handleAttack = useCallback(
     (weapon: Weapon) => {
-      playSfx("attack");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -345,6 +345,7 @@ export function Arena() {
         abilityModifier(snap.player.abilityScores[ability]);
       const attack = rollAttack(mod, snap.monster.ac);
       if (!attack.hit) {
+        playSfx("miss");
         dispatch({
           type: "PLAYER_ATTACK",
           damage: 0,
@@ -355,6 +356,7 @@ export function Arena() {
         triggerMonsterAttack();
         return;
       }
+      playSfx(attack.crit ? "crit" : "attack");
       const rawDamage = computeWeaponAttackDamage(
         snap.player.classId,
         snap.player.level,
@@ -590,7 +592,6 @@ export function Arena() {
 
   const handleSmite = useCallback(
     (weapon: Weapon, smiteSlotLevel: number) => {
-      playSfx("attack");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -616,6 +617,7 @@ export function Arena() {
         abilityModifier(snap.player.abilityScores[ability]);
       const attack = rollAttack(mod, snap.monster.ac);
       if (!attack.hit) {
+        playSfx("miss");
         // Smite isn't consumed on miss because 5e declares smite after the
         // hit lands. Dispatch a non-consuming SMITE_ATTACK miss so the log
         // reads as a smite attempt rather than a regular swing.
@@ -632,6 +634,7 @@ export function Arena() {
         triggerMonsterAttack();
         return;
       }
+      playSfx(attack.crit ? "crit" : "attack");
       const rawWeaponDamage = computeWeaponAttackDamage(
         snap.player.classId,
         snap.player.level,
