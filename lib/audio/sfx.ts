@@ -15,6 +15,7 @@ export type SfxName =
   | "attack"
   | "crit"
   | "miss"
+  | "block"
   | "spell"
   | "heal"
   | "hurt"
@@ -98,6 +99,27 @@ function bindUnlock() {
   window.addEventListener("keydown", unlock, { once: true });
 }
 
+// Master bus: everything runs through a gain + compressor so sounds
+// can be loud and punchy without clipping when layers stack.
+let masterNode: GainNode | null = null;
+function bus(ac: AudioContext): AudioNode {
+  if (!masterNode || masterNode.context !== ac) {
+    masterNode = ac.createGain();
+    masterNode.gain.value = 0.9;
+    const comp = ac.createDynamicsCompressor();
+    // Gentle + a slightly slower attack so the bright transient (the
+    // "crack" of a hit) punches through before the compressor clamps —
+    // fast, hard compression is what makes impacts sound dull.
+    comp.threshold.value = -10;
+    comp.knee.value = 24;
+    comp.ratio.value = 3;
+    comp.attack.value = 0.006;
+    comp.release.value = 0.15;
+    masterNode.connect(comp).connect(ac.destination);
+  }
+  return masterNode;
+}
+
 // ── synth primitives ───────────────────────────────────────────────
 // Each takes a `start` offset (seconds) so a sound can layer notes.
 
@@ -125,7 +147,7 @@ function tone(
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(gain, t0 + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(g).connect(ac.destination);
+  osc.connect(g).connect(bus(ac));
   osc.start(t0);
   osc.stop(t0 + dur + 0.03);
 }
@@ -175,7 +197,7 @@ function fm(
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(gain, t0 + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  carrier.connect(g).connect(ac.destination);
+  carrier.connect(g).connect(bus(ac));
   carrier.start(t0);
   mod.start(t0);
   carrier.stop(t0 + dur + 0.05);
@@ -222,7 +244,7 @@ function wobble(
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(g).connect(ac.destination);
+  osc.connect(g).connect(bus(ac));
   osc.start(t0);
   lfo.start(t0);
   osc.stop(t0 + dur + 0.05);
@@ -266,7 +288,7 @@ function whoosh(
   g.gain.setValueAtTime(0.0001, t0);
   g.gain.linearRampToValueAtTime(gain, t0 + dur * 0.25);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(bp).connect(g).connect(ac.destination);
+  src.connect(bp).connect(g).connect(bus(ac));
   src.start(t0);
   src.stop(t0 + dur + 0.02);
 }
@@ -290,7 +312,50 @@ function noise(
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(bp).connect(g).connect(ac.destination);
+  src.connect(bp).connect(g).connect(bus(ac));
+  src.start(t0);
+  src.stop(t0 + dur + 0.02);
+}
+
+// Broadband noise impact — white noise through a lowpass that sweeps
+// down, with a fast decay. Q stays below resonance so there's no pitched
+// ring: it reads as a physical "thwack/crunch" (flesh, armor, shield),
+// never a struck bell or glass. This is the body of every melee hit.
+function crunch(
+  ac: AudioContext,
+  o: {
+    start?: number;
+    dur?: number;
+    gain?: number;
+    fromFreq?: number;
+    toFreq?: number;
+    q?: number;
+  },
+) {
+  const {
+    start = 0,
+    dur = 0.14,
+    gain = 0.2,
+    fromFreq = 3200,
+    toFreq = 320,
+    q = 0.5,
+  } = o;
+  const t0 = ac.currentTime + start;
+  const frames = Math.floor(ac.sampleRate * dur);
+  const buffer = ac.createBuffer(1, frames, ac.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buffer;
+  const lp = ac.createBiquadFilter();
+  lp.type = "lowpass";
+  lp.Q.setValueAtTime(q, t0);
+  lp.frequency.setValueAtTime(fromFreq, t0);
+  lp.frequency.exponentialRampToValueAtTime(Math.max(40, toFreq), t0 + dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(lp).connect(g).connect(bus(ac));
   src.start(t0);
   src.stop(t0 + dur + 0.02);
 }
@@ -320,25 +385,50 @@ function melody(
 
 // ── the sounds — each a distinct timbre ────────────────────────────
 const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
-  // sword clang: inharmonic metallic FM hit + a swing "chh"
+  // weapon hit: a meaty "thwack" — a bright noise smack up front, a
+  // broadband crunch body that darkens as it decays, and a short pitched
+  // punch for weight. All noise + one quick thump, so there's no ringing
+  // tone to sound like a struck bottle.
   attack: (ac) => {
-    noise(ac, { dur: 0.04, gain: 0.06, filter: 3200 });
-    fm(ac, { freq: 760, ratio: 1.6, index: 6, type: "sawtooth", dur: 0.11, gain: 0.14 });
+    noise(ac, { dur: 0.03, gain: 0.16, filter: 5000 });
+    crunch(ac, { dur: 0.17, gain: 0.24, fromFreq: 3200, toFreq: 300, q: 0.5 });
+    tone(ac, { freq: 220, type: "triangle", dur: 0.12, gain: 0.17, sweepTo: 70 });
   },
-  // critical: two rising metallic clangs — bigger, brighter
+  // critical: a bigger, longer double-thwack — two crunch layers land in
+  // quick succession under a brighter smack and a heavier punch, with a
+  // short bright-noise sizzle on top. Exaggerated, still all impact.
   crit: (ac) => {
-    noise(ac, { dur: 0.05, gain: 0.08, filter: 4200 });
-    fm(ac, { freq: 820, ratio: 1.5, index: 7, type: "sawtooth", dur: 0.1, gain: 0.14 });
-    fm(ac, { freq: 1320, ratio: 2, index: 6, type: "sawtooth", start: 0.09, dur: 0.18, gain: 0.14 });
+    noise(ac, { dur: 0.04, gain: 0.2, filter: 6000 });
+    crunch(ac, { dur: 0.24, gain: 0.26, fromFreq: 4200, toFreq: 260, q: 0.5 });
+    crunch(ac, { start: 0.06, dur: 0.26, gain: 0.17, fromFreq: 2400, toFreq: 200, q: 0.5 });
+    noise(ac, { start: 0.02, dur: 0.14, gain: 0.07, filter: 7500 });
+    tone(ac, { freq: 250, type: "triangle", dur: 0.2, gain: 0.2, sweepTo: 60 });
   },
-  // miss: an airy filtered-noise swoosh, no tone
+  // miss: a long airy swipe — the weapon whistling through empty air.
+  // High and breathy so it never reads as an impact.
   miss: (ac) => {
-    whoosh(ac, { dur: 0.24, gain: 0.11, fromFreq: 5200, toFreq: 480, q: 0.7 });
+    whoosh(ac, { dur: 0.48, gain: 0.2, fromFreq: 6000, toFreq: 520, q: 0.7 });
+    whoosh(ac, { start: 0.05, dur: 0.34, gain: 0.12, fromFreq: 9000, toFreq: 1400, q: 1.6 });
   },
-  // spellcast: a rising FM bell + a high shimmering vibrato sparkle
+  // block/parry: a hard "clank" — a sharp bright-noise tink of steel meeting
+  // steel over a short broadband crunch and a solid low thump. Brighter and
+  // snappier than the attack thwack, so you can tell a block apart. Noise +
+  // one thump, so no glassy ring.
+  block: (ac) => {
+    noise(ac, { dur: 0.05, gain: 0.18, filter: 4200 });
+    noise(ac, { start: 0.004, dur: 0.03, gain: 0.12, filter: 6800 });
+    crunch(ac, { dur: 0.12, gain: 0.2, fromFreq: 2600, toFreq: 360, q: 0.6 });
+    tone(ac, { freq: 180, type: "triangle", dur: 0.11, gain: 0.16, sweepTo: 70 });
+  },
+  // spellcast: purely tonal and shimmering — a rising magical sweep, a
+  // vibrato sparkle, and an ascending bell arpeggio. No steel, no thud,
+  // so it never reads like a weapon swing.
   spell: (ac) => {
-    fm(ac, { freq: 520, ratio: 3.5, index: 4, type: "sine", dur: 0.32, gain: 0.11, sweepTo: 1040 });
-    wobble(ac, { freq: 1250, type: "triangle", start: 0.05, dur: 0.28, gain: 0.05, lfoHz: 24, lfoDepth: 30 });
+    fm(ac, { freq: 440, ratio: 3.5, index: 3, type: "sine", dur: 0.4, gain: 0.15, sweepTo: 1200 });
+    wobble(ac, { freq: 1400, type: "triangle", start: 0.04, dur: 0.36, gain: 0.06, lfoHz: 26, lfoDepth: 42 });
+    [1047, 1319, 1568].forEach((f, i) =>
+      fm(ac, { freq: f, ratio: 2, index: 2, type: "sine", start: 0.14 + i * 0.06, dur: 0.22, gain: 0.09 }),
+    );
   },
   // heal: three warm, soft ascending bells
   heal: (ac) => {

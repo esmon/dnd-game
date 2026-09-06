@@ -225,9 +225,11 @@ export function Arena() {
   useEffect(() => {
     if (state.lastMonsterAttack.nonce !== sfxRef.current.monsterNonce) {
       sfxRef.current.monsterNonce = state.lastMonsterAttack.nonce;
-      playSfx("hurt");
+      // damage 0 = the monster's blow missed and you turned it aside —
+      // a solid block; otherwise you took the hit.
+      playSfx(state.lastMonsterAttack.damage > 0 ? "hurt" : "block");
     }
-  }, [state.lastMonsterAttack.nonce]);
+  }, [state.lastMonsterAttack.nonce, state.lastMonsterAttack.damage]);
   useEffect(() => {
     const won = !!state.victory;
     if (won && !sfxRef.current.won) {
