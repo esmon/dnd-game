@@ -17,6 +17,7 @@ export type SfxName =
   | "miss"
   | "block"
   | "spell"
+  | "spellMiss"
   | "heal"
   | "hurt"
   | "victory"
@@ -118,6 +119,24 @@ function bus(ac: AudioContext): AudioNode {
     masterNode.connect(comp).connect(ac.destination);
   }
   return masterNode;
+}
+
+// Cached distortion curves for a WaveShaper — a tanh saturator. Higher k
+// hard-clips harder, folding the noise crunch into a fuzzy, distorted
+// growl. The curves are static lookup tables, so cache them per k.
+const distCurves = new Map<number, Float32Array<ArrayBuffer>>();
+function distCurve(k: number): Float32Array<ArrayBuffer> {
+  let c = distCurves.get(k);
+  if (!c) {
+    const n = 2048;
+    c = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * 2 - 1;
+      c[i] = Math.tanh(k * x);
+    }
+    distCurves.set(k, c);
+  }
+  return c;
 }
 
 // ── synth primitives ───────────────────────────────────────────────
@@ -317,47 +336,79 @@ function noise(
   src.stop(t0 + dur + 0.02);
 }
 
-// Broadband noise impact — white noise through a lowpass that sweeps
-// down, with a fast decay. Q stays below resonance so there's no pitched
-// ring: it reads as a physical "thwack/crunch" (flesh, armor, shield),
-// never a struck bell or glass. This is the body of every melee hit.
-function crunch(
+// Gritty "chip" crunch — the character that generic white noise lacks. The
+// wavetable is filled by the NES APU's *own* noise generator: a 15-bit LFSR
+// in "short" mode (feedback from bits 0 and 6), the exact circuit behind
+// every Dragon-Warrior-era crunch. Its 1-bit output is a hard, metallic
+// buzz — not smooth random hiss — and looping it keeps that periodic grit.
+// Sweeping playbackRate slides the pitch, giving the signature descending
+// crunch of a hit. Base pitch ≈ sampleRate / seedLen · rate; a bandpass
+// gives it a throat. This emulates the chip; it copies no actual sound.
+function chip(
   ac: AudioContext,
   o: {
     start?: number;
     dur?: number;
     gain?: number;
-    fromFreq?: number;
-    toFreq?: number;
+    seedLen?: number;
+    rate?: number;
+    rateTo?: number;
+    filter?: number;
     q?: number;
+    drive?: number;
   },
 ) {
   const {
     start = 0,
-    dur = 0.14,
-    gain = 0.2,
-    fromFreq = 3200,
-    toFreq = 320,
-    q = 0.5,
+    dur = 0.2,
+    gain = 0.18,
+    seedLen = 48,
+    rate = 2,
+    rateTo,
+    filter = 3600,
+    q = 1.2,
+    drive = 0,
   } = o;
   const t0 = ac.currentTime + start;
-  const frames = Math.floor(ac.sampleRate * dur);
-  const buffer = ac.createBuffer(1, frames, ac.sampleRate);
+  const buffer = ac.createBuffer(1, Math.max(2, seedLen), ac.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+  // 15-bit LFSR, short mode: fb = bit0 XOR bit6, shifted into bit14. The
+  // 1-bit output is the real NES noise-channel texture.
+  let reg = 1;
+  for (let i = 0; i < data.length; i++) {
+    const fb = (reg & 1) ^ ((reg >> 6) & 1);
+    reg = (reg >> 1) | (fb << 14);
+    data[i] = reg & 1 ? 0.9 : -0.9;
+  }
   const src = ac.createBufferSource();
   src.buffer = buffer;
-  const lp = ac.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.Q.setValueAtTime(q, t0);
-  lp.frequency.setValueAtTime(fromFreq, t0);
-  lp.frequency.exponentialRampToValueAtTime(Math.max(40, toFreq), t0 + dur);
+  src.loop = true;
+  src.playbackRate.setValueAtTime(rate, t0);
+  if (rateTo) {
+    src.playbackRate.exponentialRampToValueAtTime(Math.max(0.05, rateTo), t0 + dur);
+  }
+  const bp = ac.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = filter;
+  bp.Q.value = q;
   const g = ac.createGain();
   g.gain.setValueAtTime(gain, t0);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  src.connect(lp).connect(g).connect(bus(ac));
+  // Optional distortion: drive the noise hard into a tanh saturator for a
+  // fuzzy, crunchy growl (used on melee attacks).
+  let head: AudioNode = src;
+  if (drive > 0) {
+    const inGain = ac.createGain();
+    inGain.gain.value = 1 + drive;
+    const shaper = ac.createWaveShaper();
+    shaper.curve = distCurve(2 + drive * 1.5);
+    shaper.oversample = "2x";
+    src.connect(inGain).connect(shaper);
+    head = shaper;
+  }
+  head.connect(bp).connect(g).connect(bus(ac));
   src.start(t0);
-  src.stop(t0 + dur + 0.02);
+  src.stop(t0 + dur + 0.03);
 }
 
 // Play a sequence of notes — an original little melody. Each note is
@@ -385,24 +436,31 @@ function melody(
 
 // ── the sounds — each a distinct timbre ────────────────────────────
 const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
-  // weapon hit: a meaty "thwack" — a bright noise smack up front, a
-  // broadband crunch body that darkens as it decays, and a short pitched
-  // punch for weight. All noise + one quick thump, so there's no ringing
-  // tone to sound like a struck bottle.
+  // weapon hit: a bright steel strike, not a woody thud. A sharp high edge
+  // transient (the bite of the blade), a gritty chip crunch that stays up in
+  // the steel range as it sweeps, a thin square edge, and only a light low
+  // tap — so the energy lives up top where a blade lives, with just enough
+  // body to land.
   attack: (ac) => {
-    noise(ac, { dur: 0.03, gain: 0.16, filter: 5000 });
-    crunch(ac, { dur: 0.17, gain: 0.24, fromFreq: 3200, toFreq: 300, q: 0.5 });
-    tone(ac, { freq: 220, type: "triangle", dur: 0.12, gain: 0.17, sweepTo: 70 });
+    // dense noisy onset — the tall spike cluster at the attack
+    noise(ac, { dur: 0.03, gain: 0.15, filter: 5200 });
+    // body: a driven NES crunch whose pitch sweeps *down* as it decays, so
+    // the cycles spread apart and fade out — matching the reference wave
+    chip(ac, { dur: 0.42, gain: 0.19, seedLen: 40, rate: 3.4, rateTo: 0.34, filter: 3200, q: 1.2, drive: 2.6 });
+    // a descending sawtooth reinforces the clean periodic spikes
+    tone(ac, { freq: 300, type: "sawtooth", dur: 0.4, gain: 0.1, sweepTo: 62 });
+    // a light low tap for a bit of body
+    tone(ac, { freq: 190, type: "triangle", dur: 0.16, gain: 0.1, sweepTo: 92 });
   },
-  // critical: a bigger, longer double-thwack — two crunch layers land in
-  // quick succession under a brighter smack and a heavier punch, with a
-  // short bright-noise sizzle on top. Exaggerated, still all impact.
+  // critical: the same descending-crunch shape as a normal hit, but bigger —
+  // longer, a deeper downward sweep, a second crunch layer behind it, and
+  // heavier distortion so a crit clearly hits harder.
   crit: (ac) => {
-    noise(ac, { dur: 0.04, gain: 0.2, filter: 6000 });
-    crunch(ac, { dur: 0.24, gain: 0.26, fromFreq: 4200, toFreq: 260, q: 0.5 });
-    crunch(ac, { start: 0.06, dur: 0.26, gain: 0.17, fromFreq: 2400, toFreq: 200, q: 0.5 });
-    noise(ac, { start: 0.02, dur: 0.14, gain: 0.07, filter: 7500 });
-    tone(ac, { freq: 250, type: "triangle", dur: 0.2, gain: 0.2, sweepTo: 60 });
+    noise(ac, { dur: 0.035, gain: 0.17, filter: 6000 });
+    chip(ac, { dur: 0.5, gain: 0.2, seedLen: 36, rate: 3.8, rateTo: 0.3, filter: 3400, q: 1.3, drive: 3.4 });
+    chip(ac, { start: 0.06, dur: 0.34, gain: 0.13, seedLen: 56, rate: 2.6, rateTo: 0.4, filter: 2400, q: 1.2, drive: 3.0 });
+    tone(ac, { freq: 340, type: "sawtooth", dur: 0.46, gain: 0.1, sweepTo: 55 });
+    tone(ac, { freq: 210, type: "triangle", dur: 0.2, gain: 0.11, sweepTo: 80 });
   },
   // miss: a long airy swipe — the weapon whistling through empty air.
   // High and breathy so it never reads as an impact.
@@ -410,50 +468,72 @@ const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
     whoosh(ac, { dur: 0.48, gain: 0.2, fromFreq: 6000, toFreq: 520, q: 0.7 });
     whoosh(ac, { start: 0.05, dur: 0.34, gain: 0.12, fromFreq: 9000, toFreq: 1400, q: 1.6 });
   },
-  // block/parry: a hard "clank" — a sharp bright-noise tink of steel meeting
-  // steel over a short broadband crunch and a solid low thump. Brighter and
-  // snappier than the attack thwack, so you can tell a block apart. Noise +
-  // one thump, so no glassy ring.
+  // block/parry: a short, bright gritty "tink" of steel turning steel — a
+  // high chip crunch that barely sweeps (a quick clip, not a long crash), a
+  // square ping, and a small thump. Brighter and snappier than the attack,
+  // so a deflection is unmistakable.
   block: (ac) => {
-    noise(ac, { dur: 0.05, gain: 0.18, filter: 4200 });
-    noise(ac, { start: 0.004, dur: 0.03, gain: 0.12, filter: 6800 });
-    crunch(ac, { dur: 0.12, gain: 0.2, fromFreq: 2600, toFreq: 360, q: 0.6 });
-    tone(ac, { freq: 180, type: "triangle", dur: 0.11, gain: 0.16, sweepTo: 70 });
+    chip(ac, { dur: 0.13, gain: 0.2, seedLen: 22, rate: 3.0, rateTo: 1.6, filter: 5200, q: 1.5 });
+    tone(ac, { freq: 540, type: "square", dur: 0.07, gain: 0.12, sweepTo: 300 });
+    tone(ac, { freq: 180, type: "triangle", dur: 0.18, gain: 0.14, sweepTo: 82 });
   },
-  // spellcast: purely tonal and shimmering — a rising magical sweep, a
-  // vibrato sparkle, and an ascending bell arpeggio. No steel, no thud,
-  // so it never reads like a weapon swing.
+  // spellcast: arcane, not cheerful. A rising whoosh of gathering energy,
+  // a low mystical drone for dungeon gravity, an eerie detuned shimmer a
+  // *hollow fifth* apart (ancient/ominous — no bright major third), and a
+  // single soft mote of magic dust. Never a bell arpeggio.
   spell: (ac) => {
-    fm(ac, { freq: 440, ratio: 3.5, index: 3, type: "sine", dur: 0.4, gain: 0.15, sweepTo: 1200 });
-    wobble(ac, { freq: 1400, type: "triangle", start: 0.04, dur: 0.36, gain: 0.06, lfoHz: 26, lfoDepth: 42 });
-    [1047, 1319, 1568].forEach((f, i) =>
-      fm(ac, { freq: f, ratio: 2, index: 2, type: "sine", start: 0.14 + i * 0.06, dur: 0.22, gain: 0.09 }),
-    );
+    whoosh(ac, { dur: 0.36, gain: 0.09, fromFreq: 240, toFreq: 3400, q: 1.4 });
+    wobble(ac, { freq: 130, type: "triangle", dur: 0.44, gain: 0.1, lfoHz: 6, lfoDepth: 5, sweepTo: 175 });
+    wobble(ac, { freq: 494, type: "triangle", start: 0.05, dur: 0.36, gain: 0.08, lfoHz: 17, lfoDepth: 24, sweepTo: 740 });
+    wobble(ac, { freq: 742, type: "sine", start: 0.08, dur: 0.32, gain: 0.05, lfoHz: 22, lfoDepth: 30, sweepTo: 988 });
+    fm(ac, { freq: 1480, ratio: 2.7, index: 4, type: "sine", start: 0.16, dur: 0.26, gain: 0.05 });
   },
-  // heal: three warm, soft ascending bells
+  // spell fizzle: the gathered energy collapses — a wavering, detuned
+  // downward whir, a low sputter of dissipating magic, and a soft airy
+  // whiff past. The descending, unstable contour is the inverse of the
+  // rising cast, so a miss reads instantly — and it stays arcane, not
+  // like a cartoon "wah-wah".
+  spellMiss: (ac) => {
+    wobble(ac, { freq: 620, type: "triangle", dur: 0.32, gain: 0.11, lfoHz: 18, lfoDepth: 30, sweepTo: 165 });
+    wobble(ac, { freq: 930, type: "sine", start: 0.02, dur: 0.26, gain: 0.05, lfoHz: 24, lfoDepth: 24, sweepTo: 220 });
+    noise(ac, { start: 0.04, dur: 0.16, gain: 0.05, filter: 1200 });
+    whoosh(ac, { start: 0.05, dur: 0.24, gain: 0.08, fromFreq: 3400, toFreq: 480, q: 1.1 });
+  },
+  // heal: a warm restorative glow — a soft low swell that rises a little,
+  // two gentle sine tones a fourth apart, and a faint shimmer of light.
+  // Soothing and mystical rather than a chirpy ascending arpeggio.
   heal: (ac) => {
-    [440, 587, 784].forEach((f, i) =>
-      fm(ac, { freq: f, ratio: 2, index: 1.5, type: "sine", start: i * 0.09, dur: 0.34, gain: 0.1 }),
-    );
+    wobble(ac, { freq: 196, type: "triangle", dur: 0.5, gain: 0.09, lfoHz: 5, lfoDepth: 4, sweepTo: 262 }); // G3→C4
+    fm(ac, { freq: 392, ratio: 2, index: 1.2, type: "sine", start: 0.08, dur: 0.42, gain: 0.09 }); // G4
+    fm(ac, { freq: 523, ratio: 2, index: 1.2, type: "sine", start: 0.2, dur: 0.42, gain: 0.08 }); // C5 (fourth)
+    wobble(ac, { freq: 784, type: "sine", start: 0.14, dur: 0.36, gain: 0.04, lfoHz: 14, lfoDepth: 16 });
   },
-  // taking a hit: a low downward buzzy "oof" + a dull thump
+  // taking a hit: a gritty, *distorted crunch* of the blow tearing into you —
+  // a noisy contact bite, a driven chip crunch (this is the crunch; it was a
+  // dull thud before), and only a light low grunt underneath for the "oof".
+  // Lower and harsher than your own steel strike, so it reads as the monster
+  // hurting you rather than a clean weapon hit.
   hurt: (ac) => {
-    tone(ac, { freq: 220, type: "sawtooth", dur: 0.16, gain: 0.14, sweepTo: 80 });
-    noise(ac, { dur: 0.07, gain: 0.05, filter: 380 });
+    noise(ac, { dur: 0.03, gain: 0.14, filter: 3600 });
+    chip(ac, { dur: 0.3, gain: 0.2, seedLen: 60, rate: 2.3, rateTo: 0.4, filter: 2600, q: 1.2, drive: 2.8 });
+    tone(ac, { freq: 180, type: "sawtooth", dur: 0.2, gain: 0.13, sweepTo: 58 });
+    tone(ac, { freq: 140, type: "triangle", dur: 0.2, gain: 0.11, sweepTo: 56 });
   },
-  // victory: an original rising fanfare melody landing on a held chord
+  // victory: a grim, heroic war-horn fanfare — a rising D-minor arpeggio on
+  // brass-like sawtooth in a low register, over a D root drone, resolving to
+  // a held octave with an *open fifth* pad (epic and ancient, not a bright
+  // major level-clear jingle).
   victory: (ac) => {
+    tone(ac, { freq: 147, type: "triangle", dur: 1.05, gain: 0.09 }); // D3 root drone
     melody(ac, [
-      { f: 523, at: 0, dur: 0.12 },
-      { f: 659, at: 0.12, dur: 0.12 },
-      { f: 784, at: 0.24, dur: 0.12 },
-      { f: 1047, at: 0.36, dur: 0.14 },
-      { f: 784, at: 0.52, dur: 0.1 },
-      { f: 1047, at: 0.62, dur: 0.42 },
+      { f: 220, at: 0, dur: 0.16, type: "sawtooth", gain: 0.11 }, // A3
+      { f: 294, at: 0.16, dur: 0.16, type: "sawtooth", gain: 0.11 }, // D4
+      { f: 349, at: 0.32, dur: 0.16, type: "sawtooth", gain: 0.11 }, // F4 (minor 3rd)
+      { f: 440, at: 0.48, dur: 0.24, type: "sawtooth", gain: 0.12 }, // A4
+      { f: 587, at: 0.74, dur: 0.5, type: "sawtooth", gain: 0.12 }, // D5 (held)
     ]);
-    [523, 659].forEach((f) =>
-      tone(ac, { freq: f, type: "triangle", start: 0.62, dur: 0.42, gain: 0.06 }),
-    );
+    tone(ac, { freq: 294, type: "triangle", start: 0.74, dur: 0.5, gain: 0.06 }); // D4
+    tone(ac, { freq: 440, type: "triangle", start: 0.74, dur: 0.5, gain: 0.05 }); // A4 (fifth)
   },
   // defeat: a slow descending, wobbly "game over" wah
   defeat: (ac) => {
@@ -470,37 +550,48 @@ const SOUNDS: Record<SfxName, (ac: AudioContext) => void> = {
       }),
     );
   },
-  // slip away: a quick rising swoosh + light scampering blips
+  // slip away: a hurried, tense retreat — a low dash-away whoosh and a quick
+  // *descending* minor scurry (nervous footsteps fading into the dark), not
+  // a cheerful rising run.
   flee: (ac) => {
-    whoosh(ac, { dur: 0.2, gain: 0.06, fromFreq: 500, toFreq: 3200, q: 1 });
-    [660, 880, 1100].forEach((f, i) =>
-      tone(ac, { freq: f, type: "triangle", start: i * 0.05, dur: 0.05, gain: 0.07 }),
+    whoosh(ac, { dur: 0.26, gain: 0.08, fromFreq: 2400, toFreq: 400, q: 1 });
+    [523, 440, 349, 294].forEach((f, i) =>
+      tone(ac, { freq: f, type: "triangle", start: i * 0.05, dur: 0.055, gain: 0.08 }),
     );
   },
-  // loot: a bright two-note metallic coin "cha-ching"
+  // loot: the heft of found treasure — a low metallic "chunk" of gold, then
+  // a mysterious minor-third chime in a mid register. Darker and heavier
+  // than a bright arcade coin blip.
   loot: (ac) => {
-    fm(ac, { freq: 1180, ratio: 2, index: 3, type: "square", dur: 0.07, gain: 0.11 });
-    fm(ac, { freq: 1560, ratio: 2, index: 3, type: "square", start: 0.07, dur: 0.16, gain: 0.11 });
+    fm(ac, { freq: 320, ratio: 2.2, index: 5, type: "sawtooth", dur: 0.1, gain: 0.13 });
+    noise(ac, { dur: 0.05, gain: 0.05, filter: 900 });
+    fm(ac, { freq: 622, ratio: 2, index: 3, type: "sine", start: 0.07, dur: 0.16, gain: 0.1 }); // D#5
+    fm(ac, { freq: 740, ratio: 2, index: 3, type: "sine", start: 0.13, dur: 0.26, gain: 0.1 }); // F#5 (minor 3rd)
   },
-  // level up: an original ascending run resolving on a held high chord
+  // level up: a heroic E-minor ascent on brass-like sawtooth over an E root
+  // drone, resolving to a held octave with an open-fifth pad and a single
+  // shimmering mote to mark the growth. Epic and modal, not a 1-up jingle.
   levelUp: (ac) => {
+    tone(ac, { freq: 165, type: "triangle", dur: 1.1, gain: 0.08 }); // E3 root drone
     melody(ac, [
-      { f: 392, at: 0, dur: 0.1 },
-      { f: 523, at: 0.1, dur: 0.1 },
-      { f: 659, at: 0.2, dur: 0.1 },
-      { f: 784, at: 0.3, dur: 0.1 },
-      { f: 880, at: 0.4, dur: 0.1 },
-      { f: 1047, at: 0.5, dur: 0.4 },
+      { f: 247, at: 0, dur: 0.12, type: "sawtooth", gain: 0.1 }, // B3
+      { f: 330, at: 0.12, dur: 0.12, type: "sawtooth", gain: 0.1 }, // E4
+      { f: 392, at: 0.24, dur: 0.12, type: "sawtooth", gain: 0.11 }, // G4 (minor 3rd)
+      { f: 494, at: 0.36, dur: 0.12, type: "sawtooth", gain: 0.11 }, // B4
+      { f: 659, at: 0.48, dur: 0.5, type: "sawtooth", gain: 0.12 }, // E5 (held)
     ]);
-    [659, 784].forEach((f) =>
-      tone(ac, { freq: f, type: "triangle", start: 0.5, dur: 0.4, gain: 0.06 }),
-    );
+    tone(ac, { freq: 330, type: "triangle", start: 0.48, dur: 0.5, gain: 0.06 }); // E4
+    tone(ac, { freq: 494, type: "triangle", start: 0.48, dur: 0.5, gain: 0.05 }); // B4 (fifth)
+    fm(ac, { freq: 1319, ratio: 2.6, index: 4, type: "sine", start: 0.5, dur: 0.4, gain: 0.05 });
   },
-  // battle begins: a low ominous rumble under a rising two-tone alarm
+  // battle begins: a grim war-horn call — a low sub rumble and a heavy
+  // opening thud under two low sawtooth horn blasts a martial fourth apart,
+  // the second sagging slightly for menace. Ominous, not a chirpy alarm.
   battleStart: (ac) => {
-    wobble(ac, { freq: 90, type: "sawtooth", dur: 0.36, gain: 0.1, lfoHz: 8, lfoDepth: 12 });
-    tone(ac, { freq: 440, type: "square", start: 0.06, dur: 0.12, gain: 0.09, sweepTo: 660 });
-    tone(ac, { freq: 660, type: "square", start: 0.2, dur: 0.16, gain: 0.1, sweepTo: 880 });
+    wobble(ac, { freq: 82, type: "sawtooth", dur: 0.5, gain: 0.11, lfoHz: 7, lfoDepth: 10 });
+    noise(ac, { dur: 0.12, gain: 0.05, filter: 300 });
+    tone(ac, { freq: 165, type: "sawtooth", start: 0.05, dur: 0.2, gain: 0.12 }); // E3
+    tone(ac, { freq: 220, type: "sawtooth", start: 0.24, dur: 0.3, gain: 0.12, sweepTo: 208 }); // A3, sagging
   },
   // new monster: an ominous descending three-note motif, then a low
   // guttural growl + subterranean rumble under the final note

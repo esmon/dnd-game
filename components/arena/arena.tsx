@@ -513,7 +513,6 @@ export function Arena() {
       damageDice: string,
       damageType: string,
     ) => {
-      playSfx("spell");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -548,6 +547,7 @@ export function Arena() {
         abilityModifier(snap.player.abilityScores[ability]);
       const attack = rollAttack(mod, snap.monster.ac);
       if (!attack.hit) {
+        playSfx("spellMiss");
         // Slot is still consumed on miss for spell-attack spells.
         dispatch({
           type: "CAST_SPELL",
@@ -559,6 +559,7 @@ export function Arena() {
         triggerMonsterAttack();
         return;
       }
+      playSfx("spell");
       const rawDamage =
         rollDice(damageDice) + (attack.crit ? rollDice(damageDice) : 0);
       const dmgMult = damageMultiplier(
@@ -698,7 +699,6 @@ export function Arena() {
 
   const handleUseScroll = useCallback(
     (scrollId: string, damageDice: string, damageType: string) => {
-      playSfx("spell");
       const snap = stateRef.current;
       if (
         snap.status !== "fighting" ||
@@ -723,6 +723,7 @@ export function Arena() {
         abilityModifier(snap.player.abilityScores[ability]);
       const attack = rollAttack(mod, snap.monster.ac);
       if (!attack.hit) {
+        playSfx("spellMiss");
         dispatch({
           type: "USE_SCROLL",
           scrollId,
@@ -733,6 +734,7 @@ export function Arena() {
         triggerMonsterAttack();
         return;
       }
+      playSfx("spell");
       const rawDamage =
         rollDice(damageDice) + (attack.crit ? rollDice(damageDice) : 0);
       const dmgMult = damageMultiplier(
